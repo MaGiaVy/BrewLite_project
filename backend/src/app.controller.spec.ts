@@ -19,4 +19,15 @@ describe('AppController', () => {
       expect(appController.getHello()).toBe('Hello World!');
     });
   });
+
+  describe('health', () => {
+    it('should return health status with statusCode 200', () => {
+      const result = appController.getHealth();
+      expect(result.statusCode).toBe(200);
+      expect(result.status).toBe('ok');
+      expect(result.message).toContain('Backend');
+      expect(result.service).toBe('BrewLite Backend v1.0');
+      expect(result.timestamp).toBeDefined();
+    });
+  });
 });

@@ -5,6 +5,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     instrument: ObserveInstrument,
   });
+
+  // Cho phép Frontend (port 3000) gọi API sang Backend (port 3001)
+  app.enableCors();
+
   await app.listen(process.env.PORT ?? 3001);
 }
 await bootstrap();
