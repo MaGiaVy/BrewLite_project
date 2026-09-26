@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '@/stores/authStore';
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 

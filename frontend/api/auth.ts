@@ -1,5 +1,5 @@
-import { client } from './client';
-import { User } from '../stores/authStore';
+import { client } from '@/api/client';
+import { User } from '@/stores/authStore';
 
 export interface RegisterRequest {
   email: string;

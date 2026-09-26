@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { useAuthStore, User } from '../stores/authStore';
-import * as authApi from '../api/auth';
+import { useAuthStore, User } from '@/stores/authStore';
+import * as authApi from '@/api/auth';
 
 export const useAuth = () => {
   const {
