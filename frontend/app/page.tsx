@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import AuthHydration from '@/components/AuthHydration';
 import { useAuth } from '@/hooks/useAuth';
+import Logo from '@/components/Logo';
 
 interface HealthResponse {
   statusCode: number;
@@ -50,9 +51,9 @@ export default function Home() {
         <main className="flex flex-col items-center justify-center px-6 py-20">
           <div className="text-center">
             {/* Logo / Title */}
-            <h1 className="text-5xl font-bold text-emerald-700 mb-2">
-              🍵 BrewLite
-            </h1>
+            <div className="flex justify-center mb-3">
+              <Logo size="lg" />
+            </div>
             <p className="text-lg text-gray-600 mb-8">
               Premium Beverage Delivery App
             </p>

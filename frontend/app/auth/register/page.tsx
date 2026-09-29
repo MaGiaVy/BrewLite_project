@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import Logo from '@/components/Logo';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -64,8 +65,10 @@ export default function RegisterPage() {
 
   return (
     <div>
-      {/* Tiêu đề */}
-      <h1 className="text-4xl font-bold text-stone-800 mb-2">BrewLite</h1>
+      {/* Logo / Tiêu đề */}
+      <div className="mb-2">
+        <Logo size="lg" />
+      </div>
       <p className="text-stone-500 mb-8">
         Tạo tài khoản để bắt đầu đặt cà phê và trà yêu thích.
       </p>

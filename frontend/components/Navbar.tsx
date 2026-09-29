@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import Logo from '@/components/Logo';
 
 /**
  * Navbar — Thanh điều hướng chính của ứng dụng BrewLite.
@@ -24,9 +25,8 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 border-b border-stone-200 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo / Tên thương hiệu */}
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl">🍵</span>
-          <span className="text-xl font-bold text-stone-800">BrewLite</span>
+        <Link href="/" className="flex items-center">
+          <Logo size="md" />
         </Link>
 
         {/* Phần bên phải: Nút Auth */}
