@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import Logo from '@/components/Logo';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '/checkout';
   const { register, isLoading } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -35,13 +38,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Mật khẩu phải có ít nhất 8 ký tự');
-      return;
-    }
-
-    if (!/^(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
-      setError('Mật khẩu phải chứa cả chữ cái và chữ số');
+    if (password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự');
       return;
     }
 
@@ -52,7 +50,8 @@ export default function RegisterPage() {
 
     try {
       await register(email, password, confirmPassword);
-      router.push('/');
+      // Đăng ký thành công -> chuyển thẳng sang trang redirect (mặc định /checkout)
+      router.push(redirectPath);
     } catch (err: any) {
       const message =
         err?.response?.data?.message ||
@@ -64,36 +63,42 @@ export default function RegisterPage() {
 
   return (
     <div>
-      {/* Tiêu đề */}
-      <h1 className="text-4xl font-bold text-stone-800 mb-2">BrewLite</h1>
-      <p className="text-stone-500 mb-8">
-        Tạo tài khoản để bắt đầu đặt cà phê và trà yêu thích.
+      {/* Logo thương hiệu */}
+      <div className="mb-6">
+        <Logo size="lg" />
+      </div>
+
+      <h1 className="text-3xl font-serif font-bold text-[#2A1810] mb-1.5">
+        Tạo tài khoản
+      </h1>
+      <p className="text-sm text-[#6B5D52] mb-6">
+        Tạo tài khoản để bắt đầu đặt cà phê, nhận ưu đãi và tích lũy điểm thưởng.
       </p>
 
       {/* Thông báo lỗi */}
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-xs sm:text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Form đăng ký */}
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email */}
         <div>
           <label
             htmlFor="email"
-            className="block text-sm font-medium text-stone-700 mb-1"
+            className="block text-xs font-bold text-[#2A1810] mb-1"
           >
             Địa chỉ Email
           </label>
           <input
             id="email"
             type="email"
-            placeholder="xincho@example.com"
+            placeholder="khach@brewlite.vn"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 placeholder-stone-400 outline-none transition focus:border-stone-500 focus:ring-1 focus:ring-stone-500"
+            className="w-full rounded-xl border border-[#E8E5E1] bg-white px-4 py-3 text-sm text-[#2A1810] placeholder-stone-400 outline-none transition focus:border-[#2A1810] focus:ring-1 focus:ring-[#2A1810]"
             autoComplete="email"
           />
         </div>
@@ -102,17 +107,17 @@ export default function RegisterPage() {
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-stone-700 mb-1"
+            className="block text-xs font-bold text-[#2A1810] mb-1"
           >
-            Mật khẩu
+            Mật khẩu (≥ 6 ký tự)
           </label>
           <input
             id="password"
             type="password"
-            placeholder="Ít nhất 8 ký tự (có chữ và số)"
+            placeholder="Ít nhất 6 ký tự"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 placeholder-stone-400 outline-none transition focus:border-stone-500 focus:ring-1 focus:ring-stone-500"
+            className="w-full rounded-xl border border-[#E8E5E1] bg-white px-4 py-3 text-sm text-[#2A1810] placeholder-stone-400 outline-none transition focus:border-[#2A1810] focus:ring-1 focus:ring-[#2A1810]"
             autoComplete="new-password"
           />
         </div>
@@ -121,7 +126,7 @@ export default function RegisterPage() {
         <div>
           <label
             htmlFor="confirmPassword"
-            className="block text-sm font-medium text-stone-700 mb-1"
+            className="block text-xs font-bold text-[#2A1810] mb-1"
           >
             Xác nhận mật khẩu
           </label>
@@ -131,7 +136,7 @@ export default function RegisterPage() {
             placeholder="Nhập lại mật khẩu"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full rounded-lg border border-stone-300 bg-white px-4 py-3 text-stone-800 placeholder-stone-400 outline-none transition focus:border-stone-500 focus:ring-1 focus:ring-stone-500"
+            className="w-full rounded-xl border border-[#E8E5E1] bg-white px-4 py-3 text-sm text-[#2A1810] placeholder-stone-400 outline-none transition focus:border-[#2A1810] focus:ring-1 focus:ring-[#2A1810]"
             autoComplete="new-password"
           />
         </div>
@@ -140,22 +145,30 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full rounded-lg bg-[#6F4E37] py-3 text-base font-semibold text-white transition hover:bg-[#5C3D2E] focus:outline-none focus:ring-2 focus:ring-[#6F4E37] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-xl bg-[#2A1810] py-3.5 text-sm font-bold text-white transition hover:bg-[#42271A] focus:outline-none focus:ring-2 focus:ring-[#C28B5B] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm mt-2"
         >
-          {isLoading ? 'Đang xử lý...' : 'Tạo Tài Khoản'}
+          {isLoading ? 'Đang tạo tài khoản...' : 'Tạo Tài Khoản'}
         </button>
       </form>
 
       {/* Link sang trang đăng nhập */}
-      <p className="mt-6 text-center text-sm text-stone-500">
+      <p className="mt-6 text-center text-xs text-[#6B5D52]">
         Đã có tài khoản?{' '}
         <Link
-          href="/auth/login"
-          className="font-semibold text-stone-700 hover:text-stone-900 underline underline-offset-2 transition"
+          href={`/auth/login${redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : ''}`}
+          className="font-bold text-[#2A1810] hover:text-[#C28B5B] underline underline-offset-2 transition"
         >
           Đăng nhập ngay
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-[#6B5D52]">Đang tải...</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

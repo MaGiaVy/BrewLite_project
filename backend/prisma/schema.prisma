@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma schema file - BrewLite Project
+// PostgreSQL 16 + Prisma ORM v6.19.3
 
 generator client {
   provider = "prisma-client-js"
@@ -10,9 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// User model - Task 7: Authentication (JWT)
-// ============================================
+// 1. NGƯỜI DÙNG (User)
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -21,23 +19,146 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // Quan hệ 1-N: Một User có nhiều Orders
-  orders Order[]
+  orders        Order[]
 
   @@map("users")
 }
 
-// ============================================
-// Order model - Quan hệ với User
-// ============================================
+// 2. SẢN PHẨM (Product)
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  category    String   // COFFEE_VN, ESPRESSO, TEA
+  price       Int      // Giá gốc size S (VNĐ)
+  stock       Int      @default(0)
+  imageUrl    String
+  description String
+  version     Int      @default(0) // Optimistic Locking Version
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+// 3. TOPPING DÙNG CHUNG
+model Topping {
+  id          String   @id @default(uuid())
+  name        String
+  price       Int      // Giá topping (VNĐ)
+  isAvailable Boolean  @default(true)
+
+  orderItemToppings OrderItemTopping[]
+
+  @@map("toppings")
+}
+
+// 4. MÃ GIẢM GIÁ (Voucher)
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+model Voucher {
+  id            String       @id @default(uuid())
+  code          String       @unique
+  discountType  DiscountType
+  discountValue Int
+  minOrderValue Int          @default(0)
+  maxDiscount   Int          @default(0)
+  usageLimit    Int          @default(100)
+  usedCount     Int          @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+
+  orders        Order[]
+
+  @@map("vouchers")
+}
+
+// 5. ĐƠN HÀNG (Order)
+enum OrderStatus {
+  PENDING
+  PAID
+  PAYMENT_FAILED
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
 model Order {
-  id        String   @id @default(uuid())
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String      @id @default(uuid())
+  userId         String
+  voucherId      String?
+  status         OrderStatus @default(PENDING)
+  total          Int
+  discountAmount Int         @default(0)
+  finalTotal     Int
+  paymentMethod  String?     // WALLET, CARD
+  idempotencyKey String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  // Quan hệ N-1: Mỗi Order thuộc về 1 User
-  user User @relation(fields: [userId], references: [id])
+  user           User        @relation(fields: [userId], references: [id])
+  voucher        Voucher?    @relation(fields: [voucherId], references: [id])
+  items          OrderItem[]
+  payments       Payment[]
 
+  @@unique([userId, idempotencyKey])
   @@map("orders")
+}
+
+// 6. CHI TIẾT DÒNG ĐƠN HÀNG (OrderItem)
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  productId       String
+  size            String   // S, M, L
+  ice             String?  // 100% Đá, 70% Đá...
+  sugar           String?  // Chuẩn Ngọt, 70% Đường...
+  quantity        Int
+  priceAtPurchase Int      // Snapshot giá ly cơ sở + phụ thu size
+  lineTotal       Int      // Snapshot tổng dòng
+
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id])
+  toppings        OrderItemTopping[]
+
+  @@map("order_items")
+}
+
+// 7. SNAPSHOT TOPPING TRONG DÒNG ĐƠN HÀNG
+model OrderItemTopping {
+  id           String    @id @default(uuid())
+  orderItemId  String
+  toppingId    String
+  toppingName  String    // Snapshot tên
+  toppingPrice Int       // Snapshot giá
+
+  orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  topping      Topping   @relation(fields: [toppingId], references: [id])
+
+  @@map("order_item_toppings")
+}
+
+// 8. GIAO DỊCH THANH TOÁN (Payment)
+enum PaymentStatus {
+  SUCCESS
+  FAILURE
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  orderId        String
+  idempotencyKey String        @unique
+  amount         Int
+  method         String        // WALLET, CARD
+  status         PaymentStatus
+  createdAt      DateTime      @default(now())
+
+  order          Order         @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
 }
