@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import AuthHydration from '@/components/AuthHydration';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchMyOrders } from '@/api/orders';
 
 export default function OrderHistoryPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ALL');
+  const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Dữ liệu đơn hàng mẫu chuẩn kịch bản Kiosk
   const sampleOrders = [
@@ -45,9 +48,70 @@ export default function OrderHistoryPage() {
     },
   ];
 
-  const filteredOrders = sampleOrders.filter((order) => {
+  // Tải danh sách đơn hàng thực tế từ Backend (GET /api/v1/orders/me)
+  useEffect(() => {
+    let isMounted = true;
+    fetchMyOrders()
+      .then((data) => {
+        if (!isMounted) return;
+        if (data && data.length > 0) {
+          const mapped = data.map((ord: any) => {
+            const summary = ord.items?.length
+              ? `${ord.items.length} món: ${ord.items.map((i: any) => i.product?.name || 'Món nước').join(', ')}`
+              : 'Đơn hàng đồ uống BrewLite';
+
+            let statusText = 'Đang xử lý';
+            let badgeClass = 'bg-[#F8EBE0] text-[#8A5A00] border-[#EAD8CA]';
+            if (ord.status === 'COMPLETED') {
+              statusText = 'Hoàn tất · Completed';
+              badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+            } else if (ord.status === 'CANCELLED') {
+              statusText = 'Đã hủy · Cancelled';
+              badgeClass = 'bg-stone-100 text-[#6B5D52] border-stone-200';
+            } else if (ord.status === 'PAID') {
+              statusText = 'Đã thanh toán · Paid';
+              badgeClass = 'bg-blue-50 text-blue-800 border-blue-200';
+            } else if (ord.status === 'PREPARING') {
+              statusText = 'Đang pha chế · Preparing';
+              badgeClass = 'bg-[#F8EBE0] text-[#8A5A00] border-[#EAD8CA]';
+            } else if (ord.status === 'READY') {
+              statusText = 'Sẵn sàng nhận · Ready';
+              badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+            }
+
+            return {
+              id: ord.id,
+              date: new Date(ord.createdAt).toLocaleString('vi-VN'),
+              status: ord.status,
+              statusText,
+              badgeClass,
+              summary,
+              total: ord.finalTotal,
+              rewardPoints: Math.floor(ord.finalTotal / 10000),
+            };
+          });
+          setOrdersList(mapped);
+        } else {
+          setOrdersList(sampleOrders);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setOrdersList(sampleOrders);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const displayOrders = ordersList.length > 0 ? ordersList : sampleOrders;
+
+  const filteredOrders = displayOrders.filter((order) => {
     if (activeTab === 'ALL') return true;
-    if (activeTab === 'ACTIVE') return order.status === 'PREPARING' || order.status === 'PENDING' || order.status === 'READY';
+    if (activeTab === 'ACTIVE') return order.status === 'PREPARING' || order.status === 'PENDING' || order.status === 'PAID' || order.status === 'READY';
     if (activeTab === 'COMPLETED') return order.status === 'COMPLETED';
     if (activeTab === 'CANCELLED') return order.status === 'CANCELLED';
     return true;

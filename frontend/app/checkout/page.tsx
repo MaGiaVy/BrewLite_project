@@ -7,6 +7,9 @@ import Navbar from '@/components/Navbar';
 import AuthHydration from '@/components/AuthHydration';
 import { useCartStore } from '@/stores/cartStore';
 import { useAuth } from '@/hooks/useAuth';
+import { createOrder, CreateOrderPayload } from '@/api/orders';
+import { processPayment } from '@/api/payments';
+import { fetchProducts } from '@/api/products';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -37,6 +40,7 @@ export default function CheckoutPage() {
 
   // Trạng thái đang xử lý thanh toán
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Bảo vệ Auth: Nếu chưa đăng nhập -> chuyển sang login
   useEffect(() => {
@@ -119,34 +123,103 @@ export default function CheckoutPage() {
     setVoucherError('');
   };
 
-  // Xác nhận thanh toán
-  const handleConfirmPayment = () => {
-    setIsProcessing(true);
+  // Trạng thái lỗi trong quá trình thanh toán
+  const [checkoutError, setCheckoutError] = useState('');
 
-    // Giả lập gọi API thanh toán (Task 8 Mock Payment Service)
-    setTimeout(() => {
-      // Lưu thông tin đơn mẫu vào localStorage để trang tracking hiển thị
-      const orderData = {
-        orderId: '1042',
-        createdAt: new Date().toISOString(),
-        items,
-        subtotal,
-        discountAmount,
-        finalTotal,
-        paymentMethod: paymentMethod === 'WALLET' ? 'Ví điện tử (mô phỏng)' : 'Thẻ ngân hàng (mô phỏng)',
+  // Xác nhận thanh toán (Ráp nối API Task 8 & Task 10)
+  const handleConfirmPayment = async () => {
+    setIsProcessing(true);
+    setCheckoutError('');
+
+    try {
+      // 1. Tạo Idempotency-Key cho đơn hàng
+      const orderIdempotencyKey =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `order-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+      // 2. Lấy danh mục sản phẩm từ CSDL để chuẩn hóa ID sản phẩm thực tế
+      let dbProducts: any[] = [];
+      try {
+        dbProducts = await fetchProducts();
+      } catch (_) {}
+
+      // 3. Định dạng DTO gửi lên Backend
+      const orderPayload: CreateOrderPayload = {
+        items: items.map((it) => {
+          const matched = dbProducts.find(
+            (p) =>
+              p.id === it.productId ||
+              p.name.trim().toLowerCase() === it.name.trim().toLowerCase()
+          );
+          return {
+            productId: matched?.id || it.productId,
+            productName: it.name,
+            size: it.size,
+            ice: it.ice,
+            sugar: it.sugar,
+            quantity: it.quantity,
+            toppingIds:
+              it.toppings
+                ?.map((t) => t.id)
+                .filter((id) => id && !id.startsWith('top-')) || [],
+          };
+        }),
         voucherCode: appliedVoucher?.code,
-        rewardPoints,
+        paymentMethod,
+      };
+
+      // 4. Gọi Backend POST /api/v1/orders
+      const createdOrder = await createOrder(orderPayload, orderIdempotencyKey);
+
+      // 4. Gọi Backend POST /api/v1/payments (Task 8: Mock Payment Gateway)
+      const paymentIdempotencyKey = `pay-${createdOrder.id}-${orderIdempotencyKey}`;
+      const payResult = await processPayment(
+        {
+          orderId: createdOrder.id,
+          amount: createdOrder.finalTotal,
+          method: paymentMethod,
+          forceSuccess: true, // Đảm bảo đơn chuyển PAID trơn tru cho demo
+        },
+        paymentIdempotencyKey
+      );
+
+      // 5. Lưu thông tin đơn vào localStorage làm cache cho trang tracking
+      const orderData = {
+        orderId: createdOrder.id,
+        createdAt: createdOrder.createdAt || new Date().toISOString(),
+        items,
+        subtotal: createdOrder.subtotal || subtotal,
+        discountAmount: createdOrder.discountAmount || discountAmount,
+        finalTotal: createdOrder.finalTotal || finalTotal,
+        paymentMethod: paymentMethod === 'WALLET' ? 'Ví điện tử' : 'Thẻ ngân hàng',
+        voucherCode: appliedVoucher?.code,
+        rewardPoints: payResult?.data?.loyaltyPointsAdded || rewardPoints,
+        transactionCode: payResult?.data?.paymentId || `TX-${createdOrder.id.substring(0, 8)}`,
       };
       if (typeof window !== 'undefined') {
         localStorage.setItem('brewlite-last-order', JSON.stringify(orderData));
       }
 
-      // Xóa giỏ hàng sau khi thanh toán thành công
+      // 6. Đặt cờ đang chuyển hướng để tránh nhấp nháy giỏ hàng trống
+      setIsRedirecting(true);
+
+      // 7. Xóa giỏ hàng sau khi thanh toán thành công
       clearCart();
 
-      // Chuyển hướng sang trang Theo dõi đơn hàng
-      router.push('/orders/1042');
-    }, 1200);
+      // 8. Chuyển hướng sang trang Theo dõi đơn hàng với orderId thật từ Database
+      router.push(`/orders/${createdOrder.id}`);
+    } catch (err: any) {
+      console.error('Lỗi thanh toán:', err);
+      setIsRedirecting(false);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Có lỗi xảy ra trong quá trình tạo đơn hoặc thanh toán. Vui lòng thử lại!';
+      setCheckoutError(msg);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (authLoading || (!isAuthenticated && !user)) {
@@ -160,7 +233,24 @@ export default function CheckoutPage() {
     );
   }
 
-  if (items.length === 0) {
+  // Màn hình chuyển hướng mượt mà ngay sau khi bấm thanh toán thành công
+  if (isRedirecting) {
+    return (
+      <div className="min-h-screen bg-[#FBF8F3] flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-[#C28B5B] border-t-transparent" />
+          <h2 className="font-serif text-xl font-bold text-[#2A1810] mt-4">
+            Thanh toán thành công!
+          </h2>
+          <p className="mt-1 text-sm text-[#6B5D52]">
+            Đang chuyển sang màn hình nhận đồ uống tại quầy...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (items.length === 0 && !isProcessing && !isRedirecting) {
     return (
       <AuthHydration>
         <div className="min-h-screen bg-[#FBF8F3] flex flex-col">
@@ -522,6 +612,18 @@ export default function CheckoutPage() {
                     <span className="font-bold">+{rewardPoints} điểm</span>
                   </div>
                 </div>
+
+                {/* Thông báo lỗi thanh toán nếu có */}
+                {checkoutError && (
+                  <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+                    <svg className="w-4 h-4 shrink-0 text-red-500 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>{checkoutError}</span>
+                  </div>
+                )}
 
                 {/* Nút hành động chính: Xác nhận thanh toán */}
                 <button

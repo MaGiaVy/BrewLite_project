@@ -1,12 +1,13 @@
 'use client';
 
-import { use, useState, useMemo } from 'react';
+import { use, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import AuthHydration from '@/components/AuthHydration';
 import { MOCK_PRODUCTS, ProductTopping } from '@/data/mockProducts';
 import { useCartStore } from '@/stores/cartStore';
+import { fetchProductById, fetchProducts } from '@/api/products';
 
 export default function ProductDetailPage({
   params,
@@ -18,7 +19,62 @@ export default function ProductDetailPage({
   const addItem = useCartStore((state) => state.addItem);
 
   // Tìm sản phẩm trong mock data (hoặc backend API)
-  const product = MOCK_PRODUCTS.find((p) => p.id === resolvedParams.id) || MOCK_PRODUCTS[0];
+  const [product, setProduct] = useState<any>(() => {
+    return MOCK_PRODUCTS.find((p) => p.id === resolvedParams.id) || MOCK_PRODUCTS[0];
+  });
+
+  // Tải chi tiết sản phẩm thời gian thực từ PostgreSQL Backend
+  useEffect(() => {
+    let isMounted = true;
+    fetchProductById(resolvedParams.id)
+      .then((data) => {
+        if (data && isMounted) {
+          setProduct((prev: any) => ({
+            ...prev,
+            id: data.id,
+            name: data.name,
+            price: data.price,
+            stock: data.stock,
+            imageUrl: data.imageUrl,
+            description: data.description,
+            toppings:
+              data.availableToppings?.map((t) => ({
+                id: t.id,
+                name: t.name,
+                price: t.price,
+              })) || prev.toppings,
+          }));
+        }
+      })
+      .catch(() => {
+        // Nếu ID là mock slug, đối chiếu theo danh mục sản phẩm từ CSDL
+        fetchProducts()
+          .then((list) => {
+            if (!isMounted || !list) return;
+            const matched = list.find(
+              (p) =>
+                p.id === resolvedParams.id ||
+                p.name.toLowerCase().includes(resolvedParams.id.toLowerCase())
+            );
+            if (matched) {
+              setProduct((prev: any) => ({
+                ...prev,
+                id: matched.id,
+                name: matched.name,
+                price: matched.price,
+                stock: matched.stock,
+                imageUrl: matched.imageUrl,
+                description: matched.description,
+              }));
+            }
+          })
+          .catch(() => {});
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [resolvedParams.id]);
 
   // Trạng thái cấu hình món
   const [selectedSize, setSelectedSize] = useState<'S' | 'M' | 'L'>('S');
@@ -293,7 +349,7 @@ export default function ProductDetailPage({
                   </span>
                 </div>
                 <div className="flex flex-col gap-2.5">
-                  {product.toppings.map((topping) => {
+                  {product.toppings.map((topping: any) => {
                     const isChecked = selectedToppings.some((t) => t.id === topping.id);
                     return (
                       <button

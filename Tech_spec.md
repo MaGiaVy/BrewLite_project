@@ -442,7 +442,7 @@ interface ApiResponse<T> {
 * **Response `400 Bad Request`:** Email đã tồn tại hoặc mật khẩu không hợp lệ (< 6 ký tự).
 
 #### `POST /api/v1/auth/login`
-* **Mô tả:** Đăng nhập hệ thống bằng email và mật khẩu, trả về JWT Access Token (thời hạn 7 ngày).
+* **Mô tả:** Đăng nhập hệ thống bằng email và mật khẩu, trả về JWT Access Token (thời hạn 24 giờ / 1 ngày).
 * **Quyền:** Public.
 * **Request DTO (`LoginDto`):**
   ```json

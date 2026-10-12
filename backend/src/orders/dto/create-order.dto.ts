@@ -17,6 +17,10 @@ export class CreateOrderItemDto {
   @IsString({ message: 'Mã sản phẩm phải là chuỗi' })
   productId: string;
 
+  @IsOptional()
+  @IsString()
+  productName?: string;
+
   @IsNotEmpty({ message: 'Kích cỡ ly không được để trống' })
   @IsIn(['S', 'M', 'L'], { message: 'Kích cỡ phải là S, M hoặc L' })
   size: 'S' | 'M' | 'L';
