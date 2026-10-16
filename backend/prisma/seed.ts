@@ -56,7 +56,7 @@ async function main() {
       category: 'COFFEE_VN',
       price: 39000,
       stock: 50,
-      imageUrl: 'https://images.unsplash.com/photo-1585495403337-12431d102e3b?w=600',
+      imageUrl: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600',
       description: 'Cà phê đắng đậm đà hòa quyện cùng lớp kem muối béo ngậy, mặn nhẹ độc đáo.',
     },
     {
@@ -113,6 +113,16 @@ async function main() {
     const existing = await prisma.product.findFirst({ where: { name: p.name } });
     if (!existing) {
       await prisma.product.create({ data: p });
+    } else {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: {
+          imageUrl: p.imageUrl,
+          price: p.price,
+          description: p.description,
+          category: p.category,
+        },
+      });
     }
   }
 

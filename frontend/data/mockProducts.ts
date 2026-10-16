@@ -85,7 +85,7 @@ export const MOCK_PRODUCTS: Product[] = [
     badge: 'BESTSELLER',
     price: 39000,
     stock: 50,
-    imageUrl: 'https://images.unsplash.com/photo-1585495403337-12431d102e3b?w=600',
+    imageUrl: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600',
     description: 'Cà phê đắng đậm đà hòa quyện cùng lớp kem muối béo ngậy, mặn nhẹ độc đáo.',
     origin: 'FINE ROBUSTA & MUỐI BIỂN',
     tasteNote: 'Sự hòa quyện hoàn hảo giữa vị đậm đà nguyên bản và lớp kem sữa muối mặn thanh tinh tế.',

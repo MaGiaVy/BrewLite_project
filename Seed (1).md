@@ -71,7 +71,7 @@
   *     price: 39000,  
   *     stock: 50,  
   *     description: 'Cà phê đậm đà kết hợp cùng lớp kem muối béo mặn.',  
-  *     imageUrl: 'https\://images.unsplash.com/photo-1585495403337-12431d102e3b?w=500',  
+  *     imageUrl: 'https\://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600',  
   *   },  
   *   {  
   *     name: 'Caramel Macchiato',  
