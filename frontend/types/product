@@ -1,1 +1,51 @@
+// Kiểu dữ liệu theo hợp đồng API Task 2 trong Tech_spec.md.
+export interface Product {
+  id: string;
+  name: string;
+  price: number; // Base price for size S, in VND
+  stock: number;
+  imageUrl: string;
+  description: string;
+  category?: string;
+}
+
+export interface ApiResponse<T> {
+  statusCode: number;
+  message: string;
+  data: T;
+}
+
+export type ProductSort = 'featured' | 'price-asc' | 'price-desc' | 'name';
+
+
+export const CATEGORY_LABELS: Record<string, string> = {
+  COFFEE_VN: 'Cà phê Việt',
+  ESPRESSO: 'Cà phê pha máy',
+  TEA: 'Trà & Matcha',
+  COLD_BREW: 'Cold Brew',
+  PASTRY: 'Bánh ngọt',
+};
+
+export function formatVnd(amount: number): string {
+  return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(amount)}đ`;
+}
+
+export function normalizeSearch(value: string): string {
+  return value.toLocaleLowerCase('vi-VN').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').trim();
+}
+
+export function getProductImage(imageUrl: string): string {
+  if (!imageUrl) return '/images/coffee-placeholder.svg';
+  if (imageUrl.startsWith('/') && !imageUrl.startsWith('//')) {
+    // Ảnh demo được lưu trong public/images.
+    if (imageUrl.startsWith('/images/')) return imageUrl;
+    // Với ảnh tương đối từ Backend, ghép với URL máy chủ.
+    try {
+      return new URL(imageUrl, process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').toString();
+    } catch { return '/images/coffee-placeholder.svg'; }
+  }
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return '/images/coffee-placeholder.svg';
+}
 
