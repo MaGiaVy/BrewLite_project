@@ -1,1 +1,49 @@
+import type { Product } from '@/types/product';
 
+/**
+ * LOCAL PREVIEW ONLY. These photos were cropped from the three user-provided
+ * BrewLite mockup screenshots; they are NOT actual Task 2 database records.
+ * Enabled explicitly with NEXT_PUBLIC_USE_MOCK_PRODUCTS=true, NEVER as API fallback.
+ */
+export const MOCK_PRODUCTS: Product[] = [
+  {
+    id: 'preview-caramel', name: 'Caramel Macchiato Reserve', category: 'ESPRESSO',
+    price: 55000, stock: 40, imageUrl: '/images/caramel-macchiato.jpg',
+    description: 'Cà phê espresso phủ lớp sữa mềm mịn, điểm chút caramel thơm ngọt.',
+  },
+  {
+    id: 'preview-ca-phe-muoi', name: 'Cà Phê Muối (Salt Cream)', category: 'COFFEE_VN',
+    price: 48000, stock: 45, imageUrl: '/images/ca-phe-muoi.jpg',
+    description: 'Cà phê rang đậm Việt Nam cùng lớp kem muối béo mặn hài hòa.',
+  },
+  {
+    id: 'preview-sua-da', name: 'Classic Cà Phê Sữa Đá', category: 'COFFEE_VN',
+    price: 42000, stock: 65, imageUrl: '/images/ca-phe-sua-da.jpg',
+    description: 'Hương cà phê Việt đậm đà, hòa cùng sữa đặc và đá mát lạnh.',
+  },
+  {
+    id: 'preview-oat', name: 'Oat Vanilla Flat White', category: 'ESPRESSO',
+    price: 58000, stock: 25, imageUrl: '/images/oat-vanilla.jpg',
+    description: 'Espresso tinh tế kết hợp sữa yến mạch và vani nhẹ nhàng.',
+  },
+  {
+    id: 'preview-matcha', name: 'Uji Ceremonial Matcha', category: 'TEA',
+    price: 62000, stock: 35, imageUrl: '/images/uji-matcha.jpg',
+    description: 'Matcha Uji tuyển chọn, vị trà thuần khiết và lớp sữa mịn màng.',
+  },
+  {
+    id: 'preview-coldbrew', name: 'Slow Steep Cold Brew Tonic', category: 'COLD_BREW',
+    price: 52000, stock: 30, imageUrl: '/images/cold-brew-tonic.jpg',
+    description: 'Cold brew ủ chậm cùng tonic thanh mát và hương cam nhẹ.',
+  },
+  {
+    id: 'preview-chocolat', name: 'Pain au Chocolat Artisanal', category: 'PASTRY',
+    price: 45000, stock: 18, imageUrl: '/images/pain-chocolat.jpg',
+    description: 'Bánh ngàn lớp giòn tan với nhân sô-cô-la đậm vị.',
+  },
+  {
+    id: 'preview-cruffin', name: 'Cinnamon Honey Cruffin', category: 'PASTRY',
+    price: 49000, stock: 20, imageUrl: '/images/cinnamon-cruffin.jpg',
+    description: 'Bánh bơ thơm quế cuộn cùng mật ong vàng óng.',
+  },
+];
