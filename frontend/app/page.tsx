@@ -1,124 +1,258 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Navbar from '@/components/Navbar';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AuthHydration from '@/components/AuthHydration';
-import { useAuth } from '@/hooks/useAuth';
+import MenuHeader from '@/components/MenuHeader';
+import MenuHero from '@/components/MenuHero';
+import MenuIcon from '@/components/MenuIcons';
+import MenuSkeleton from '@/components/MenuSkeleton';
+import ProductCard from '@/components/ProductCard';
+import { useProductStore } from '@/stores/productStore';
+import { CATEGORY_LABELS, normalizeSearch, type ProductSort } from '@/types/product';
 
-interface HealthResponse {
-  statusCode: number;
-  status: string;
-  message: string;
-  timestamp: string;
-  service: string;
-}
-
-export default function Home() {
-  const { user, isAuthenticated } = useAuth();
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function MenuPage() {
+  const { products, isLoading, isLoaded, error, loadProducts } = useProductStore();
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('ALL');
+  const [sort, setSort] = useState<ProductSort>('featured');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-        const response = await fetch(`${apiUrl}/health`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: HealthResponse = await response.json();
-        setHealth(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to connect to backend'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+    void loadProducts();
+  }, [loadProducts]);
 
-    checkHealth();
-  }, []);
+  // Lấy danh mục từ dữ liệu API để sau này backend thêm món vẫn hiển thị đúng.
+  const categories = useMemo(() => {
+    const values = products.map((product) => product.category);
+    return [...new Set(values.filter((value): value is string => Boolean(value)))];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    const keyword = normalizeSearch(search);
+    const matches = products.filter((product) => {
+      const nameAndDescription = `${product.name} ${product.description ?? ''}`;
+      const inCategory = category === 'ALL' || product.category === category;
+      const inSearch = !keyword || normalizeSearch(nameAndDescription).includes(keyword);
+      return inCategory && inSearch;
+    });
+
+    if (sort === 'price-asc') return [...matches].sort((a, b) => a.price - b.price);
+    if (sort === 'price-desc') return [...matches].sort((a, b) => b.price - a.price);
+    if (sort === 'name') return [...matches].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    return matches;
+  }, [products, search, category, sort]);
+
+  async function handleCopyVoucher() {
+    try {
+      await navigator.clipboard.writeText('BREWCOZY');
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  function resetFilters() {
+    setSearch('');
+    setCategory('ALL');
+    setSort('featured');
+  }
 
   return (
-    <AuthHydration>
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
-        {/* Thanh điều hướng */}
-        <Navbar />
+    <div className="min-h-screen bg-[#FBF8F3] pb-14 text-[#2A1810] md:pb-0">
+      <AuthHydration>
+        <MenuHeader />
+      </AuthHydration>
 
-        <main className="flex flex-col items-center justify-center px-6 py-20">
-          <div className="text-center">
-            {/* Logo / Title */}
-            <h1 className="text-5xl font-bold text-emerald-700 mb-2">
-              🍵 BrewLite
-            </h1>
-            <p className="text-lg text-gray-600 mb-8">
-              Premium Beverage Delivery App
+      <main>
+        <MenuHero
+          search={search}
+          category={category}
+          categories={categories}
+          onSearchChange={setSearch}
+          onCategoryChange={setCategory}
+        />
+
+        <section id="uu-dai" aria-label="Ưu đãi" className="bg-[#2A1810] text-[#F8EBE0]">
+          <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-10">
+            <p className="flex items-center gap-2 text-xs leading-relaxed sm:text-sm">
+              <MenuIcon name="spark" size={18} />
+              Mã giảm giá dự kiến 15%:
+              <strong className="rounded bg-[#61402B] px-2 py-1 text-white">BREWCOZY</strong>
             </p>
-
-            {/* Thông tin đăng nhập */}
-            {isAuthenticated && user && (
-              <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 max-w-md mx-auto">
-                <p className="text-emerald-700 font-semibold">
-                  🎉 Chào mừng, {user.email}!
-                </p>
-                <p className="text-sm text-emerald-600 mt-1">
-                  Bạn đã đăng nhập thành công vào hệ thống BrewLite.
-                </p>
-              </div>
-            )}
-
-            {/* Status Card */}
-            <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
-              {loading ? (
-                <div className="text-center">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-700" />
-                  <p className="mt-4 text-gray-600">Đang kiểm tra Backend...</p>
-                </div>
-              ) : error ? (
-                <div className="text-red-600">
-                  <p className="text-2xl mb-2">❌</p>
-                  <p className="font-bold">Connection Error</p>
-                  <p className="text-sm mt-2">{error}</p>
-                  <p className="text-xs text-gray-500 mt-4">
-                    Hãy chắc chắn Backend đang chạy trên http://localhost:3001
-                  </p>
-                </div>
-              ) : health ? (
-                <div className="text-left">
-                  <p className="text-green-600 font-bold text-lg mb-4">
-                    ✅ Backend Connected!
-                  </p>
-                  <div className="bg-gray-50 p-4 rounded-lg text-sm font-mono space-y-1">
-                    <p>
-                      <span className="text-gray-500">Status:</span> {health.status}
-                    </p>
-                    <p>
-                      <span className="text-gray-500">Message:</span>{' '}
-                      {health.message}
-                    </p>
-                    <p>
-                      <span className="text-gray-500">Service:</span>{' '}
-                      {health.service}
-                    </p>
-                    <p>
-                      <span className="text-gray-500">Time:</span>{' '}
-                      {health.timestamp}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Footer Info */}
-            <div className="mt-12 text-gray-400 text-sm space-y-1">
-              <p>Frontend: Next.js → http://localhost:3000</p>
-              <p>Backend: NestJS → http://localhost:3001</p>
-            </div>
+            <button
+              type="button"
+              onClick={handleCopyVoucher}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#EEC093] px-4 py-2 text-xs font-bold text-[#40281A] hover:bg-[#F7D0AA]"
+            >
+              <MenuIcon name={copied ? 'check' : 'copy'} size={15} />
+              {copied ? 'Đã sao chép' : 'Sao chép mã'}
+            </button>
           </div>
-        </main>
-      </div>
-    </AuthHydration>
+        </section>
+
+        <section
+          id="thuc-don"
+          aria-labelledby="menu-heading"
+          className="mx-auto max-w-[1320px] scroll-mt-28 px-4 pb-20 pt-14 sm:px-6 lg:px-10"
+        >
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[.2em] text-[#AA764B]">
+                The BrewLite Collection
+              </p>
+              <h2 id="menu-heading" className="font-serif text-3xl font-bold sm:text-4xl">
+                Thực đơn <span className="italic text-[#9B6945]">đậm vị</span>
+              </h2>
+              <p className="mt-2 text-sm text-[#6B5D52]">
+                Chọn món yêu thích từ thực đơn BrewLite.
+              </p>
+            </div>
+            <span className="rounded-full bg-[#F1E6DA] px-4 py-2 text-xs font-semibold text-[#6D4C41]">
+              {isLoaded ? `${filteredProducts.length} món` : 'Thực đơn BrewLite'}
+            </span>
+          </div>
+
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <label className="relative block w-full md:max-w-[440px]">
+              <span className="sr-only">Tìm món</span>
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8C7564]">
+                <MenuIcon name="search" size={21} />
+              </span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm cà phê, trà, món bánh..."
+                className="h-12 w-full rounded-2xl border border-[#E8E0D8] bg-white pl-12 pr-4 text-sm outline-none placeholder:text-[#9A8B7E] focus-visible:border-[#C28B5B]"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-[#67584E]">
+              <MenuIcon name="filter" size={18} />
+              <span>Sắp xếp</span>
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as ProductSort)}
+                className="h-11 min-w-[170px] rounded-xl border border-[#E8E0D8] bg-white px-3 text-sm"
+              >
+                <option value="featured">Đề xuất</option>
+                <option value="price-asc">Giá thấp đến cao</option>
+                <option value="price-desc">Giá cao đến thấp</option>
+                <option value="name">Tên A → Z</option>
+              </select>
+            </label>
+          </div>
+
+          <div role="group" aria-label="Lọc theo danh mục" className="mb-8 flex flex-wrap gap-2">
+            {['ALL', ...categories].map((code) => (
+              <button
+                key={code}
+                type="button"
+                aria-pressed={category === code}
+                onClick={() => setCategory(code)}
+                className={`min-h-11 rounded-full px-4 py-2 text-xs font-bold transition sm:text-sm ${category === code ? 'bg-[#2A1810] text-white' : 'border border-[#E8E5E1] bg-white text-[#665548] hover:border-[#C28B5B]'}`}
+              >
+                {code === 'ALL' ? 'Tất cả món' : CATEGORY_LABELS[code] || code.replace(/_/g, ' ')}
+              </button>
+            ))}
+          </div>
+
+          {isLoading ? (
+            <MenuSkeleton />
+          ) : error ? (
+            <div role="alert" className="rounded-3xl border border-[#E9C3B8] bg-[#FFF8F5] px-6 py-16 text-center">
+              <h3 className="font-serif text-2xl font-bold">Không thể tải thực đơn</h3>
+              <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#7C5A50]">
+                {error}. Vui lòng kiểm tra Backend hoặc thử lại.
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadProducts(true)}
+                className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#2A1810] px-6 py-3 text-sm font-bold text-white"
+              >
+                <MenuIcon name="refresh" size={17} /> Tải lại
+              </button>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-[#E3D6CA] bg-white px-6 py-16 text-center">
+              <h3 className="font-serif text-2xl font-bold">
+                {products.length === 0 ? 'Thực đơn đang được cập nhật' : 'Không tìm thấy món phù hợp'}
+              </h3>
+              <p className="mt-2 text-sm text-[#6B5D52]">
+                {products.length === 0
+                  ? 'Hiện chưa có sản phẩm. Vui lòng quay lại sau.'
+                  : 'Thử từ khóa hoặc danh mục khác nhé.'}
+              </p>
+              {products.length > 0 && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="mt-5 rounded-xl bg-[#2A1810] px-5 py-3 text-sm font-bold text-white"
+                >
+                  Xóa bộ lọc
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 xl:grid-cols-4">
+              {filteredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
+
+          {process.env.NEXT_PUBLIC_USE_MOCK_PRODUCTS === 'true' && (
+            <p className="mt-6 rounded-xl border border-[#E8D1A6] bg-[#FFF5DC] px-4 py-3 text-xs text-[#775A31]">
+              Đang xem bằng dữ liệu mẫu. Đổi NEXT_PUBLIC_USE_MOCK_PRODUCTS=false để kết nối API thật.
+            </p>
+          )}
+        </section>
+
+        <section id="ve-brewlite" className="border-t border-[#EDE4DC] bg-[#F4EEE7]">
+          <div className="mx-auto grid max-w-[1320px] gap-4 px-4 py-12 sm:grid-cols-3 sm:px-6 lg:px-10">
+            {[
+              { icon: 'shield' as const, title: 'Cashless Ordering', text: 'Trải nghiệm đặt đồ uống và thanh toán không tiền mặt.' },
+              { icon: 'clock' as const, title: 'Pick Up at the Bar', text: 'Đặt trước và nhận nước trực tiếp tại quầy.' },
+              { icon: 'leaf' as const, title: 'Brewed With Care', text: 'Cà phê và trà được tuyển chọn kỹ càng.' },
+            ].map((item) => (
+              <div key={item.title} className="rounded-2xl border border-[#EAE0D6] bg-white/75 p-5">
+                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#F8EBE0] text-[#805032]">
+                  <MenuIcon name={item.icon} size={22} />
+                </span>
+                <h3 className="font-serif text-lg font-bold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#6B5D52]">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-[#2A1810] text-[#EFE0D6]">
+        <div className="mx-auto flex max-w-[1320px] flex-col justify-between gap-4 px-4 py-8 text-xs sm:flex-row sm:px-6 lg:px-10">
+          <span className="font-serif text-lg font-bold">
+            Brew<span className="text-[#C28B5B]">Lite</span>
+          </span>
+          <span>© 2026 BrewLite · Công nghệ Phần mềm</span>
+          <Link href="/menu" className="hover:underline">Quay về thực đơn ↑</Link>
+        </div>
+      </footer>
+
+      <nav
+        aria-label="Điều hướng điện thoại"
+        className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-4 border-t border-[#E8E5E1] bg-[#FBF8F3]/95 pb-[max(env(safe-area-inset-bottom),4px)] pt-2 text-center text-[11px] text-[#6B5D52] backdrop-blur-lg md:hidden"
+      >
+        <a href="#thuc-don" className="flex min-h-12 flex-col items-center justify-center gap-1 font-bold text-[#2A1810]">
+          <MenuIcon name="menu" size={19} /> Thực đơn
+        </a>
+        <span className="flex min-h-12 flex-col items-center justify-center gap-1 opacity-60" title="Giỏ hàng: Task 5">
+          <MenuIcon name="bag" size={19} /> Giỏ hàng
+        </span>
+        <span className="flex min-h-12 flex-col items-center justify-center gap-1 opacity-60" title="Đơn hàng: Task 9">
+          <MenuIcon name="clock" size={19} /> Đơn hàng
+        </span>
+        <Link href="/auth/login" className="flex min-h-12 flex-col items-center justify-center gap-1">
+          <MenuIcon name="user" size={19} /> Tài khoản
+        </Link>
+      </nav>
+    </div>
   );
 }
