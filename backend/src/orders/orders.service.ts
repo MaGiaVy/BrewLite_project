@@ -118,13 +118,10 @@ export class OrdersService {
             });
           }
 
-          // Fallback an toàn tới sản phẩm đầu tiên có trong CSDL
           if (!product) {
-            product = await tx.product.findFirst();
-          }
-
-          if (!product) {
-            throw new NotFoundException(`Không tìm thấy sản phẩm trong cơ sở dữ liệu`);
+            throw new NotFoundException(
+              `Không tìm thấy sản phẩm với mã "${itemDto.productId}"${itemDto.productName ? ` hoặc tên "${itemDto.productName}"` : ''} trong cơ sở dữ liệu`
+            );
           }
 
           if (product.stock < itemDto.quantity) {
@@ -340,22 +337,44 @@ export class OrdersService {
       throw new NotFoundException(`Không tìm thấy đơn hàng: ${id}`);
     }
 
-    // Tự động mô phỏng tiến trình pha chế thực tế theo thời gian cho Demo
+    // Mô phỏng tiến trình pha chế: tách riêng khỏi hàm đọc, tuân thủ State Machine
     if (order.status === OrderStatus.PAID || order.status === OrderStatus.PREPARING || order.status === OrderStatus.READY) {
-      const elapsedSeconds = (Date.now() - new Date(order.createdAt).getTime()) / 1000;
-      let nextStatus: OrderStatus | null = null;
-      if (elapsedSeconds > 40) {
-        nextStatus = OrderStatus.COMPLETED;
-      } else if (elapsedSeconds > 25) {
-        nextStatus = OrderStatus.READY;
-      } else if (elapsedSeconds > 10) {
-        nextStatus = OrderStatus.PREPARING;
-      }
+      order = await this.simulateBrewingProgress(order);
+    }
 
-      if (nextStatus && nextStatus !== order.status) {
-        order = await this.prisma.order.update({
-          where: { id: order.id },
-          data: { status: nextStatus },
+    return order;
+  }
+
+  /**
+   * Mô phỏng tiến trình pha chế theo thời gian (Demo) — tuân thủ State Machine
+   * Chuyển trạng thái tuần tự: PAID → PREPARING → READY → COMPLETED
+   * Mỗi bước đều kiểm tra assertTransition() để đảm bảo tính hợp lệ
+   */
+  private async simulateBrewingProgress(order: any): Promise<any> {
+    const elapsedSeconds = (Date.now() - new Date(order.createdAt).getTime()) / 1000;
+
+    // Xác định danh sách các bước chuyển trạng thái tuần tự dựa trên thời gian
+    const progressSteps: Array<{ threshold: number; target: OrderStatus }> = [
+      { threshold: 10, target: OrderStatus.PREPARING },
+      { threshold: 25, target: OrderStatus.READY },
+      { threshold: 40, target: OrderStatus.COMPLETED },
+    ];
+
+    let currentOrder = order;
+
+    for (const step of progressSteps) {
+      if (elapsedSeconds > step.threshold && currentOrder.status !== step.target) {
+        // Kiểm tra chuyển trạng thái có hợp lệ theo State Machine không
+        try {
+          assertTransition(currentOrder.status, step.target);
+        } catch {
+          // Nếu không hợp lệ (ví dụ nhảy cóc), dừng tại bước hiện tại
+          break;
+        }
+
+        currentOrder = await this.prisma.order.update({
+          where: { id: currentOrder.id },
+          data: { status: step.target },
           include: {
             items: {
               include: {
@@ -370,7 +389,7 @@ export class OrdersService {
       }
     }
 
-    return order;
+    return currentOrder;
   }
 
   /**

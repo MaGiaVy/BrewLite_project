@@ -7,15 +7,15 @@ services:
     container_name: brewlite_postgres
     restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: brewlite
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-brewlite}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d brewlite"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-brewlite}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -33,8 +33,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://user:password@postgres:5432/brewlite?schema=public
-      JWT_SECRET: brewlite_super_secret_jwt_key_2026_sgu
+      DATABASE_URL: ${DATABASE_URL:-postgresql://user:password@postgres:5432/brewlite?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-brewlite_super_secret_jwt_key_2026_sgu}
     ports:
       - "3001:3001"
 
@@ -57,3 +57,4 @@ services:
 
 volumes:
   postgres_data:
+

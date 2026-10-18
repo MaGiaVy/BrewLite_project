@@ -22,25 +22,7 @@ export class PaymentsService {
       throw new BadRequestException('Bắt buộc phải có header "Idempotency-Key"');
     }
 
-    // 1. Kiểm tra Idempotency thanh toán
-    const existingPayment = await this.prisma.payment.findUnique({
-      where: { idempotencyKey },
-    });
-
-    if (existingPayment && existingPayment.status === PaymentStatus.SUCCESS) {
-      return {
-        statusCode: 200,
-        message: 'Giao dịch thanh toán đã thành công trước đó (Idempotent replay)',
-        data: {
-          status: 'SUCCESS',
-          paymentId: existingPayment.id,
-          orderId: existingPayment.orderId,
-          amount: existingPayment.amount,
-        },
-      };
-    }
-
-    // 2. Tìm đơn hàng
+    // 1. Tìm đơn hàng và kiểm tra quyền sở hữu TRƯỚC
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },
     });
@@ -57,6 +39,28 @@ export class PaymentsService {
       throw new BadRequestException(
         `Số tiền gửi lên (${dto.amount.toLocaleString('vi-VN')}đ) không khớp với giá trị đơn hàng (${order.finalTotal.toLocaleString('vi-VN')}đ)`
       );
+    }
+
+    // 2. Kiểm tra Idempotency thanh toán (SAU khi đã xác thực quyền sở hữu)
+    const existingPayment = await this.prisma.payment.findUnique({
+      where: { idempotencyKey },
+    });
+
+    if (existingPayment && existingPayment.status === PaymentStatus.SUCCESS) {
+      // Chỉ trả replay nếu đúng đơn hàng của user
+      if (existingPayment.orderId !== dto.orderId) {
+        throw new BadRequestException('Idempotency Key đã được sử dụng cho đơn hàng khác');
+      }
+      return {
+        statusCode: 200,
+        message: 'Giao dịch thanh toán đã thành công trước đó (Idempotent replay)',
+        data: {
+          status: 'SUCCESS',
+          paymentId: existingPayment.id,
+          orderId: existingPayment.orderId,
+          amount: existingPayment.amount,
+        },
+      };
     }
 
     // 3. Quyết định cổng thanh toán Mock Gateway

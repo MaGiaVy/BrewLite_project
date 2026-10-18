@@ -9,12 +9,16 @@ import { MOCK_PRODUCTS, DEFAULT_TOPPINGS, Product } from '@/data/mockProducts';
 import { fetchProducts } from '@/api/products';
 
 export default function Home() {
-  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
+  const [productsList, setProductsList] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [copyToast, setCopyToast] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Tải dữ liệu từ Backend API (kết nối trực tiếp PostgreSQL)
-  useEffect(() => {
+  const loadProducts = () => {
+    setIsLoading(true);
+    setFetchError(null);
     fetchProducts()
       .then((data) => {
         if (data && data.length > 0) {
@@ -46,11 +50,21 @@ export default function Home() {
             toppings: DEFAULT_TOPPINGS,
           }));
           setProductsList(mapped);
+        } else {
+          setProductsList([]);
         }
       })
-      .catch(() => {
-        // Tự động dùng MOCK_PRODUCTS nếu backend chưa bật
+      .catch((err) => {
+        console.error('Lỗi kết nối Backend API:', err);
+        setFetchError('Không thể kết nối đến máy chủ BrewLite. Vui lòng kiểm tra kết nối mạng hoặc thử lại.');
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    loadProducts();
   }, []);
 
   // Lọc sản phẩm theo thanh tìm kiếm
@@ -203,28 +217,96 @@ export default function Home() {
 
           {/* 4. Lưới Sản Phẩm Đồ Uống */}
           <section>
-            {filteredProducts.length > 0 ? (
+            {/* Trạng thái Loading: Hiển thị Skeleton Card khi đang tải */}
+            {isLoading && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="animate-pulse rounded-3xl bg-white border border-[#E8E5E1] p-3 shadow-2xs">
+                    <div className="aspect-square rounded-2xl bg-stone-200 mb-3" />
+                    <div className="h-4 bg-stone-200 rounded-full w-3/4 mb-2" />
+                    <div className="h-3 bg-stone-100 rounded-full w-1/2 mb-3" />
+                    <div className="h-8 bg-stone-200 rounded-xl w-full" />
+                  </div>
                 ))}
               </div>
-            ) : (
+            )}
+
+            {/* Trạng thái Lỗi: Hiển thị banner thông báo và nút Thử lại */}
+            {!isLoading && fetchError && (
+              <div className="flex flex-col items-center justify-center rounded-3xl bg-red-50 border border-red-200 py-12 px-4 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-500 mb-4">
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </div>
+                <h3 className="font-serif text-lg font-bold text-red-800">
+                  Lỗi kết nối máy chủ
+                </h3>
+                <p className="text-xs text-red-600 mt-1 max-w-md">
+                  {fetchError}
+                </p>
+                <div className="flex items-center gap-3 mt-5">
+                  <button
+                    onClick={loadProducts}
+                    className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-red-700 transition-colors"
+                  >
+                    Thử lại
+                  </button>
+                  <button
+                    onClick={() => {
+                      setProductsList(MOCK_PRODUCTS);
+                      setFetchError(null);
+                    }}
+                    className="rounded-xl bg-white border border-red-300 px-5 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 transition-colors"
+                  >
+                    Dùng dữ liệu mẫu (Demo)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Trạng thái Trống: Không có sản phẩm nào trong database */}
+            {!isLoading && !fetchError && productsList.length === 0 && !searchQuery && (
               <div className="flex flex-col items-center justify-center rounded-3xl bg-white border border-[#E8E5E1] py-16 px-4 text-center">
-                <span className="text-4xl mb-3">☕</span>
+                <span className="text-4xl mb-3">📭</span>
                 <h3 className="font-serif text-lg font-bold text-[#2A1810]">
-                  Không tìm thấy đồ uống nào
+                  Thực đơn đang trống
                 </h3>
                 <p className="text-xs text-[#6B5D52] mt-1 max-w-sm">
-                  Không có sản phẩm nào khớp với từ khóa &ldquo;{searchQuery}&rdquo;. Vui lòng thử tìm với tên món khác.
+                  Chưa có sản phẩm nào trong cơ sở dữ liệu. Vui lòng liên hệ quản trị viên để thêm sản phẩm hoặc chạy seed dữ liệu.
                 </p>
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="mt-4 rounded-xl bg-[#2A1810] px-4 py-2 text-xs font-semibold text-white"
-                >
-                  Xem lại toàn bộ thực đơn
-                </button>
               </div>
+            )}
+
+            {/* Trạng thái Bình thường: Hiển thị lưới sản phẩm */}
+            {!isLoading && !fetchError && productsList.length > 0 && (
+              <>
+                {filteredProducts.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+                    {filteredProducts.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center rounded-3xl bg-white border border-[#E8E5E1] py-16 px-4 text-center">
+                    <span className="text-4xl mb-3">☕</span>
+                    <h3 className="font-serif text-lg font-bold text-[#2A1810]">
+                      Không tìm thấy đồ uống nào
+                    </h3>
+                    <p className="text-xs text-[#6B5D52] mt-1 max-w-sm">
+                      Không có sản phẩm nào khớp với từ khóa &ldquo;{searchQuery}&rdquo;. Vui lòng thử tìm với tên món khác.
+                    </p>
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="mt-4 rounded-xl bg-[#2A1810] px-4 py-2 text-xs font-semibold text-white"
+                    >
+                      Xem lại toàn bộ thực đơn
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

@@ -9,6 +9,7 @@ export const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   ],
   [OrderStatus.PAYMENT_FAILED]: [
     OrderStatus.PENDING,     // Khách bấm "Thử lại thanh toán"
+    OrderStatus.PAID,        // Thanh toán retry thành công trực tiếp
     OrderStatus.CANCELLED,   // Khách bấm "Hủy đơn"
   ],
   [OrderStatus.PAID]: [
