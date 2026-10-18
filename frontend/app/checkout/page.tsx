@@ -34,12 +34,17 @@ export default function CheckoutPage() {
     discountAmount: Math.floor(subtotal * 0.15),
   });
 
-  // Phương thức thanh toán: WALLET (VietQR/MoMo/ZaloPay), CARD (Thẻ ngân hàng), APPLE_PAY (Apple Pay / Face ID)
+  // Phương thức thanh toán: WALLET (VietQR / ZaloPay / MoMo), CARD (Thẻ ngân hàng), APPLE_PAY (Apple Pay / Face ID)
   type PaymentMethodType = 'WALLET' | 'CARD' | 'APPLE_PAY';
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('WALLET');
 
   // Chế độ mô phỏng lỗi (dùng để demo State Machine: PAYMENT_FAILED)
   const [simulateFailure, setSimulateFailure] = useState(false);
+
+  // Popup Modal mã VietQR tương tác & đồng hồ đếm ngược 60s
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [countdown, setCountdown] = useState(60);
+  const [pendingOrder, setPendingOrder] = useState<any>(null);
 
   // Form Thẻ Tín Dụng / Ghi Nợ (Mock Stripe Element)
   const [cardNumber, setCardNumber] = useState('4242 4242 4242 4242');
@@ -67,6 +72,17 @@ export default function CheckoutPage() {
     if (raw.startsWith('9704')) return 'Napas';
     return 'Thẻ Quốc tế';
   }, [cardNumber]);
+
+  // Đồng hồ đếm ngược 60 giây cho Popup VietQR
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showQrModal && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [showQrModal, countdown]);
 
   // Sao chép nhanh vào clipboard
   const handleCopy = (text: string, fieldName: string) => {
@@ -158,149 +174,161 @@ export default function CheckoutPage() {
     setVoucherError('');
   };
 
-  // Xác nhận thanh toán (Ráp nối API Task 8 & Task 10)
-  const executePayment = async (overrideMethod?: PaymentMethodType) => {
+  // Chuẩn bị tạo đơn hàng
+  const buildOrderPayload = async (method: 'WALLET' | 'CARD'): Promise<{ payload: CreateOrderPayload; idempotencyKey: string }> => {
+    const orderIdempotencyKey =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `order-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    let dbProducts: any[] = [];
+    try {
+      dbProducts = await fetchProducts();
+    } catch (_) {}
+
+    const payload: CreateOrderPayload = {
+      items: items.map((it) => {
+        const matched = dbProducts.find(
+          (p) =>
+            p.id === it.productId ||
+            p.name.trim().toLowerCase() === it.name.trim().toLowerCase()
+        );
+        return {
+          productId: matched?.id || it.productId,
+          productName: it.name,
+          size: it.size,
+          ice: it.ice,
+          sugar: it.sugar,
+          quantity: it.quantity,
+          toppingIds:
+            it.toppings
+              ?.map((t) => t.id)
+              .filter((id) => id && !id.startsWith('top-')) || [],
+        };
+      }),
+      voucherCode: appliedVoucher?.code,
+      paymentMethod: method,
+    };
+
+    return { payload, idempotencyKey: orderIdempotencyKey };
+  };
+
+  // Hoàn tất thanh toán đơn hàng (Gọi POST /api/v1/payments)
+  const completeOrderPayment = async (order: any, method: 'WALLET' | 'CARD', methodNameDisplay: string) => {
     setIsProcessing(true);
     setCheckoutError('');
 
     try {
-      // 1. Tạo Idempotency-Key cho đơn hàng
-      const orderIdempotencyKey =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `order-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-      // 2. Lấy danh mục sản phẩm từ CSDL để chuẩn hóa ID sản phẩm thực tế
-      let dbProducts: any[] = [];
-      try {
-        dbProducts = await fetchProducts();
-      } catch (_) {}
-
-      // 3. Định dạng DTO gửi lên Backend
-      const currentMethod = overrideMethod || paymentMethod;
-      const backendPaymentMethod = currentMethod === 'CARD' || currentMethod === 'APPLE_PAY' ? 'CARD' : 'WALLET';
-
-      const orderPayload: CreateOrderPayload = {
-        items: items.map((it) => {
-          const matched = dbProducts.find(
-            (p) =>
-              p.id === it.productId ||
-              p.name.trim().toLowerCase() === it.name.trim().toLowerCase()
-          );
-          return {
-            productId: matched?.id || it.productId,
-            productName: it.name,
-            size: it.size,
-            ice: it.ice,
-            sugar: it.sugar,
-            quantity: it.quantity,
-            toppingIds:
-              it.toppings
-                ?.map((t) => t.id)
-                .filter((id) => id && !id.startsWith('top-')) || [],
-          };
-        }),
-        voucherCode: appliedVoucher?.code,
-        paymentMethod: backendPaymentMethod,
-      };
-
-      // 4. Gọi Backend POST /api/v1/orders
-      const createdOrder = await createOrder(orderPayload, orderIdempotencyKey);
-
-      // 5. Gọi Backend POST /api/v1/payments (Task 8 & 10: Mock Gateway + State Machine)
-      const paymentIdempotencyKey = `pay-${createdOrder.id}-${orderIdempotencyKey}`;
+      const paymentIdempotencyKey = `pay-${order.id}-${Date.now()}`;
       const payResult = await processPayment(
         {
-          orderId: createdOrder.id,
-          amount: createdOrder.finalTotal,
-          method: backendPaymentMethod,
-          forceSuccess: !simulateFailure, // Nếu bật simulateFailure -> forceSuccess = false để test State Machine
+          orderId: order.id,
+          amount: order.finalTotal,
+          method,
+          forceSuccess: !simulateFailure,
         },
         paymentIdempotencyKey
       );
 
-      // Xử lý kết quả trả về từ Backend
+      // Nếu lỗi / bật mô phỏng thất bại -> Test State Machine: PAYMENT_FAILED
       if (payResult?.data?.status === 'FAILURE' || simulateFailure) {
+        setShowQrModal(false);
         setCheckoutError(
           payResult?.message ||
-            '⚠️ [State Machine Demo] Giao dịch thanh toán bị từ chối bởi Ngân hàng / Ví điện tử. Trạng thái đơn hàng đã chuyển sang PAYMENT_FAILED.'
+            '⚠️ [State Machine Demo] Giao dịch thanh toán bị từ chối bởi Ngân hàng / Ví điện tử. Đơn hàng chuyển sang trạng thái PAYMENT_FAILED.'
         );
         setIsProcessing(false);
         return;
       }
 
-      // 6. Thanh toán thành công (PAID): Lưu thông tin đơn vào localStorage làm cache
+      // Thanh toán thành công (PAID): Lưu cache
       const orderData = {
-        orderId: createdOrder.id,
-        createdAt: createdOrder.createdAt || new Date().toISOString(),
+        orderId: order.id,
+        createdAt: order.createdAt || new Date().toISOString(),
         items,
-        subtotal: createdOrder.subtotal || subtotal,
-        discountAmount: createdOrder.discountAmount || discountAmount,
-        finalTotal: createdOrder.finalTotal || finalTotal,
-        paymentMethod:
-          currentMethod === 'WALLET'
-            ? 'VietQR / Ví điện tử'
-            : currentMethod === 'APPLE_PAY'
-            ? 'Apple Pay (Face ID)'
-            : 'Thẻ thanh toán quốc tế',
+        subtotal: order.subtotal || subtotal,
+        discountAmount: order.discountAmount || discountAmount,
+        finalTotal: order.finalTotal || finalTotal,
+        paymentMethod: methodNameDisplay,
         voucherCode: appliedVoucher?.code,
         rewardPoints: payResult?.data?.loyaltyPointsAdded || rewardPoints,
-        transactionCode: payResult?.data?.paymentId || `TX-${createdOrder.id.substring(0, 8)}`,
+        transactionCode: payResult?.data?.paymentId || `TX-${order.id.substring(0, 8)}`,
       };
       if (typeof window !== 'undefined') {
         localStorage.setItem('brewlite-last-order', JSON.stringify(orderData));
       }
 
-      // 7. Đặt cờ đang chuyển hướng để tránh nhấp nháy
+      setShowQrModal(false);
       setIsRedirecting(true);
-
-      // 8. Xóa giỏ hàng sau khi thanh toán thành công
       clearCart();
-
-      // 9. Chuyển hướng sang trang Theo dõi đơn hàng với orderId thật từ Database
-      router.push(`/orders/${createdOrder.id}`);
+      router.push(`/orders/${order.id}`);
     } catch (err: any) {
       console.error('Lỗi thanh toán:', err);
       setIsRedirecting(false);
+      setShowQrModal(false);
       const msg =
         err?.response?.data?.message ||
         err?.message ||
-        'Có lỗi xảy ra trong quá trình tạo đơn hoặc thanh toán. Vui lòng thử lại!';
+        'Có lỗi xảy ra trong quá trình thanh toán. Vui lòng thử lại!';
       setCheckoutError(msg);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Kích hoạt mô phỏng sinh trắc học Face ID cho Apple Pay
-  const triggerBiometricPayment = () => {
-    setShowBiometricModal(true);
-    setBiometricState('SCANNING');
+  // Xử lý khi nhấn nút "Xác nhận thanh toán"
+  const handleConfirmPayment = async () => {
+    setIsProcessing(true);
+    setCheckoutError('');
 
-    setTimeout(() => {
-      if (simulateFailure) {
-        setBiometricState('FAILED');
+    try {
+      // 1. Tạo đơn hàng trước trên Backend để lấy mã Order ID thật
+      const { payload, idempotencyKey } = await buildOrderPayload(paymentMethod === 'CARD' ? 'CARD' : 'WALLET');
+      const createdOrder = await createOrder(payload, idempotencyKey);
+
+      // 2. Tùy theo phương thức thanh toán đã chọn:
+      if (paymentMethod === 'WALLET') {
+        // MỞ POPUP MODAL MÃ VIETQR ĐỘNG ĐẾM NGƯỢC 60 GIÂY!
+        setPendingOrder(createdOrder);
+        setCountdown(60);
+        setIsProcessing(false);
+        setShowQrModal(true);
+      } else if (paymentMethod === 'APPLE_PAY') {
+        // Mở popup mô phỏng quét Face ID
+        setPendingOrder(createdOrder);
+        setIsProcessing(false);
+        setShowBiometricModal(true);
+        setBiometricState('SCANNING');
+
         setTimeout(() => {
-          setShowBiometricModal(false);
-          setCheckoutError(
-            '⚠️ [Biometric Demo] Xác thực sinh trắc học Face ID bị từ chối hoặc giao dịch thất bại. Đơn hàng chuyển sang PAYMENT_FAILED.'
-          );
-        }, 1200);
+          if (simulateFailure) {
+            setBiometricState('FAILED');
+            setTimeout(() => {
+              setShowBiometricModal(false);
+              setCheckoutError(
+                '⚠️ [Biometric Demo] Xác thực sinh trắc học Face ID bị từ chối hoặc giao dịch thất bại. Đơn hàng chuyển sang PAYMENT_FAILED.'
+              );
+            }, 1200);
+          } else {
+            setBiometricState('SUCCESS');
+            setTimeout(async () => {
+              setShowBiometricModal(false);
+              await completeOrderPayment(createdOrder, 'CARD', 'Apple Pay (Face ID)');
+            }, 700);
+          }
+        }, 1500);
       } else {
-        setBiometricState('SUCCESS');
-        setTimeout(async () => {
-          setShowBiometricModal(false);
-          await executePayment('APPLE_PAY');
-        }, 700);
+        // Thanh toán thẻ ngân hàng trực tiếp
+        await completeOrderPayment(createdOrder, 'CARD', 'Thẻ thanh toán quốc tế');
       }
-    }, 1500);
-  };
-
-  const handleConfirmPayment = () => {
-    if (paymentMethod === 'APPLE_PAY') {
-      triggerBiometricPayment();
-    } else {
-      executePayment();
+    } catch (err: any) {
+      console.error('Lỗi tạo đơn hàng:', err);
+      setIsProcessing(false);
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Có lỗi xảy ra trong quá trình tạo đơn hàng. Vui lòng thử lại!';
+      setCheckoutError(msg);
     }
   };
 
@@ -332,7 +360,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (items.length === 0 && !isProcessing && !isRedirecting) {
+  if (items.length === 0 && !isProcessing && !isRedirecting && !showQrModal) {
     return (
       <AuthHydration>
         <div className="min-h-screen bg-[#FBF8F3] flex flex-col">
@@ -488,7 +516,7 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* 3. Khối Phương thức thanh toán nâng cao (VietQR / Biometric / Thẻ) */}
+              {/* 3. Khối Chọn Phương thức thanh toán */}
               <div className="rounded-3xl bg-white border border-[#E8E5E1] p-5 sm:p-6 shadow-2xs">
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#F7F3EE]">
                   <div>
@@ -505,7 +533,7 @@ export default function CheckoutPage() {
                   </span>
                 </div>
 
-                {/* Danh sách các tùy chọn thanh toán */}
+                {/* Danh sách 3 phương thức */}
                 <div className="flex flex-col gap-3.5">
                   {/* TÙY CHỌN 1: Chuyển khoản VietQR / Ví MoMo / ZaloPay */}
                   <div
@@ -527,14 +555,14 @@ export default function CheckoutPage() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-bold text-sm text-[#2A1810]">
-                              Chuyển khoản VietQR / Ví điện tử
+                              Chuyển khoản VietQR / Ví điện tử (ZaloPay, MoMo)
                             </span>
                             <span className="bg-[#FDF0E6] text-[#C25E00] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                              Khuyên dùng
+                              Popup QR Động 60s
                             </span>
                           </div>
                           <p className="text-xs text-[#6B5D52] mt-0.5">
-                            Quét mã QR bằng mọi app Ngân hàng (MB, VCB, Techcom...) hoặc MoMo, ZaloPay
+                            Bật Popup mã QR tương tác sau khi bấm xác nhận để quét bằng app Ngân hàng hoặc Ví
                           </p>
                         </div>
                       </div>
@@ -544,90 +572,10 @@ export default function CheckoutPage() {
                           VietQR
                         </span>
                         <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded bg-[#FDF0EC] text-[#C93B1F] border border-[#F8D0C3]">
-                          NAPAS 247
+                          ZaloPay / MoMo
                         </span>
                       </div>
                     </div>
-
-                    {/* Khối mở rộng con: Hiển thị mã VietQR động thật và thông tin ngân hàng MB */}
-                    {paymentMethod === 'WALLET' && (
-                      <div className="mt-4 pt-4 border-t border-[#EAE4DC] flex flex-col md:flex-row items-center md:items-start gap-5">
-                        {/* Ảnh VietQR động từ img.vietqr.io */}
-                        <div className="flex flex-col items-center shrink-0">
-                          <div className="relative w-44 h-44 bg-white border border-[#EAE4DC] rounded-2xl p-2 shadow-xs flex items-center justify-center overflow-hidden">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={`https://img.vietqr.io/image/MB-0987654321-compact2.png?amount=${finalTotal}&addInfo=BREWLITE_ORDER&accountName=BREWLITE%20ROASTERY`}
-                              alt="VietQR BrewLite Roastery"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                          <span className="text-[10px] text-stone-500 mt-1.5 font-medium flex items-center gap-1">
-                            ⚡ Quét tự động điền đúng số tiền & nội dung
-                          </span>
-                        </div>
-
-                        {/* Thông tin tài khoản ngân hàng + Nút Sao chép */}
-                        <div className="flex-1 w-full flex flex-col gap-2 text-xs">
-                          <div className="bg-white rounded-xl p-3 border border-[#E8E5E1] flex flex-col gap-2">
-                            <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
-                              <span className="text-stone-500">Ngân hàng thụ hưởng:</span>
-                              <span className="font-bold text-[#1A120B]">MB Bank (Quân Đội)</span>
-                            </div>
-
-                            <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
-                              <span className="text-stone-500">Chủ tài khoản:</span>
-                              <span className="font-bold text-[#1A120B]">BREWLITE ROASTERY</span>
-                            </div>
-
-                            <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
-                              <span className="text-stone-500">Số tài khoản:</span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-sm text-[#1A120B]">
-                                  0987654321
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCopy('0987654321', 'accountNumber');
-                                  }}
-                                  className="px-2 py-0.5 rounded bg-[#F7F3EE] hover:bg-stone-200 text-[#845326] border border-stone-300 text-[10px] font-semibold flex items-center gap-1 transition-colors"
-                                >
-                                  {copiedField === 'accountNumber' ? '✓ Đã chép' : 'Sao chép'}
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
-                              <span className="text-stone-500">Số tiền chuyển:</span>
-                              <span className="font-serif font-bold text-sm text-[#C28B5B]">
-                                {finalTotal.toLocaleString('vi-VN')}đ
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <span className="text-stone-500">Nội dung chuyển:</span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-xs bg-[#F7F3EE] px-2 py-0.5 rounded border border-[#E8E5E1] text-[#1A120B]">
-                                  BREWLITE_ORDER
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCopy('BREWLITE_ORDER', 'memo');
-                                  }}
-                                  className="px-2 py-0.5 rounded bg-[#F7F3EE] hover:bg-stone-200 text-[#845326] border border-stone-300 text-[10px] font-semibold flex items-center gap-1 transition-colors"
-                                >
-                                  {copiedField === 'memo' ? '✓ Đã chép' : 'Sao chép'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* TÙY CHỌN 2: Apple Pay / Google Wallet (Sinh trắc học Face ID) */}
@@ -656,20 +604,11 @@ export default function CheckoutPage() {
                             </span>
                           </div>
                           <p className="text-xs text-[#6B5D52] mt-0.5">
-                            Thanh toán siêu tốc không cần nhập thẻ qua cảm biến khuôn mặt Face ID / Touch ID
+                            Thanh toán siêu tốc qua cảm biến khuôn mặt Face ID / Touch ID
                           </p>
                         </div>
                       </div>
                     </div>
-
-                    {paymentMethod === 'APPLE_PAY' && (
-                      <div className="mt-3 pt-3 border-t border-[#EAE4DC] flex items-center justify-between text-xs text-stone-600">
-                        <span>Nhấn nút thanh toán để kích hoạt mô phỏng quét Face ID</span>
-                        <span className="font-semibold text-black flex items-center gap-1">
-                           Pay Express
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   {/* TÙY CHỌN 3: Thẻ ngân hàng / Thẻ quốc tế (Visa / Mastercard) */}
@@ -705,7 +644,6 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    {/* Form nhập thẻ */}
                     {paymentMethod === 'CARD' && (
                       <div className="mt-4 pt-4 border-t border-[#EAE4DC] grid grid-cols-2 gap-3 text-xs">
                         <div className="col-span-2">
@@ -875,6 +813,8 @@ export default function CheckoutPage() {
                           {paymentMethod === 'APPLE_PAY' && ''}
                           {simulateFailure
                             ? 'Mô phỏng Thất Bại (Test State Machine)'
+                            : paymentMethod === 'WALLET'
+                            ? 'Bật Mã VietQR Thanh Toán · Confirm'
                             : paymentMethod === 'APPLE_PAY'
                             ? 'Thanh toán với Face ID'
                             : 'Xác nhận thanh toán · Confirm'}
@@ -885,7 +825,7 @@ export default function CheckoutPage() {
                       </div>
                       <span className="text-[11px] text-stone-300 mt-0.5">
                         {paymentMethod === 'WALLET'
-                          ? 'Mã VietQR động · Nhận tại quầy Express'
+                          ? 'Bật Popup VietQR đếm ngược 60s'
                           : paymentMethod === 'APPLE_PAY'
                           ? 'Xác thực sinh trắc học 1-chạm'
                           : 'Thẻ thanh toán · Hoàn tất tức thời'}
@@ -913,6 +853,141 @@ export default function CheckoutPage() {
             </div>
           </div>
         </main>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            POPUP MODAL MÃ VIETQR ĐỘNG ĐẾM NGƯỢC 60 GIÂY (CHUYỂN KHOẢN / VÍ)
+           ══════════════════════════════════════════════════════════════════ */}
+        {showQrModal && pendingOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fade-in">
+            <div className="w-full max-w-lg rounded-3xl bg-white p-6 md:p-8 shadow-2xl border border-stone-200 flex flex-col gap-4 text-[#2A1810]">
+              {/* Header Modal */}
+              <div className="flex items-center justify-between pb-3 border-b border-[#F7F3EE]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#2A1810] text-white flex items-center justify-center font-serif font-bold text-lg">
+                    ☕
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg md:text-xl font-bold text-[#2A1810]">
+                      Quét mã VietQR / ZaloPay
+                    </h3>
+                    <p className="text-xs text-[#6B5D52]">
+                      Mã đơn #{pendingOrder.id.substring(0, 8)} · MB Bank
+                    </p>
+                  </div>
+                </div>
+
+                {/* Đồng hồ đếm ngược 60s */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold font-mono">
+                  <span>⏱️</span>
+                  <span>{countdown > 0 ? `${countdown}s` : 'Hết hạn'}</span>
+                </div>
+              </div>
+
+              {/* Phần thân: Ảnh QR động và Bảng thông tin */}
+              <div className="flex flex-col sm:flex-row items-center gap-5 my-1">
+                {/* Ảnh VietQR động từ img.vietqr.io với mã đơn và số tiền thật */}
+                <div className="flex flex-col items-center shrink-0">
+                  <div className="relative w-48 h-48 bg-white border-2 border-[#C28B5B] rounded-2xl p-2 shadow-md flex items-center justify-center overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://img.vietqr.io/image/MB-0987654321-compact2.png?amount=${pendingOrder.finalTotal}&addInfo=BREWLITE_${pendingOrder.id.substring(0, 8)}&accountName=BREWLITE%20ROASTERY`}
+                      alt="VietQR BrewLite Roastery"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <span className="text-[10px] text-stone-500 mt-2 font-medium flex items-center gap-1">
+                    📱 Dùng app Ngân hàng hoặc ZaloPay / MoMo quét mã
+                  </span>
+                </div>
+
+                {/* Bảng chi tiết STK + nút sao chép */}
+                <div className="flex-1 w-full flex flex-col gap-2 text-xs">
+                  <div className="bg-[#FAF6F0] rounded-2xl p-3.5 border border-[#E8E5E1] flex flex-col gap-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
+                      <span className="text-stone-500">Ngân hàng:</span>
+                      <span className="font-bold text-[#1A120B]">MB Bank (Quân Đội)</span>
+                    </div>
+
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
+                      <span className="text-stone-500">Chủ tài khoản:</span>
+                      <span className="font-bold text-[#1A120B]">BREWLITE ROASTERY</span>
+                    </div>
+
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
+                      <span className="text-stone-500">Số tài khoản:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-sm text-[#1A120B]">
+                          0987654321
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('0987654321', 'modalAccount')}
+                          className="px-2 py-0.5 rounded bg-white hover:bg-stone-100 text-[#845326] border border-stone-300 text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                        >
+                          {copiedField === 'modalAccount' ? '✓ Đã chép' : 'Sao chép'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#F7F3EE]">
+                      <span className="text-stone-500">Số tiền:</span>
+                      <span className="font-serif font-bold text-sm text-[#C28B5B]">
+                        {pendingOrder.finalTotal.toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-stone-500">Nội dung:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs bg-white px-2 py-0.5 rounded border border-[#E8E5E1] text-[#1A120B]">
+                          BREWLITE_{pendingOrder.id.substring(0, 8)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(`BREWLITE_${pendingOrder.id.substring(0, 8)}`, 'modalMemo')}
+                          className="px-2 py-0.5 rounded bg-white hover:bg-stone-100 text-[#845326] border border-stone-300 text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                        >
+                          {copiedField === 'modalMemo' ? '✓ Đã chép' : 'Sao chép'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Các nút bấm hành động trong Modal */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-[#F7F3EE]">
+                <button
+                  type="button"
+                  onClick={() => completeOrderPayment(pendingOrder, 'WALLET', 'VietQR / Ví điện tử')}
+                  disabled={isProcessing}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-[#2A1810] text-white hover:bg-[#42271A] font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-70"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Đang xác nhận với máy chủ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚡</span>
+                      <span>Xác nhận đã quét mã (Mô phỏng Sandbox)</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowQrModal(false)}
+                  disabled={isProcessing}
+                  className="w-full py-2.5 px-4 rounded-xl text-stone-500 hover:text-stone-700 text-xs font-semibold hover:bg-stone-100 transition-colors"
+                >
+                  Đóng / Chọn phương thức khác
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL MÔ PHỎNG SINH TRẮC HỌC FACE ID KHI CHỌN APPLE PAY */}
         {showBiometricModal && (
