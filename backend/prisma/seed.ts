@@ -6,25 +6,74 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Bắt đầu gieo mầm dữ liệu (Database Seeding)...');
 
-  // 1. SEED TOPPING (6 Topping chuẩn từ Seed (1).md)
-  console.log('--- Đang nạp Toppings ---');
+  // 1. SEED NGUYÊN VẬT LIỆU (Ingredients - BOM Recipe System)
+  console.log('--- Đang nạp Nguyên vật liệu kho (Ingredients) ---');
+  const ingredientsData = [
+    { name: 'Hạt Robusta Đắk Lắk', stock: 50000, unit: 'g' },
+    { name: 'Hạt Arabica Cầu Đất', stock: 30000, unit: 'g' },
+    { name: 'Sữa đặc Ngôi Sao Phương Nam', stock: 40000, unit: 'ml' },
+    { name: 'Sữa tươi thanh trùng Dalatmilk', stock: 60000, unit: 'ml' },
+    { name: 'Kem béo Macchiato mặn', stock: 20000, unit: 'ml' },
+    { name: 'Trà Oolong nướng thượng hạng', stock: 15000, unit: 'g' },
+    { name: 'Trà đen hoa trân', stock: 15000, unit: 'g' },
+    { name: 'Hạt sen Huế ninh đường', stock: 20000, unit: 'g' },
+    { name: 'Đào ngâm & syrup đào', stock: 25000, unit: 'ml' },
+    { name: 'Xốt Caramel', stock: 15000, unit: 'ml' },
+    { name: 'Ly giấy & Nắp sinh học 500ml', stock: 5000, unit: 'cái' },
+    { name: 'Củ năng giòn ngâm', stock: 20000, unit: 'g' },
+    { name: 'Kem Cheese tươi', stock: 20000, unit: 'ml' },
+    { name: 'Trân châu Ô Long dẻo', stock: 25000, unit: 'g' },
+    { name: 'Pudding trứng tươi', stock: 20000, unit: 'g' },
+  ];
+
+  const ingredientMap = new Map<string, string>();
+  for (const ing of ingredientsData) {
+    const record = await prisma.ingredient.upsert({
+      where: { name: ing.name },
+      update: { stock: ing.stock, unit: ing.unit },
+      create: { name: ing.name, stock: ing.stock, unit: ing.unit, version: 0 },
+    });
+    ingredientMap.set(ing.name, record.id);
+  }
+
+  // 2. SEED TOPPING (6 Topping chuẩn liên kết với Nguyên liệu)
+  console.log('--- Đang nạp Toppings & liên kết kho ---');
   const toppingsData = [
-    { name: 'Củ Năng Giòn', price: 10000, isAvailable: true },
-    { name: 'Kem Cheese Béo Ngậy', price: 15000, isAvailable: true },
-    { name: 'Trân Châu Ô Long Hoàng Kim', price: 10000, isAvailable: true },
-    { name: 'Hạt Sen Ninh Đường', price: 12000, isAvailable: true },
-    { name: 'Pudding Trứng Mịn Màng', price: 10000, isAvailable: true },
-    { name: 'Extra Shot Espresso', price: 15000, isAvailable: true },
+    { name: 'Củ Năng Giòn', price: 10000, isAvailable: true, ingredientName: 'Củ năng giòn ngâm', amountPerPortion: 30 },
+    { name: 'Kem Cheese Béo Ngậy', price: 15000, isAvailable: true, ingredientName: 'Kem Cheese tươi', amountPerPortion: 40 },
+    { name: 'Trân Châu Ô Long Hoàng Kim', price: 10000, isAvailable: true, ingredientName: 'Trân châu Ô Long dẻo', amountPerPortion: 35 },
+    { name: 'Hạt Sen Ninh Đường', price: 12000, isAvailable: true, ingredientName: 'Hạt sen Huế ninh đường', amountPerPortion: 30 },
+    { name: 'Pudding Trứng Mịn Màng', price: 10000, isAvailable: true, ingredientName: 'Pudding trứng tươi', amountPerPortion: 40 },
+    { name: 'Extra Shot Espresso', price: 15000, isAvailable: true, ingredientName: 'Hạt Arabica Cầu Đất', amountPerPortion: 18 },
   ];
 
   for (const t of toppingsData) {
+    const ingId = ingredientMap.get(t.ingredientName);
     const existing = await prisma.topping.findFirst({ where: { name: t.name } });
     if (!existing) {
-      await prisma.topping.create({ data: t });
+      await prisma.topping.create({
+        data: {
+          name: t.name,
+          price: t.price,
+          isAvailable: t.isAvailable,
+          ingredientId: ingId,
+          amountPerPortion: t.amountPerPortion,
+        },
+      });
+    } else {
+      await prisma.topping.update({
+        where: { id: existing.id },
+        data: {
+          price: t.price,
+          isAvailable: t.isAvailable,
+          ingredientId: ingId,
+          amountPerPortion: t.amountPerPortion,
+        },
+      });
     }
   }
 
-  // 2. SEED SẢN PHẨM ĐỒ UỐNG (10 Món chuẩn từ Seed (1).md)
+  // 3. SEED SẢN PHẨM ĐỒ UỐNG (10 Món chuẩn từ Seed (1).md)
   console.log('--- Đang nạp 10 Sản phẩm đồ uống ---');
   const productsData = [
     {
@@ -109,12 +158,14 @@ async function main() {
     },
   ];
 
+  const productMap = new Map<string, string>();
   for (const p of productsData) {
     const existing = await prisma.product.findFirst({ where: { name: p.name } });
     if (!existing) {
-      await prisma.product.create({ data: p });
+      const created = await prisma.product.create({ data: p });
+      productMap.set(p.name, created.id);
     } else {
-      await prisma.product.update({
+      const updated = await prisma.product.update({
         where: { id: existing.id },
         data: {
           imageUrl: p.imageUrl,
@@ -123,10 +174,124 @@ async function main() {
           category: p.category,
         },
       });
+      productMap.set(p.name, updated.id);
     }
   }
 
-  // 3. SEED VOUCHER (3 Mã giảm giá: BREWLITE10, WELCOME20, BREWCOZY)
+  // 4. SEED CÔNG THỨC PHA CHẾ (Product Recipes - BOM)
+  console.log('--- Đang nạp Công thức định lượng pha chế (BOM Recipes) ---');
+  const recipesData: { productName: string; items: { ingredientName: string; amount: number }[] }[] = [
+    {
+      productName: 'Cà Phê Sữa Đá',
+      items: [
+        { ingredientName: 'Hạt Robusta Đắk Lắk', amount: 25 },
+        { ingredientName: 'Sữa đặc Ngôi Sao Phương Nam', amount: 40 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Cà Phê Đen Đá',
+      items: [
+        { ingredientName: 'Hạt Robusta Đắk Lắk', amount: 25 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Bạc Xỉu',
+      items: [
+        { ingredientName: 'Hạt Robusta Đắk Lắk', amount: 15 },
+        { ingredientName: 'Sữa đặc Ngôi Sao Phương Nam', amount: 30 },
+        { ingredientName: 'Sữa tươi thanh trùng Dalatmilk', amount: 80 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Cà Phê Muối',
+      items: [
+        { ingredientName: 'Hạt Robusta Đắk Lắk', amount: 20 },
+        { ingredientName: 'Sữa đặc Ngôi Sao Phương Nam', amount: 25 },
+        { ingredientName: 'Kem béo Macchiato mặn', amount: 40 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Caramel Macchiato',
+      items: [
+        { ingredientName: 'Hạt Arabica Cầu Đất', amount: 18 },
+        { ingredientName: 'Sữa tươi thanh trùng Dalatmilk', amount: 120 },
+        { ingredientName: 'Xốt Caramel', amount: 20 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Cà Phê Latte',
+      items: [
+        { ingredientName: 'Hạt Arabica Cầu Đất', amount: 18 },
+        { ingredientName: 'Sữa tươi thanh trùng Dalatmilk', amount: 150 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Americano',
+      items: [
+        { ingredientName: 'Hạt Arabica Cầu Đất', amount: 18 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Trà Sen Vàng',
+      items: [
+        { ingredientName: 'Trà Oolong nướng thượng hạng', amount: 12 },
+        { ingredientName: 'Hạt sen Huế ninh đường', amount: 30 },
+        { ingredientName: 'Kem béo Macchiato mặn', amount: 30 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Trà Đào Cam Sả',
+      items: [
+        { ingredientName: 'Trà đen hoa trân', amount: 12 },
+        { ingredientName: 'Đào ngâm & syrup đào', amount: 40 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+    {
+      productName: 'Trà Sữa Oolong Nướng',
+      items: [
+        { ingredientName: 'Trà Oolong nướng thượng hạng', amount: 15 },
+        { ingredientName: 'Sữa tươi thanh trùng Dalatmilk', amount: 100 },
+        { ingredientName: 'Sữa đặc Ngôi Sao Phương Nam', amount: 25 },
+        { ingredientName: 'Ly giấy & Nắp sinh học 500ml', amount: 1 },
+      ],
+    },
+  ];
+
+  for (const recipe of recipesData) {
+    const prodId = productMap.get(recipe.productName);
+    if (!prodId) continue;
+
+    for (const item of recipe.items) {
+      const ingId = ingredientMap.get(item.ingredientName);
+      if (!ingId) continue;
+
+      await prisma.productRecipe.upsert({
+        where: {
+          productId_ingredientId: {
+            productId: prodId,
+            ingredientId: ingId,
+          },
+        },
+        update: { amount: item.amount },
+        create: {
+          productId: prodId,
+          ingredientId: ingId,
+          amount: item.amount,
+        },
+      });
+    }
+  }
+
+  // 5. SEED VOUCHER (3 Mã giảm giá: BREWLITE10, WELCOME20, BREWCOZY)
   console.log('--- Đang nạp Vouchers ---');
   const vouchersData = [
     {
@@ -165,7 +330,7 @@ async function main() {
     }
   }
 
-  // 4. SEED TÀI KHOẢN KHÁCH HÀNG DEMO
+  // 6. SEED TÀI KHOẢN KHÁCH HÀNG DEMO
   console.log('--- Đang nạp Tài khoản Demo ---');
   const demoEmail = 'khach@brewlite.vn';
   const existingUser = await prisma.user.findUnique({ where: { email: demoEmail } });

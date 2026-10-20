@@ -38,17 +38,51 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   orderItems  OrderItem[]
+  recipes     ProductRecipe[]
 
   @@map("products")
 }
 
+// 2.1. NGUYÊN VẬT LIỆU (Ingredient - BOM Recipe)
+model Ingredient {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  stock     Int      @default(0) // Số lượng tồn kho (g, ml, cái)
+  unit      String   // g, ml, cái
+  version   Int      @default(0) // Optimistic Locking Version
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipes   ProductRecipe[]
+  toppings  Topping[]
+
+  @@map("ingredients")
+}
+
+// 2.2. ĐỊNH LƯỢNG CÔNG THỨC PHA CHẾ (ProductRecipe - BOM)
+model ProductRecipe {
+  id           String     @id @default(uuid())
+  productId    String
+  ingredientId String
+  amount       Int        // Định lượng chuẩn cho Size S (g, ml, cái)
+
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, ingredientId])
+  @@map("product_recipes")
+}
+
 // 3. TOPPING DÙNG CHUNG
 model Topping {
-  id          String   @id @default(uuid())
-  name        String
-  price       Int      // Giá topping (VNĐ)
-  isAvailable Boolean  @default(true)
+  id               String   @id @default(uuid())
+  name             String
+  price            Int      // Giá topping (VNĐ)
+  isAvailable      Boolean  @default(true)
+  ingredientId     String?
+  amountPerPortion Int      @default(30) // Định lượng mỗi phần (g hoặc ml)
 
+  ingredient        Ingredient?        @relation(fields: [ingredientId], references: [id])
   orderItemToppings OrderItemTopping[]
 
   @@map("toppings")
