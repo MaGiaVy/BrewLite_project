@@ -2,7 +2,7 @@
 ## ASSIGNMENT 2 — BREWLITE SPECIALTY COFFEE ROASTERY
 
 > **Mã nhiệm vụ:** `TASK-01` (Trọng số: **2.0 / 10 điểm**)  
-> **Học phần:** Công nghệ Phần mềm — Giảng viên: ThS. Nguyễn Phan Tuyết Ngân  
+> **Học phần:** Công nghệ Phần mềm — Giảng viên: ThS. Từ Lãng Phiêu  
 > **Nhóm thực hiện (6 thành viên):**  
 > 1. Mã Gia Vỹ | 2. Huỳnh Tuấn Kiệt | 3. Nguyễn Gia Thành  
 > 4. Vũ Châu Minh Khôi | 5. Quách Kỳ Minh | 6. Nguyễn Thị Ý  
