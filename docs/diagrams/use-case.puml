@@ -1,0 +1,84 @@
+@startuml
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam roundcorner 10
+skinparam defaultFontName "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+
+title SƠ ĐỒ USE-CASE TỔNG QUÁT HỆ THỐNG BREWLITE\n(BrewLite 100% Cashless Specialty Coffee Roastery)
+
+actor "Khách hàng\n(Customer)" as Customer #E1F5FE
+actor "Nhân viên Quầy\n(Barista / Staff)" as Staff #FFF3E0
+actor "Quản lý Cửa hàng\n(Admin)" as Admin #F3E5F5
+actor "Cổng thanh toán\n(Payment Gateway)" as Gateway #ECEFF1
+
+rectangle "HỆ THỐNG BREWLITE KIOSK & PWA" {
+    
+    package "Phân hệ Thực đơn & Mua hàng" {
+        usecase "UC01: Khám phá Menu & Tìm kiếm món" as UC_Menu
+        usecase "UC02: Tùy biến món (Size, Topping, Đá/Đường)" as UC_Customize
+        usecase "UC03: Quản lý giỏ hàng (Cart Store)" as UC_Cart
+        usecase "UC04: Đặt và thanh toán đơn hàng" as UC_Checkout #FFE0B2
+        usecase "UC05: Áp dụng mã giảm giá (Voucher)" as UC_Voucher
+        usecase "UC06: Tích lũy điểm thành viên (Loyalty)" as UC_Loyalty
+        usecase "UC07: Theo dõi tiến độ đơn hàng (Realtime)" as UC_Track
+        usecase "UC08: Xem lịch sử đơn hàng" as UC_History
+        usecase "UC09: Hủy đơn hàng (trong 5 phút)" as UC_Cancel
+    }
+
+    package "Phân hệ Xác thực & Tài khoản" {
+        usecase "UC10: Đăng ký tài khoản mới" as UC_Register
+        usecase "UC11: Đăng nhập & Xác thực JWT" as UC_Login
+    }
+
+    package "Phân hệ Vận hành Quầy Bar (KDS)" {
+        usecase "UC12: Tiếp nhận đơn đã thanh toán (KDS)" as UC_KDS_View
+        usecase "UC13: Cập nhật tiến trình pha chế (PREPARING -> READY)" as UC_KDS_Update
+    }
+
+    package "Phân hệ Quản trị (Admin Portal)" {
+        usecase "UC14: Quản lý Danh mục & Menu (CRUD món)" as UC_Admin_Menu
+        usecase "UC15: Quản lý Kho nguyên liệu & Công thức BOM" as UC_Admin_BOM
+        usecase "UC16: Quản lý Mã khuyến mãi (Voucher)" as UC_Admin_Voucher
+        usecase "UC17: Xem báo cáo thống kê & Best-sellers" as UC_Admin_Report
+    }
+
+    usecase "Xác thực danh tính (JWT)" as UC_Auth_Check #E0F2F1
+    usecase "Trừ kho nguyên liệu (Optimistic Lock)" as UC_Deduct_Stock #E0F2F1
+    usecase "Xử lý giao dịch thanh toán thẻ / ví" as UC_Process_Payment #E0F2F1
+}
+
+' Customer relations
+Customer --> UC_Menu
+Customer --> UC_Customize
+Customer --> UC_Cart
+Customer --> UC_Checkout
+Customer --> UC_Track
+Customer --> UC_History
+Customer --> UC_Cancel
+Customer --> UC_Register
+Customer --> UC_Login
+
+' Includes & Extends for Checkout
+UC_Checkout ..> UC_Auth_Check : <<include>>
+UC_Checkout ..> UC_Deduct_Stock : <<include>>
+UC_Checkout ..> UC_Process_Payment : <<include>>
+UC_Voucher ..> UC_Checkout : <<extend>>
+UC_Checkout ..> UC_Loyalty : <<include>>
+
+' Gateway relation
+UC_Process_Payment --> Gateway
+
+' Staff relations
+Staff --> UC_KDS_View
+Staff --> UC_KDS_Update
+Staff ..> UC_Auth_Check : <<include>>
+
+' Admin relations
+Admin --> UC_Admin_Menu
+Admin --> UC_Admin_BOM
+Admin --> UC_Admin_Voucher
+Admin --> UC_Admin_Report
+Admin ..> UC_Auth_Check : <<include>>
+
+@enduml
