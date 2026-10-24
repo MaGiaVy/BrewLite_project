@@ -4,7 +4,8 @@
 > **Học phần:** Công nghệ Phần mềm — Giảng viên: **ThS. Từ Lãng Phiêu**  
 > **Sinh viên thực hiện:** Mã Gia Vỹ — MSSV: **3124410414**  
 > **Tạo phẩm:** [`sequence-auth.puml`](sequence-auth.puml) | [`sequence-auth.svg`](sequence-auth.svg) | [`sequence-auth.png`](sequence-auth.png)  
-> **Mã ca sử dụng liên kết:** `UC10` (Đăng ký tài khoản), `UC11` (Đăng nhập hệ thống), `UC11a` (Điều hướng phân quyền RBAC)
+> **Mã ca sử dụng liên kết:** `UC10` (Đăng ký tài khoản), `UC11` (Đăng nhập hệ thống), `UC11a` (Điều hướng phân quyền RBAC)  
+> **Đồng bộ SRS:** Bám sát 100% mục `FR-04` và `NFR-02` (Stateless JWT token có thời hạn hiệu lực **7 ngày**).
 
 ---
 
@@ -13,7 +14,7 @@
 1. **`Người dùng (Khách hàng / Barista / Admin)` (`User`):** Tác nhân tương tác trực tiếp với hệ thống qua thiết bị di động / PWA.
 2. **`Giao diện Xác thực (Đăng ký / Đăng nhập)` (`UI`):** Lớp biên (Boundary) tiếp nhận form nhập liệu, kiểm tra dữ liệu phía Client, lưu trữ mã xác thực (JWT) và điều hướng.
 3. **`Controller (NestJS)` (`Controller`):** Lớp điều khiển (Control) tiếp nhận HTTP request, kích hoạt `ValidationPipe` kiểm tra định dạng DTO.
-4. **`Service (Xử lý nghiệp vụ)` (`Service`):** Lớp xử lý logic (Control) thực hiện mã hóa bcrypt, đối soát mật khẩu và ký tạo mã xác thực JWT.
+4. **`Service (Xử lý nghiệp vụ)` (`Service`):** Lớp xử lý logic (Control) thực hiện mã hóa bcrypt, đối soát mật khẩu và ký tạo mã xác thực JWT có thời hạn 7 ngày.
 5. **`Database (Prisma)` (`DB`):** Cơ sở dữ liệu lưu trữ thông tin thực thể `User`.
 
 ---
@@ -35,7 +36,7 @@
 | **11 – 13** | *[Nhánh lỗi]* Email đã được đăng ký | `Service` $\rightarrow$ `Controller` $\rightarrow$ `UI` | Ném lỗi 409 Conflict "Email đã được đăng ký" và yêu cầu dùng email khác. |
 | **14** | Mã hóa mật khẩu | `Service` $\rightarrow$ `Service` | Sử dụng thư viện `bcrypt` với muối `SALT_ROUNDS = 10`. |
 | **15 – 16** | Lưu người dùng mới | `Service` $\leftrightarrow$ `DB` | Lưu user vào Database với vai trò mặc định `CUSTOMER`, điểm tích lũy ban đầu `0`. |
-| **17** | Tạo mã xác thực (JWT) | `Service` $\rightarrow$ `Service` | `jwtService.sign({ sub: user.id, email, role: 'CUSTOMER' })` hạn dùng 24 giờ. |
+| **17** | Tạo mã xác thực (JWT) | `Service` $\rightarrow$ `Service` | `jwtService.sign({ sub: user.id, email, role: 'CUSTOMER' })` **hạn dùng 7 ngày** (chuẩn `FR-04` & `NFR-02`). |
 | **18 – 19** | Trả kết quả đăng ký thành công | `Service` $\rightarrow$ `Controller` $\rightarrow$ `UI` | Phản hồi HTTP 201 Created kèm mã xác thực (JWT) và thông tin safeUser. |
 | **20** | Lưu mã xác thực | `UI` $\rightarrow$ `UI` | Lưu JWT token vào bộ nhớ trình duyệt (LocalStorage) và cập nhật `authStore`. |
 | **21** | Chuyển hướng người dùng | `UI` $\rightarrow$ `Người dùng` | Chuyển thẳng sang trang Checkout (nếu đang dở giỏ hàng) hoặc trang Thực đơn (`/menu`). |
@@ -55,7 +56,7 @@
 | **30 – 32** | *[Nhánh lỗi]* Email không tồn tại | `Service` $\rightarrow$ `Controller` $\rightarrow$ `UI` | Chuẩn OWASP: Trả mã 401 Unauthorized "Email hoặc mật khẩu không chính xác" (chống rà quét tài khoản). |
 | **33** | So khớp mật khẩu | `Service` $\rightarrow$ `Service` | Thực hiện `bcrypt.compare(password, user.passwordHash)`. |
 | **34 – 36** | *[Nhánh lỗi]* Mật khẩu sai | `Service` $\rightarrow$ `Controller` $\rightarrow$ `UI` | Trả lỗi 401 "Email hoặc mật khẩu không chính xác". |
-| **37** | Tạo mã xác thực (JWT) chứa vai trò | `Service` $\rightarrow$ `Service` | Tạo JWT mang claim `{ sub, email, role: user.role }` có hạn 24 giờ. |
+| **37** | Tạo mã xác thực (JWT) chứa vai trò | `Service` $\rightarrow$ `Service` | Tạo JWT mang claim `{ sub, email, role: user.role }` **có hạn 7 ngày** (chuẩn `FR-04` & `NFR-02`). |
 | **38 – 39** | Trả kết quả đăng nhập thành công | `Service` $\rightarrow$ `Controller` $\rightarrow$ `UI` | Trả về mã xác thực JWT và profile thông tin người dùng. |
 | **40** | Cập nhật phiên đăng nhập | `UI` $\rightarrow$ `UI` | Lưu token vào LocalStorage và cập nhật Zustand store. |
 | **41** | Điều hướng phân quyền (RBAC) | `UI` $\rightarrow$ `Người dùng` | **Điều hướng tự động theo Role:**<br>• `ADMIN` $\rightarrow$ Cổng Quản trị (`/admin`)<br>• `STAFF` $\rightarrow$ Quầy pha chế KDS (`/staff`)<br>• `CUSTOMER` $\rightarrow$ Trang Đặt món / Checkout. |

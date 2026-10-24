@@ -46,7 +46,7 @@ else Dữ liệu phía giao diện hợp lệ
             activate DB
             DB --> Service : Người dùng đã được lưu
             deactivate DB
-            Service -> Service : Tạo mã xác thực (JWT) có hạn dùng 24 giờ
+            Service -> Service : Tạo mã xác thực (JWT) có hạn dùng 7 ngày
             Service --> Controller : Trả thông tin người dùng mới và mã xác thực (JWT)
             deactivate Service
             Controller --> UI : Trả kết quả đăng ký thành công kèm mã xác thực (JWT)
@@ -89,7 +89,7 @@ else Dữ liệu đầu vào hợp lệ
             Controller --> UI : Trả lỗi "Email hoặc mật khẩu không chính xác"
             UI --> User : Hiển thị lỗi "Email hoặc mật khẩu không chính xác"
         else Mật khẩu đúng
-            Service -> Service : Tạo mã xác thực (JWT) chứa vai trò (Role), có hạn dùng 24 giờ
+            Service -> Service : Tạo mã xác thực (JWT) chứa vai trò (Role), có hạn dùng 7 ngày
             Service --> Controller : Trả mã xác thực và thông tin người dùng
             deactivate Service
             Controller --> UI : Trả kết quả đăng nhập thành công kèm mã xác thực

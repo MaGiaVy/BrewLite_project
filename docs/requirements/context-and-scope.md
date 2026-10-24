@@ -82,7 +82,7 @@ Nhằm đảm bảo dự án hoàn thành đúng tiến độ cam kết theo mô
 1. **Quản lý Thực đơn & Sản phẩm:** Hiển thị danh mục đồ uống thủ công, tìm kiếm theo tên, phân loại nhóm, xem ảnh chất lượng cao và ghi chú hương vị.
 2. **Cá nhân hóa món uống:** Lựa chọn Size chuẩn (S/M/L), thêm Topping (Kem muối biển, Trân châu, Thạch cà phê, Đồ ăn kèm bánh), tùy chỉnh mức đá (0% - 100%) và đường (0% - 100%).
 3. **Quản lý Giỏ hàng (Client Cart):** Thêm món, điều chỉnh số lượng (1–20 ly), xóa món, tính tạm tính tự động, lưu trữ bền vững qua `localStorage` (không mất khi reload).
-4. **Xác thực & Phân quyền (Authentication):** Đăng ký, đăng nhập tài khoản bằng email/mật khẩu, mã hóa mật khẩu bằng `bcrypt`, cấp phát JWT token thời hạn 24 giờ, Route Guard bảo vệ tạo đơn và xem lịch sử.
+4. **Xác thực & Phân quyền (Authentication):** Đăng ký, đăng nhập tài khoản bằng email/mật khẩu, mã hóa mật khẩu bằng `bcrypt`, cấp phát JWT token thời hạn 7 ngày, Route Guard bảo vệ tạo đơn và xem lịch sử.
 5. **Xử lý Đơn hàng & Tồn kho:**
    - Tạo đơn trạng thái ban đầu `PENDING`.
    - Trừ tồn kho trong Database Transaction với cơ chế **Optimistic Locking** (cột `version` của Recipe / Ingredient) chống bán vượt quá số lượng khi đặt đồng thời.
@@ -115,7 +115,7 @@ Nhằm đảm bảo dự án hoàn thành đúng tiến độ cam kết theo mô
 2. **Backend:** Phải sử dụng **NestJS** (TypeScript, Module-based architecture), xác thực bằng Passport JWT, validate đầu vào bằng `class-validator` và `class-transformer`.
 3. **Cơ sở dữ liệu:** Phải sử dụng **PostgreSQL** kết hợp Prisma ORM, có migration có thể tái tạo và persistent storage lưu trữ dữ liệu.
 4. **Đóng gói & Chạy cục bộ:** Phải cung cấp tệp `docker-compose.yml` có khả năng khởi chạy đồng thời cả 3 dịch vụ (Frontend, Backend, Database) chỉ bằng một câu lệnh `docker compose up`.
-5. **Thời gian token:** JWT token hết hạn sau **24 giờ** thống nhất trên toàn hệ thống.
+5. **Thời gian token:** JWT token hết hạn sau **7 ngày** thống nhất trên toàn hệ thống (đồng bộ với `FR-04` và `NFR-02`).
 
 ### 4.2. Ràng buộc quy trình và bàn giao (Process Constraints)
 * Phát triển theo khung làm việc Scrum qua **2 Sprint** với Definition of Done (DoD) nghiêm ngặt: code không lỗi build, có test chứng minh, có commit rõ ràng và tài liệu đi kèm.
