@@ -1,164 +1,104 @@
 @startuml
-autonumber
-skinparam actorStyle awesome
-skinparam roundcorner 8
 skinparam defaultFontName "Segoe UI, Arial, sans-serif"
 skinparam defaultFontSize 11
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
 
-skinparam sequence {
-    ArrowColor #2C3E50
-    ActorBorderColor #2980B9
-    ActorBackgroundColor #EBF5FB
-    ParticipantBorderColor #34495E
-    ParticipantBackgroundColor #FFFFFF
-    LifeLineBorderColor #7F8C8D
-    LifeLineBackgroundColor #F2F4F4
-    GroupBorderColor #BDC3C7
-    GroupBackgroundColor #FAFAFA
-    GroupHeaderFontColor #2C3E50
-    AltBorderColor #E67E22
-    AltBackgroundColor #FEF9E7
-}
+autonumber
 
-title **SƠ ĐỒ TUẦN TỰ (SEQUENCE DIAGRAM) - ĐĂNG KÝ VÀ ĐĂNG NHẬP PHÂN QUYỀN (RBAC)**\n<size:11>Hệ thống BrewLite - Cashless Specialty Coffee Platform (Next.js & NestJS)</size>
+actor "Người dùng\n(Khách hàng / Barista / Admin)" as User
+boundary "Giao diện Xác thực\n(Đăng ký / Đăng nhập)" as UI
+control "Controller\n(NestJS)" as Controller
+control "Service\n(Xử lý nghiệp vụ)" as Service
+database "Database\n(Prisma)" as DB
 
-' ==============================================================================
-' PARTICIPANTS & LIFELINES
-' ==============================================================================
-actor "Người dùng / Khách truy cập\n(User / Guest)" as User #D1E8FF
-boundary "Giao diện Xác thực\n(Next.js App / AuthStore)" as UI #E8F4FD
-control "AuthController\n(NestJS REST API)" as Controller #FFF2CC
-control "AuthService\n(Bcrypt & JwtService)" as Service #FEF9E7
-database "Database\n(PostgreSQL / Prisma)" as DB #F8CECC
+== Đăng ký tài khoản ==
 
-' ==============================================================================
-' PHÂN ĐOẠN 1: ĐĂNG KÝ TÀI KHOẢN KHÁCH HÀNG (REGISTER)
-' ==============================================================================
-box "PHÂN HỆ XÁC THỰC (AUTHENTICATION MODULE)" #F8F9F9
+User -> UI : Nhập họ tên, email, mật khẩu, xác nhận mật khẩu (kèm số điện thoại) rồi bấm "Đăng ký"
+activate UI
+UI -> UI : Kiểm tra dữ liệu phía giao diện
 
-group Đăng ký tài khoản khách hàng (Register)
-    User -> UI : Nhập họ tên, email, số điện thoại, mật khẩu, xác nhận mật khẩu rồi bấm "Đăng ký"
-    activate UI
-    
-    UI -> UI : Kiểm tra dữ liệu phía Client (so khớp mật khẩu xác nhận, kiểm tra trường rỗng)
-    
-    alt #FADBD8 Mật khẩu xác nhận không khớp
-        UI --> User : Hiển thị thông báo lỗi "Mật khẩu xác nhận không khớp"
-    else #EAFAF1 Dữ liệu phía giao diện hợp lệ
-        UI -> Controller : POST /auth/register (fullName, email, phone, password)
-        activate Controller
-        
-        Controller -> Controller : Validate qua ValidationPipe(RegisterDto)\n(Email chuẩn RFC, Mật khẩu >= 6 ký tự, Họ tên không rỗng)
-        
-        alt #FADBD8 Dữ liệu DTO không hợp lệ (HTTP 400)
-            Controller --> UI : Trả lỗi 400 Bad Request (kèm danh sách trường vi phạm validation)
-            UI --> User : Hiển thị thông báo lỗi chi tiết cạnh từng trường nhập liệu
-        else #EAFAF1 Dữ liệu DTO hợp lệ
-            Controller -> Service : register(RegisterDto)
-            activate Service
-            
-            Service -> DB : prisma.user.findUnique({ where: { email } })
-            activate DB
-            DB --> Service : Kết quả tìm kiếm (existingUser)
-            deactivate DB
-            
-            alt #FADBD8 Email đã tồn tại trong hệ thống (HTTP 409)
-                Service --> Controller : Ném ngoại lệ ConflictException(409)
-                Controller --> UI : Trả lỗi HTTP 409 "Email này đã được đăng ký. Vui lòng đăng nhập hoặc dùng email khác."
-                UI --> User : Hiển thị cảnh báo lỗi, gợi ý người dùng chuyển sang tab Đăng nhập
-            else #EAFAF1 Email hợp lệ (chưa từng đăng ký)
-                Service -> Service : Mã hóa mật khẩu an toàn: bcrypt.hash(password, SALT_ROUNDS=10)
-                Service -> DB : prisma.user.create({\n  email, passwordHash, fullName, phone,\n  role: 'CUSTOMER', loyaltyPoints: 0\n})
-                activate DB
-                DB --> Service : Bản ghi User mới được tạo (id, createdAt)
-                deactivate DB
-                
-                Service -> Service : Tạo JWT Token có hạn 24 giờ:\njwtService.sign({ sub: user.id, email, role: 'CUSTOMER' })
-                Service --> Controller : Trả về { accessToken, user: safeUser }
-                deactivate Service
-                
-                Controller --> UI : Trả kết quả HTTP 201 Created kèm accessToken và profile người dùng
-                deactivate Controller
-                
-                UI -> UI : authStore.setAuth(user, token) - Lưu token & user vào LocalStorage
-                
-                alt #E8F8F5 Khách hàng đăng ký khi đang dở luồng đặt hàng (redirect = '/checkout')
-                    UI --> User : Hiển thị thông báo chào mừng & tự động chuyển hướng đến trang /checkout
-                else #EBF5FB Luồng đăng ký thông thường
-                    UI --> User : Hiển thị "Đăng ký thành viên thành công!" & chuyển hướng đến /menu
-                end
-            end
-        end
-    end
-    deactivate UI
-end
-
-' ==============================================================================
-' PHÂN ĐOẠN 2: ĐĂNG NHẬP & ĐIỀU HƯỚNG PHÂN QUYỀN (LOGIN & RBAC ROUTING)
-' ==============================================================================
-group Đăng nhập & Điều hướng Phân quyền (Login & RBAC Routing)
-    User -> UI : Nhập email, mật khẩu rồi bấm "Đăng nhập"
-    activate UI
-    
-    UI -> Controller : POST /auth/login (email, password)
+alt Mật khẩu xác nhận không khớp
+    UI --> User : Hiển thị lỗi "Mật khẩu không khớp"
+else Dữ liệu phía giao diện hợp lệ
+    UI -> Controller : Gửi yêu cầu đăng ký (email, mật khẩu, họ tên, số điện thoại)
     activate Controller
+    Controller -> Controller : Kiểm tra định dạng email và mật khẩu có ít nhất 6 ký tự
     
-    Controller -> Controller : Validate qua ValidationPipe(LoginDto)\n(Định dạng email, mật khẩu không được rỗng)
-    
-    alt #FADBD8 Dữ liệu đầu vào không hợp lệ (HTTP 400)
-        Controller --> UI : Trả lỗi 400 Bad Request (kèm danh sách lỗi)
-        UI --> User : Hiển thị thông báo lỗi định dạng dữ liệu
-    else #EAFAF1 Dữ liệu đầu vào hợp lệ
-        Controller -> Service : login(LoginDto)
+    alt Dữ liệu không hợp lệ
+        Controller --> UI : Trả lỗi dữ liệu không hợp lệ (kèm danh sách trường sai)
+        UI --> User : Hiển thị lỗi cạnh từng trường nhập
+    else Dữ liệu hợp lệ
+        Controller -> Service : Yêu cầu đăng ký người dùng
         activate Service
-        
-        Service -> DB : prisma.user.findUnique({\n  where: { email },\n  include: { vouchers: true }\n})
+        Service -> DB : Tìm người dùng theo email
         activate DB
-        DB --> Service : Thông tin User (hoặc null nếu không tìm thấy)
+        DB --> Service : Kết quả tìm kiếm
         deactivate DB
         
-        alt #FADBD8 Email không tồn tại (OWASP - Chống rà soát tài khoản)
-            Service --> Controller : Ném ngoại lệ UnauthorizedException(401)
-            Controller --> UI : Trả lỗi HTTP 401 "Email hoặc mật khẩu không chính xác. Vui lòng thử lại."
-            UI --> User : Hiển thị thông báo "Email hoặc mật khẩu không chính xác"
-        else #EAFAF1 Email tồn tại trong hệ thống
-            Service -> Service : So khớp mật khẩu: bcrypt.compare(dto.password, user.passwordHash)
-            
-            alt #FADBD8 Mật khẩu không chính xác (HTTP 401)
-                Service --> Controller : Ném ngoại lệ UnauthorizedException(401)
-                Controller --> UI : Trả lỗi HTTP 401 "Email hoặc mật khẩu không chính xác. Vui lòng thử lại."
-                UI --> User : Hiển thị thông báo "Email hoặc mật khẩu không chính xác"
-            else #EAFAF1 Mật khẩu chính xác tuyệt đối
-                Service -> Service : Tạo mã xác thực JWT (hạn 24h):\njwtService.sign({ sub: user.id, email: user.email, role: user.role })
-                Service --> Controller : Trả mã xác thực accessToken và thông tin safeUser (kèm role)
-                deactivate Service
-                
-                Controller --> UI : Trả kết quả HTTP 200 OK kèm accessToken và user profile
-                deactivate Controller
-                
-                UI -> UI : authStore.setAuth(user, token) - Lưu JWT vào LocalStorage và cập nhật Zustand store
-                
-                alt #FDEBD0 [Vai trò ADMIN] Quản trị viên
-                    UI -> UI : getRoleDestination() điều hướng sang /admin
-                    UI --> User : Chuyển hướng vào Cổng Quản trị BrewLite (Dashboard, Menu CRUD, BOM, Kho)
-                else #FCF3CF [Vai trò STAFF] Nhân viên pha chế
-                    UI -> UI : getRoleDestination() điều hướng sang /staff
-                    UI --> User : Chuyển hướng vào Màn hình Điều phối Quầy Bar KDS (Kitchen Display System)
-                else #D4EFDF [Vai trò CUSTOMER] Khách hàng thành viên
-                    alt #E8F8F5 Có giỏ hàng chờ thanh toán (redirect = '/checkout')
-                        UI -> UI : getRoleDestination() trả về '/checkout'
-                        UI --> User : Chuyển hướng thẳng sang /checkout (giữ nguyên giỏ hàng, áp dụng điểm Loyalty)
-                    else #EBF5FB Đăng nhập thông thường
-                        UI -> UI : getRoleDestination() trả về '/menu'
-                        UI --> User : Chuyển hướng sang /menu (Hiển thị thực đơn và thẻ thành viên)
-                    end
-                end
-            end
+        alt Email đã được đăng ký
+            Service --> Controller : Báo email đã tồn tại
+            Controller --> UI : Trả lỗi 409 "Email đã được đăng ký"
+            UI --> User : Hiển thị lỗi, yêu cầu dùng email khác
+        else Email chưa tồn tại
+            Service -> Service : Mã hóa mật khẩu (bcrypt)
+            Service -> DB : Lưu người dùng mới (vai trò Khách hàng, điểm tích lũy ban đầu bằng 0)
+            activate DB
+            DB --> Service : Người dùng đã được lưu
+            deactivate DB
+            Service -> Service : Tạo mã xác thực (JWT) có hạn dùng 24 giờ
+            Service --> Controller : Trả thông tin người dùng mới và mã xác thực (JWT)
+            deactivate Service
+            Controller --> UI : Trả kết quả đăng ký thành công kèm mã xác thực (JWT)
+            deactivate Controller
+            UI -> UI : Lưu mã xác thực vào bộ nhớ trình duyệt và cập nhật trạng thái đăng nhập
+            UI --> User : Chuyển thẳng sang trang Checkout (hoặc trang Thực đơn)
         end
     end
-    deactivate UI
 end
+deactivate UI
 
-end box
+== Đăng nhập ==
+
+User -> UI : Nhập email, mật khẩu rồi bấm "Đăng nhập"
+activate UI
+UI -> Controller : Gửi yêu cầu đăng nhập (email, mật khẩu)
+activate Controller
+Controller -> Controller : Kiểm tra định dạng dữ liệu đầu vào
+
+alt Dữ liệu đầu vào không hợp lệ
+    Controller --> UI : Trả lỗi dữ liệu không hợp lệ
+    UI --> User : Hiển thị lỗi cạnh từng trường nhập
+else Dữ liệu đầu vào hợp lệ
+    Controller -> Service : Yêu cầu đăng nhập
+    activate Service
+    Service -> DB : Tìm người dùng theo email
+    activate DB
+    DB --> Service : Thông tin người dùng (hoặc không có)
+    deactivate DB
+    
+    alt Email không tồn tại
+        Service --> Controller : Báo thông tin đăng nhập sai
+        Controller --> UI : Trả lỗi "Email hoặc mật khẩu không chính xác"
+        UI --> User : Hiển thị lỗi "Email hoặc mật khẩu không chính xác"
+    else Email tồn tại
+        Service -> Service : So khớp mật khẩu nhập vào với mật khẩu đã mã hóa
+        
+        alt Mật khẩu sai
+            Service --> Controller : Báo thông tin đăng nhập sai
+            Controller --> UI : Trả lỗi "Email hoặc mật khẩu không chính xác"
+            UI --> User : Hiển thị lỗi "Email hoặc mật khẩu không chính xác"
+        else Mật khẩu đúng
+            Service -> Service : Tạo mã xác thực (JWT) chứa vai trò (Role), có hạn dùng 24 giờ
+            Service --> Controller : Trả mã xác thực và thông tin người dùng
+            deactivate Service
+            Controller --> UI : Trả kết quả đăng nhập thành công kèm mã xác thực
+            deactivate Controller
+            UI -> UI : Lưu mã xác thực vào bộ nhớ trình duyệt và cập nhật trạng thái đăng nhập
+            UI --> User : Hiển thị "Đăng nhập thành công" và điều hướng phân quyền (Admin -> Quản trị, Staff -> Quầy pha chế, Khách hàng -> Đặt món/Checkout)
+        end
+    end
+end
+deactivate UI
 
 @enduml
