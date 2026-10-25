@@ -17,7 +17,7 @@ skinparam swimlane {
     TitleFontColor black
 }
 
-title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): DUYỆT THỰC ĐƠN & DANH MỤC SẢN PHẨM\n(Thiết kế tích hợp API NestJS GET /products)
+title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): DUYỆT THỰC ĐƠN, TÙY BIẾN MÓN & GIỎ HÀNG\n(Hệ thống BrewLite 100% Cashless Specialty Coffee Roastery)
 
 |#White|Khách hàng|
 |#White|Giao diện Next.js (Frontend)|
@@ -51,10 +51,36 @@ if (Sản phẩm còn hàng trong kho?) then ([Hết hàng / Sold Out])
     stop
 else ([Còn hàng sẵn sàng])
     |Giao diện Next.js (Frontend)|
-    :Mở chi tiết sản phẩm;
-    |Khách hàng|
-    :Xem thông tin chi tiết món;
-    stop
+    :Mở Modal chi tiết món (ProductDetailModal);
 endif
+
+|Khách hàng|
+:Tùy chọn kích cỡ (Size S, M, L);
+:Tích chọn thêm Topping (Thạch, Kem muối, Trân châu);
+:Tùy chỉnh khẩu vị (Mức đá 0-100%, Mức đường 0-100%);
+
+|Giao diện Next.js (Frontend)|
+:Tính giá động: (basePrice + sizeUpcharge + sum(topping));
+:Cập nhật giá hiển thị trên nút "Thêm vào giỏ";
+
+|Khách hàng|
+:Bấm nút "Thêm vào giỏ hàng";
+
+|Giao diện Next.js (Frontend)|
+:Kiểm tra composite key: (id|size|temp|toppings);
+
+if (Món đã có sẵn trong giỏ hàng?) then ([Đã có cùng tùy chọn])
+    :Cộng dồn số lượng (quantity = quantity + 1);
+else ([Chưa có trong giỏ])
+    :Tạo dòng mục mới trong Zustand Cart Store;
+endif
+
+:Đồng bộ trạng thái giỏ hàng vào localStorage;
+:Cập nhật số lượng Badge trên Header;
+:Hiển thị thông báo Toast "Đã thêm vào giỏ hàng";
+
+|Khách hàng|
+:Xem giỏ hàng đã cập nhật thành công;
+stop
 
 @enduml
