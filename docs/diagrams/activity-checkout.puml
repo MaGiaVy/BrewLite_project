@@ -17,7 +17,7 @@ skinparam swimlane {
     TitleFontColor black
 }
 
-title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): ĐẶT HÀNG & THANH TOÁN KHÔNG DÙNG TIỀN MẶT\n(Thiết kế phân làn Cổng thanh toán điện tử ZaloPay / Mock Gateway)
+title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): ĐẶT HÀNG & THANH TOÁN KHÔNG DÙNG TIỀN MẶT\n(Bao gồm xử lý ngoại lệ: Chưa đăng nhập, Hết hàng BOM 409, Thanh toán thất bại & Timeout 15p)
 
 |#White|Khách hàng|
 |#White|Giao diện Next.js (Frontend)|
@@ -29,10 +29,42 @@ start
 :Nhấn nút "Tiến hành đặt hàng" từ Giỏ hàng;
 
 |Giao diện Next.js (Frontend)|
-:Hiển thị tóm tắt đơn hàng và các phương thức thanh toán;
+:Kiểm tra trạng thái xác thực trong Zustand AuthStore;
+
+if (Đã đăng nhập tài khoản?) then ([Chưa có token / Hết hạn])
+    :Lưu đường dẫn chuyển tiếp (redirect = /checkout);
+    :Chuyển hướng sang trang Đăng nhập (/auth/login);
+    |Khách hàng|
+    :Nhập email và mật khẩu tài khoản;
+    :Bấm nút "Đăng nhập";
+    |Hệ thống Backend & Database|
+    :Xác thực danh tính và cấp phát JWT token 7 ngày;
+    |Giao diện Next.js (Frontend)|
+    :Lưu JWT token vào AuthStore;
+    :Điều hướng tự động quay lại trang Thanh toán (/checkout);
+    :Bảo lưu nguyên vẹn danh sách món trong giỏ hàng;
+else ([Đã có JWT hợp lệ])
+    :Chuyển thẳng sang trang Thanh toán (/checkout);
+endif
 
 |Khách hàng|
-:Chọn phương thức thanh toán (ZaloPay QR, Thẻ ngân hàng);
+:Xem tóm tắt đơn hàng (danh sách món, size, topping, tổng tiền);
+
+if (Khách có mã Voucher?) then ([Có mã giảm giá])
+    |Khách hàng|
+    :Nhập mã voucher (VD: BREWLITE10, WELCOME20);
+    :Bấm nút "Áp dụng";
+    |Hệ thống Backend & Database|
+    :Kiểm tra tính hợp lệ, hạn dùng và số lượt của Voucher;
+    |Giao diện Next.js (Frontend)|
+    :Cập nhật chiết khấu trực tiếp vào tổng tiền thanh toán;
+else ([Không dùng voucher])
+    |Giao diện Next.js (Frontend)|
+    :Giữ nguyên tổng tiền niêm yết trọn gói;
+endif
+
+|Khách hàng|
+:Chọn phương thức thanh toán (ZaloPay QR, Ví điện tử, Thẻ ngân hàng);
 :Nhấn nút "Xác nhận & Thanh toán";
 
 |Giao diện Next.js (Frontend)|
@@ -76,6 +108,7 @@ endif
 :Xử lý trừ tiền tài chính;
 
 if (Giao dịch thanh toán thành công?) then ([Thanh toán thành công])
+    |Cổng thanh toán điện tử (ZaloPay / Mock)|
     :Gửi tín hiệu Webhook Callback (kèm chữ ký HMAC-SHA256);
     |Hệ thống Backend & Database|
     :Xác thực chữ ký số hợp lệ;
@@ -91,7 +124,7 @@ if (Giao dịch thanh toán thành công?) then ([Thanh toán thành công])
     |Khách hàng|
     :Xem mã đơn hàng, điểm tích lũy và theo dõi tiến trình làm đồ uống;
     stop
-else ([Thanh toán thất bại hoặc quá hạn])
+else ([Giao dịch thất bại hoặc quá hạn])
     if (Đơn hàng bị quá hạn thanh toán?) then ([Quá hạn 15 phút])
         |Hệ thống Backend & Database|
         :Scheduled Job quét phát hiện đơn PENDING quá 15 phút;
