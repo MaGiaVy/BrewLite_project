@@ -36,7 +36,9 @@ start
 :Nhấn nút "Xác nhận & Thanh toán";
 
 |Giao diện Next.js (Frontend)|
-:Gửi yêu cầu khởi tạo đơn hàng POST /orders;
+:Tự động sinh khóa duy nhất Idempotency-Key (UUIDv4);
+:Khóa nút bấm thanh toán chống nhấn đúp (double-click);
+:Gửi yêu cầu POST /orders kèm JWT Bearer và Idempotency-Key;
 
 |Hệ thống Backend & Database|
 :Bắt đầu Database Transaction;
@@ -65,6 +67,7 @@ endif
 
 |Giao diện Next.js (Frontend)|
 :Hiển thị mã QR ZaloPay Sandbox hoặc Form thẻ thanh toán;
+:Khởi động Polling tự động kiểm tra trạng thái mỗi 3 giây;
 
 |Khách hàng|
 :Quét mã QR bằng ứng dụng ZaloPay hoặc xác nhận thanh toán thẻ;
