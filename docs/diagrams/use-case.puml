@@ -1,84 +1,113 @@
 @startuml
-skinparam actorStyle awesome
-skinparam packageStyle rectangle
-skinparam roundcorner 10
-skinparam defaultFontName "Segoe UI", Arial, sans-serif
+left to right direction
+skinparam defaultFontName "Segoe UI, Arial, sans-serif"
 skinparam defaultFontSize 12
+skinparam roundcorner 10
 
-title SƠ ĐỒ USE-CASE TỔNG QUÁT HỆ THỐNG BREWLITE\n(BrewLite 100% Cashless Specialty Coffee Roastery)
-
-actor "Khách hàng\n(Customer)" as Customer #E1F5FE
-actor "Nhân viên Quầy\n(Barista / Staff)" as Staff #FFF3E0
-actor "Quản lý Cửa hàng\n(Admin)" as Admin #F3E5F5
-actor "Cổng thanh toán\n(Payment Gateway)" as Gateway #ECEFF1
-
-rectangle "HỆ THỐNG BREWLITE KIOSK & PWA" {
-    
-    package "Phân hệ Thực đơn & Mua hàng" {
-        usecase "UC01: Khám phá Menu & Tìm kiếm món" as UC_Menu
-        usecase "UC02: Tùy biến món (Size, Topping, Đá/Đường)" as UC_Customize
-        usecase "UC03: Quản lý giỏ hàng (Cart Store)" as UC_Cart
-        usecase "UC04: Đặt và thanh toán đơn hàng" as UC_Checkout #FFE0B2
-        usecase "UC05: Áp dụng mã giảm giá (Voucher)" as UC_Voucher
-        usecase "UC06: Tích lũy điểm thành viên (Loyalty)" as UC_Loyalty
-        usecase "UC07: Theo dõi tiến độ đơn hàng (Realtime)" as UC_Track
-        usecase "UC08: Xem lịch sử đơn hàng" as UC_History
-        usecase "UC09: Hủy đơn hàng (trong 5 phút)" as UC_Cancel
-    }
-
-    package "Phân hệ Xác thực & Tài khoản" {
-        usecase "UC10: Đăng ký tài khoản mới" as UC_Register
-        usecase "UC11: Đăng nhập & Xác thực JWT" as UC_Login
-    }
-
-    package "Phân hệ Vận hành Quầy Bar (KDS)" {
-        usecase "UC12: Tiếp nhận đơn đã thanh toán (KDS)" as UC_KDS_View
-        usecase "UC13: Cập nhật tiến trình pha chế (PREPARING -> READY)" as UC_KDS_Update
-    }
-
-    package "Phân hệ Quản trị (Admin Portal)" {
-        usecase "UC14: Quản lý Danh mục & Menu (CRUD món)" as UC_Admin_Menu
-        usecase "UC15: Quản lý Kho nguyên liệu & Công thức BOM" as UC_Admin_BOM
-        usecase "UC16: Quản lý Mã khuyến mãi (Voucher)" as UC_Admin_Voucher
-        usecase "UC17: Xem báo cáo thống kê & Best-sellers" as UC_Admin_Report
-    }
-
-    usecase "Xác thực danh tính (JWT)" as UC_Auth_Check #E0F2F1
-    usecase "Trừ kho nguyên liệu (Optimistic Lock)" as UC_Deduct_Stock #E0F2F1
-    usecase "Xử lý giao dịch thanh toán thẻ / ví" as UC_Process_Payment #E0F2F1
+' Tối giản chuẩn UML, không màu mè
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actor {
+    BorderColor black
+    BackgroundColor white
+}
+skinparam usecase {
+    BorderColor black
+    BackgroundColor white
+    ArrowColor black
+}
+skinparam rectangle {
+    BorderColor black
+    BackgroundColor white
 }
 
-' Customer relations
+title SƠ ĐỒ USE CASE TỔNG QUÁT HỆ THỐNG BREWLITE\n(Nền tảng Đặt đồ uống & Thanh toán không tiền mặt)
+
+' ==========================================
+' ACTORS BÊN TRÁI (Khách hàng)
+' ==========================================
+actor "Khách hàng" as Customer
+
+' ==========================================
+' SYSTEM BOUNDARY
+' ==========================================
+rectangle "Hệ thống BrewLite (Next.js & NestJS)" {
+
+    ' --- Nhóm Xác thực & Tài khoản ---
+    usecase "Đăng ký tài khoản" as UC_Register
+    usecase "Đăng nhập hệ thống" as UC_Login
+    usecase "Xác thực phân quyền (RBAC)" as UC_RBAC
+
+    ' --- Nhóm Khách hàng (Menu, Giỏ hàng, Đặt đơn) ---
+    usecase "Xem thực đơn & tìm kiếm món" as UC_Menu
+    usecase "Xem chi tiết món & chọn Size, Topping" as UC_Detail
+    usecase "Quản lý giỏ hàng" as UC_Cart
+    usecase "Đặt hàng & Thanh toán" as UC_Checkout
+    usecase "Áp dụng mã giảm giá (Voucher)" as UC_Voucher
+    usecase "Tích lũy & dùng điểm thưởng" as UC_Loyalty
+    usecase "Xử lý thanh toán trực tuyến" as UC_Payment
+    usecase "Theo dõi tiến độ đơn thời gian thực" as UC_Track
+    usecase "Xem lịch sử đơn hàng" as UC_History
+    usecase "Hủy đơn hàng" as UC_Cancel
+
+    ' --- Nhóm Quầy pha chế (Staff KDS) ---
+    usecase "Tiếp nhận đơn hàng quầy pha chế (KDS)" as UC_StaffView
+    usecase "Cập nhật trạng thái pha chế" as UC_StaffUpdate
+
+    ' --- Nhóm Quản trị (Admin) ---
+    usecase "Quản lý danh mục & thực đơn món" as UC_AdminMenu
+    usecase "Quản lý định mức công thức (BOM)" as UC_AdminBOM
+    usecase "Quản lý & cảnh báo kho nguyên liệu" as UC_AdminInventory
+    usecase "Quản lý mã giảm giá (Voucher)" as UC_AdminVoucher
+    usecase "Xem báo cáo thống kê & doanh thu" as UC_AdminReport
+
+    ' Quan hệ Include & Extend
+    UC_Login ..> UC_RBAC : <<include>>
+    UC_Checkout ..> UC_Payment : <<include>>
+    UC_Checkout ..> UC_Loyalty : <<include>>
+    UC_Voucher ..> UC_Checkout : <<extend>>
+}
+
+' ==========================================
+' ACTORS BÊN PHẢI (Nhân viên, Quản trị viên, Cổng thanh toán)
+' ==========================================
+actor "Nhân viên (Barista)" as Staff
+actor "Quản trị viên (Admin)" as Admin
+actor "Cổng thanh toán (ZaloPay)" as PaymentGateway
+
+' ==========================================
+' KẾT NỐI KHÁCH HÀNG (BÊN TRÁI)
+' ==========================================
+Customer --> UC_Register
+Customer --> UC_Login
 Customer --> UC_Menu
-Customer --> UC_Customize
+Customer --> UC_Detail
 Customer --> UC_Cart
 Customer --> UC_Checkout
 Customer --> UC_Track
 Customer --> UC_History
 Customer --> UC_Cancel
-Customer --> UC_Register
-Customer --> UC_Login
 
-' Includes & Extends for Checkout
-UC_Checkout ..> UC_Auth_Check : <<include>>
-UC_Checkout ..> UC_Deduct_Stock : <<include>>
-UC_Checkout ..> UC_Process_Payment : <<include>>
-UC_Voucher ..> UC_Checkout : <<extend>>
-UC_Checkout ..> UC_Loyalty : <<include>>
+' ==========================================
+' KẾT NỐI NHÂN VIÊN (BÊN PHẢI)
+' ==========================================
+Staff --> UC_Login
+Staff --> UC_StaffView
+Staff --> UC_StaffUpdate
 
-' Gateway relation
-UC_Process_Payment --> Gateway
+' ==========================================
+' KẾT NỐI QUẢN TRỊ VIÊN (BÊN PHẢI)
+' ==========================================
+Admin --> UC_Login
+Admin --> UC_AdminMenu
+Admin --> UC_AdminBOM
+Admin --> UC_AdminInventory
+Admin --> UC_AdminVoucher
+Admin --> UC_AdminReport
 
-' Staff relations
-Staff --> UC_KDS_View
-Staff --> UC_KDS_Update
-Staff ..> UC_Auth_Check : <<include>>
-
-' Admin relations
-Admin --> UC_Admin_Menu
-Admin --> UC_Admin_BOM
-Admin --> UC_Admin_Voucher
-Admin --> UC_Admin_Report
-Admin ..> UC_Auth_Check : <<include>>
+' ==========================================
+' KẾT NỐI CỔNG THANH TOÁN (BÊN PHẢI)
+' ==========================================
+UC_Payment --> PaymentGateway
 
 @enduml
