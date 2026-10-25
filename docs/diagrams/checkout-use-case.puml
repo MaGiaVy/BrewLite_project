@@ -1,0 +1,76 @@
+@startuml
+left to right direction
+skinparam defaultFontName "Segoe UI, Arial, sans-serif"
+skinparam defaultFontSize 12
+skinparam roundcorner 10
+
+' Chuẩn UML tối giản đen trắng, không màu mè
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actor {
+    BorderColor black
+    BackgroundColor white
+}
+skinparam usecase {
+    BorderColor black
+    BackgroundColor white
+    ArrowColor black
+}
+skinparam rectangle {
+    BorderColor black
+    BackgroundColor white
+}
+
+title SƠ ĐỒ USE CASE PHÂN HỆ ĐẶT HÀNG & THANH TOÁN (CHECKOUT & PAYMENT)\n(Hệ thống BrewLite 100% Cashless Coffee Roastery)
+
+' ==========================================
+' ACTOR BÊN TRÁI (Khách hàng)
+' ==========================================
+actor "Khách hàng" as Customer
+
+' ==========================================
+' SYSTEM BOUNDARY (Phân hệ Checkout)
+' ==========================================
+rectangle "Phân hệ Đặt hàng & Thanh toán (Checkout & Payment)" {
+
+    ' Use-case trung tâm
+    usecase "Đặt hàng & Thanh toán" as UC_Checkout
+
+    ' Các Use-case phụ thuộc bắt buộc (<<include>>)
+    usecase "Xác thực đăng nhập (JWT)" as UC_Auth
+    usecase "Kiểm tra tồn kho BOM & Khóa Optimistic" as UC_Stock
+    usecase "Xử lý thanh toán trực tuyến" as UC_ProcessPay
+    usecase "Tích lũy điểm Loyalty (1.000đ = 1đ)" as UC_Loyalty
+
+    ' Các Use-case mở rộng tùy chọn (<<extend>>)
+    usecase "Áp dụng mã giảm giá (Voucher)" as UC_Voucher
+    usecase "Hủy đơn hàng (Grace Period / Hết hạn)" as UC_Cancel
+    usecase "Thanh toán lại khi lỗi (Retry Payment)" as UC_Retry
+
+    ' Quan hệ Include (bắt buộc thực hiện khi Checkout)
+    UC_Checkout ..> UC_Auth : <<include>>
+    UC_Checkout ..> UC_Stock : <<include>>
+    UC_Checkout ..> UC_ProcessPay : <<include>>
+    UC_Checkout ..> UC_Loyalty : <<include>>
+
+    ' Quan hệ Extend (kích hoạt trong điều kiện mở rộng hoặc ngoại lệ)
+    UC_Voucher ..> UC_Checkout : <<extend>>
+    UC_Cancel ..> UC_Checkout : <<extend>>
+    UC_Retry ..> UC_Checkout : <<extend>>
+}
+
+' ==========================================
+' ACTOR BÊN PHẢI (Cổng thanh toán)
+' ==========================================
+actor "Cổng thanh toán điện tử\n(ZaloPay Sandbox / Mock Gateway)" as PaymentGateway
+
+' ==========================================
+' LIÊN KẾT TÁC NHÂN
+' ==========================================
+Customer --> UC_Checkout
+Customer --> UC_Cancel
+Customer --> UC_Retry
+
+UC_ProcessPay --> PaymentGateway
+
+@enduml
