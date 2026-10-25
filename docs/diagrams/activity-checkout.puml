@@ -60,20 +60,30 @@ if (Giao dịch thanh toán thành công?) then ([Thanh toán thành công])
     :Xác thực chữ ký số hợp lệ;
     :Cập nhật trạng thái đơn hàng từ PENDING sang PAID;
     :Tạo bản ghi thanh toán Payment lưu trữ transactionId;
+    :Cộng dồn điểm thưởng Loyalty cho khách hàng (1.000đ = 1 điểm);
     |Giao diện Next.js (Frontend)|
     :Nhận kết quả xác nhận thanh toán thành công (PAID);
     :Điều hướng sang màn hình Xác nhận đơn hàng (/orders/:id);
     |Khách hàng|
-    :Xem mã đơn hàng và hoàn tất thanh toán;
+    :Xem mã đơn hàng, điểm tích lũy và theo dõi tiến trình làm đồ uống;
     stop
-else ([Giao dịch thất bại])
-    |Hệ thống Backend & Database|
-    :Cập nhật trạng thái đơn hàng sang PAYMENT_FAILED;
-    |Giao diện Next.js (Frontend)|
-    :Hiển thị màn hình thông báo lỗi thanh toán;
-    |Khách hàng|
-    :Dừng phiên giao dịch;
-    stop
+else ([Thanh toán thất bại hoặc quá hạn])
+    if (Đơn hàng bị quá hạn thanh toán?) then ([Quá hạn 15 phút])
+        |Hệ thống Backend & Database|
+        :Scheduled Job quét phát hiện đơn PENDING quá 15 phút;
+        :Tự động chuyển trạng thái đơn hàng sang CANCELLED;
+        |Khách hàng|
+        :Xem trạng thái đơn hàng đã hết hạn;
+        stop
+    else ([Lỗi thẻ / Số dư không đủ])
+        |Hệ thống Backend & Database|
+        :Cập nhật trạng thái đơn hàng sang PAYMENT_FAILED;
+        |Giao diện Next.js (Frontend)|
+        :Hiển thị màn hình lỗi thanh toán;
+        |Khách hàng|
+        :Dừng phiên giao dịch;
+        stop
+    endif
 endif
 
 @enduml
