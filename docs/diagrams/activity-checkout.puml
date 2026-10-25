@@ -39,8 +39,26 @@ start
 :Gửi yêu cầu khởi tạo đơn hàng POST /orders;
 
 |Hệ thống Backend & Database|
-:Tạo bản ghi đơn hàng mới với trạng thái PENDING;
-:Gửi yêu cầu khởi tạo giao dịch tài chính sang Cổng thanh toán;
+:Bắt đầu Database Transaction;
+:Thẩm định lại giá gốc sản phẩm, size và topping từ cơ sở dữ liệu;
+:Kiểm tra định mức nguyên liệu công thức (BOM) qua Khóa lạc quan;
+
+if (Đủ nguyên liệu tồn kho BOM?) then ([Hết hàng / Xung đột phiên bản 409])
+    :Rollback toàn bộ Database Transaction;
+    :Trả về mã lỗi HTTP 409 Conflict;
+    |Giao diện Next.js (Frontend)|
+    :Mở khóa nút bấm thanh toán;
+    :Hiển thị Toast đỏ báo "Nguyên liệu vừa hết, vui lòng đổi món";
+    :Giữ nguyên giỏ hàng để khách hàng chọn lại;
+    |Khách hàng|
+    :Dừng phiên đặt hàng hiện tại để đổi món;
+    stop
+else ([Đủ nguyên liệu tồn kho])
+    |Hệ thống Backend & Database|
+    :Giữ chỗ định mức tồn kho nguyên liệu trong bảng Ingredient;
+    :Tạo bản ghi đơn hàng mới với trạng thái PENDING;
+    :Gửi yêu cầu khởi tạo giao dịch tài chính sang Cổng thanh toán;
+endif
 
 |Cổng thanh toán điện tử (ZaloPay / Mock)|
 :Tạo mã giao dịch và liên kết thanh toán (ZaloPay QR / Mock Gateway);
@@ -59,10 +77,13 @@ if (Giao dịch thanh toán thành công?) then ([Thanh toán thành công])
     |Hệ thống Backend & Database|
     :Xác thực chữ ký số hợp lệ;
     :Cập nhật trạng thái đơn hàng từ PENDING sang PAID;
+    :Trừ dứt điểm tồn kho nguyên liệu BOM trong bảng Ingredient;
     :Tạo bản ghi thanh toán Payment lưu trữ transactionId;
     :Cộng dồn điểm thưởng Loyalty cho khách hàng (1.000đ = 1 điểm);
+    :Commit Transaction thành công;
     |Giao diện Next.js (Frontend)|
     :Nhận kết quả xác nhận thanh toán thành công (PAID);
+    :Xóa sạch giỏ hàng trong Zustand Store và localStorage;
     :Điều hướng sang màn hình Xác nhận đơn hàng (/orders/:id);
     |Khách hàng|
     :Xem mã đơn hàng, điểm tích lũy và theo dõi tiến trình làm đồ uống;
@@ -72,16 +93,19 @@ else ([Thanh toán thất bại hoặc quá hạn])
         |Hệ thống Backend & Database|
         :Scheduled Job quét phát hiện đơn PENDING quá 15 phút;
         :Tự động chuyển trạng thái đơn hàng sang CANCELLED;
+        :Hoàn trả toàn bộ nguyên liệu định mức BOM về kho;
         |Khách hàng|
         :Xem trạng thái đơn hàng đã hết hạn;
         stop
     else ([Lỗi thẻ / Số dư không đủ])
         |Hệ thống Backend & Database|
         :Cập nhật trạng thái đơn hàng sang PAYMENT_FAILED;
+        :Hoàn trả lại số lượng nguyên liệu BOM đã giữ chỗ tạm thời;
         |Giao diện Next.js (Frontend)|
         :Hiển thị màn hình lỗi thanh toán;
+        :Cung cấp nút "Thử lại thanh toán" và "Hủy giao dịch";
         |Khách hàng|
-        :Dừng phiên giao dịch;
+        :Chọn phương thức thanh toán khác hoặc dừng giao dịch;
         stop
     endif
 endif
