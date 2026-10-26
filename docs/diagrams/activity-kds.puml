@@ -1,0 +1,115 @@
+@startuml
+skinparam defaultFontName "Segoe UI, Arial, sans-serif"
+skinparam defaultFontSize 12
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam monochrome true
+skinparam conditionStyle InsideDiamond
+skinparam conditionEndStyle hline
+
+skinparam activity {
+    BorderColor black
+    BackgroundColor white
+    ArrowColor black
+}
+skinparam swimlane {
+    BorderColor black
+    TitleFontColor black
+}
+
+title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): QUẦY PHA CHẾ KDS & HOÀN TẤT NHẬN NƯỚC\n(Bao gồm xử lý ngoại lệ: Hủy đơn trong thời gian ân hạn 5 phút Grace Period)
+
+|#White|Khách hàng|
+|#White|Giao diện Web & KDS (Frontend)|
+|#White|Hệ thống Backend & Database|
+|#White|Nhân viên Barista (Quầy pha chế)|
+
+|Hệ thống Backend & Database|
+start
+:Đơn hàng chuyển sang trạng thái PAID;
+:Kích hoạt đếm ngược thời gian ân hạn 5 phút (Grace Period);
+
+|Giao diện Web & KDS (Frontend)|
+:Màn hình KDS (/staff/orders) nạp thẻ đơn hàng mới PAID;
+:Hiển thị chi tiết món, size, topping, mức đá, mức đường;
+:Màn hình khách hàng (/orders/:id) hiển thị thanh tiến trình 5 bước;
+
+|Khách hàng|
+:Theo dõi tiến trình đơn hàng (Polling 3s);
+
+if (Khách có yêu cầu hủy đơn hàng?) then ([Có yêu cầu hủy])
+    |Khách hàng|
+    :Nhấn nút "Hủy đơn hàng" trên giao diện chi tiết;
+    |Giao diện Web & KDS (Frontend)|
+    :Gửi yêu cầu PATCH /orders/:id/cancel;
+    |Hệ thống Backend & Database|
+    if (Trong hạn 5 phút & chưa pha chế?) then ([Hợp lệ <= 5 phút])
+        :Chuyển trạng thái đơn hàng sang CANCELLED;
+        :Hoàn trả toàn bộ nguyên liệu BOM về kho Ingredient;
+        :Tạo bản ghi hoàn tiền giao dịch;
+        |Giao diện Web & KDS (Frontend)|
+        :Cập nhật trạng thái "Đã hủy đơn thành công";
+        :Tự động xóa đơn khỏi hàng đợi pha chế KDS;
+        |Khách hàng|
+        :Xem thông báo hủy đơn và hoàn tiền;
+        stop
+    else ([Quá hạn > 5 phút / Đang làm])
+        :Từ chối yêu cầu hủy (HTTP 400 Bad Request);
+        |Giao diện Web & KDS (Frontend)|
+        :Khóa nút hủy, hiển thị "Đồ uống đang được chuẩn bị";
+    endif
+else ([Không hủy / Chờ nhận nước])
+    |Khách hàng|
+    :Tiếp tục chờ thông báo pha chế hoàn tất;
+endif
+
+|Nhân viên Barista (Quầy pha chế)|
+:Xem thông tin công thức trên màn hình KDS;
+:Nhấn nút "Bắt đầu pha chế" trên card đơn;
+
+|Giao diện Web & KDS (Frontend)|
+:Gửi yêu cầu PATCH /orders/:id/status (PREPARING);
+
+|Hệ thống Backend & Database|
+:State Machine Guard kiểm tra: PAID -> PREPARING;
+:Khóa hoàn toàn quyền hủy đơn của khách hàng;
+:Cập nhật trạng thái đơn hàng sang PREPARING;
+
+|Giao diện Web & KDS (Frontend)|
+:Cập nhật bước tiến trình sang "Đang pha chế";
+
+|Nhân viên Barista (Quầy pha chế)|
+:Pha chế ly cà phê rang mộc theo đúng định mức công thức BOM;
+:Dán tem nhãn mã đơn #id lên thân ly;
+:Đặt đồ uống tại Quầy Bar Express (Trạm 02);
+:Nhấn nút "Pha chế xong" trên màn hình KDS;
+
+|Giao diện Web & KDS (Frontend)|
+:Gửi yêu cầu PATCH /orders/:id/status (READY);
+
+|Hệ thống Backend & Database|
+:State Machine Guard kiểm tra: PREPARING -> READY;
+:Cập nhật trạng thái đơn hàng sang READY;
+
+|Giao diện Web & KDS (Frontend)|
+:Thông báo cho khách: "Đồ uống đã sẵn sàng tại Trạm Bar Express 02";
+
+|Khách hàng|
+:Di chuyển đến quầy nhận đồ uống;
+:Đưa mã đơn hàng cho Barista đối soát;
+
+|Nhân viên Barista (Quầy pha chế)|
+:Đối soát mã đơn và trao ly nước cho khách;
+:Nhấn nút "Giao hàng thành công" trên KDS;
+
+|Hệ thống Backend & Database|
+:Cập nhật trạng thái đơn hàng sang COMPLETED;
+
+|Giao diện Web & KDS (Frontend)|
+:Cập nhật trạng thái "Hoàn tất đơn hàng";
+
+|Khách hàng|
+:Thưởng thức ly cà phê đặc sản BrewLite;
+stop
+
+@enduml

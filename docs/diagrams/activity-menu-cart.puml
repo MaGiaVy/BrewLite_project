@@ -1,0 +1,86 @@
+@startuml
+skinparam defaultFontName "Segoe UI, Arial, sans-serif"
+skinparam defaultFontSize 12
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam monochrome true
+skinparam conditionStyle InsideDiamond
+skinparam conditionEndStyle hline
+
+skinparam activity {
+    BorderColor black
+    BackgroundColor white
+    ArrowColor black
+}
+skinparam swimlane {
+    BorderColor black
+    TitleFontColor black
+}
+
+title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): DUYỆT THỰC ĐƠN, TÙY BIẾN MÓN & GIỎ HÀNG\n(Hệ thống BrewLite 100% Cashless Specialty Coffee Roastery)
+
+|#White|Khách hàng|
+|#White|Giao diện Next.js (Frontend)|
+|#White|Hệ thống Backend (NestJS API)|
+
+|Khách hàng|
+start
+:Truy cập trang Thực đơn (/menu);
+
+|Giao diện Next.js (Frontend)|
+:Hiển thị hiệu ứng Skeleton loader;
+:Gửi yêu cầu GET /products;
+
+|Hệ thống Backend (NestJS API)|
+:Truy vấn danh mục sản phẩm đang kích hoạt;
+:Trả về danh sách món cơ sở và định giá size, topping;
+
+|Giao diện Next.js (Frontend)|
+:Hiển thị danh sách card món theo phân loại tab;
+
+|Khách hàng|
+:Chọn xem 1 sản phẩm cụ thể;
+
+|Giao diện Next.js (Frontend)|
+if (Sản phẩm còn hàng trong kho?) then ([Hết hàng / Sold Out])
+    :Hiển thị badge "Hết hàng";
+    :Làm mờ và khóa nút chọn món;
+    |Khách hàng|
+    :Xem thông báo món tạm hết;
+    :Dừng thao tác với món này;
+    stop
+else ([Còn hàng sẵn sàng])
+    |Giao diện Next.js (Frontend)|
+    :Mở Modal chi tiết món (ProductDetailModal);
+endif
+
+|Khách hàng|
+:Tùy chọn kích cỡ (Size S, M, L);
+:Tích chọn thêm Topping (Thạch, Kem muối, Trân châu);
+:Tùy chỉnh khẩu vị (Mức đá 0-100%, Mức đường 0-100%);
+
+|Giao diện Next.js (Frontend)|
+:Tính giá động: (basePrice + sizeUpcharge + sum(topping));
+:Cập nhật giá hiển thị trên nút "Thêm vào giỏ";
+
+|Khách hàng|
+:Bấm nút "Thêm vào giỏ hàng";
+
+|Giao diện Next.js (Frontend)|
+:Kiểm tra composite key: (id|size|temp|toppings);
+
+if (Món đã có sẵn trong giỏ hàng?) then ([Đã có cùng tùy chọn])
+    :Cộng dồn số lượng (quantity = quantity + 1);
+else ([Chưa có trong giỏ])
+    :Tạo dòng mục mới trong Zustand Cart Store;
+endif
+
+:Đồng bộ trạng thái giỏ hàng vào localStorage;
+:Cập nhật số lượng Badge trên Header;
+:Hiển thị thông báo Toast "Đã thêm vào giỏ hàng";
+
+|Khách hàng|
+:Xem giỏ hàng đã cập nhật thành công;
+stop
+
+@enduml
