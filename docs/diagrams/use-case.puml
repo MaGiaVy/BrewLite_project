@@ -63,6 +63,7 @@ rectangle "Hệ thống BrewLite (Next.js & NestJS)" {
 
     ' Quan hệ Include & Extend
     UC_Login ..> UC_RBAC : <<include>>
+    UC_Checkout ..> UC_Login : <<include>>
     UC_Checkout ..> UC_Payment : <<include>>
     UC_Checkout ..> UC_Loyalty : <<include>>
     UC_Voucher ..> UC_Checkout : <<extend>>
