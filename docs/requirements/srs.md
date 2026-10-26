@@ -391,4 +391,4 @@ Tài liệu đặc tả yêu cầu rút gọn này đã thỏa mãn **100% các 
 * Đồng bộ 100% với kiến trúc mã nguồn thực tế (BOM Recipe, Dual-layer Optimistic Locking, Role-Based Access Control, Stateless JWT 7 ngày, Cổng ZaloPay Sandbox & Mock).
 * Nhúng sẵn ảnh vector sơ đồ Use-Case tổng quát (`use-case.svg`), PNG (`use-case.png`) và mã nguồn PlantUML (`use-case.puml`).
 
-👉 **Bước kế tiếp (Task 1.3):** Tiến hành đặc tả chi tiết use-case trọng tâm **"Đặt và thanh toán đơn hàng"** tại tệp [`docs/requirements/use-case-checkout.md`](use-case-checkout.md).
+👉 **Bước kế tiếp (Task 1.3):** Tiến hành đặc tả chi tiết use-case trọng tâm **"Đặt và thanh toán đơn hàng"** tại tệp [`docs/requirements/usecase-checkout.md`](usecase-checkout.md).
