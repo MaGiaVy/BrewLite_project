@@ -1,0 +1,201 @@
+@startuml deployment
+!theme plain
+skinparam defaultFontName "Segoe UI, Arial, sans-serif"
+skinparam defaultFontSize 11
+skinparam roundcorner 8
+skinparam shadowing false
+
+skinparam node {
+    BorderColor black
+    BackgroundColor white
+    FontColor black
+    FontStyle bold
+}
+
+skinparam artifact {
+    BorderColor black
+    BackgroundColor white
+    FontColor black
+}
+
+skinparam database {
+    BorderColor black
+    BackgroundColor white
+    FontColor black
+}
+
+skinparam component {
+    BorderColor black
+    BackgroundColor white
+    FontColor black
+}
+
+skinparam storage {
+    BorderColor black
+    BackgroundColor white
+    FontColor black
+}
+
+skinparam note {
+    BorderColor black
+    BackgroundColor white
+    FontColor black
+    FontSize 10
+}
+
+skinparam arrow {
+    Color black
+    FontColor black
+    FontSize 10
+}
+
+title SƠ ĐỒ TRIỂN KHAI HỆ THỐNG BREWLITE (UML DEPLOYMENT DIAGRAM)\n(Bản vẽ thiết kế kiến trúc chuẩn học thuật UML 2.5 — Task 3.2 Đợt A)
+
+' ==============================================================================
+' 1. THIẾT BỊ NGƯỜI DÙNG (CLIENT DEVICES)
+' ==============================================================================
+node "Thiết Bị Người Dùng (Client Devices)\n<<device: Smartphone, Laptop, PC>>" as client_device {
+    node "Trình Duyệt Web / PWA Mobile Engine\n<<executionEnvironment: Chromium, Safari, Firefox>>" as client_browser {
+        component "BrewLite Web App (Client SPA)\n[React 19 / TypeScript / Zustand Store / TailwindCSS]\nThư mục nguồn: apps/web" as spa_client
+    }
+}
+
+' ==============================================================================
+' 2. MÔI TRƯỜNG LOCAL (DEVELOPMENT ENVIRONMENT)
+' ==============================================================================
+node "Môi Trường Local (Developer Workstation)\n<<device: Windows / macOS / Linux>>" as local_env {
+    node "Docker Desktop Virtualization\n<<virtualizationEngine>>" as docker_local {
+        node "Docker Bridge Network (brewlite_network)\n<<network: Local Subnet>>" as local_net {
+            artifact "web:latest\n<<container: Node 22-alpine>>\nNext.js Dev / SSR Server\nCổng: 3000:3000\nNguồn: apps/web" as local_web
+            artifact "api:latest\n<<container: Node 22-alpine>>\nNestJS REST API Engine\nCổng: 3001:3001\nNguồn: apps/api" as local_api
+            database "db:postgres:16-alpine\n<<container: PostgreSQL 16>>\nCổng: 5433:5432\nNguồn: apps/api/prisma" as local_db {
+                storage "postgres_data\n<<volume>>" as local_vol
+            }
+        }
+    }
+    note bottom of local_env
+        <b>Cấu hình & Secrets Local:</b>
+        • File .env và docker-compose.yml
+        • Không chứa secret production
+        • Quản lý qua Prisma db push / seed
+    end note
+}
+
+' ==============================================================================
+' 3. HẠ TẦNG CI/CD (GITHUB CLOUD INFRASTRUCTURE)
+' ==============================================================================
+node "Hạ Tầng CI/CD (GitHub Cloud)\n<<cloud>>" as ci_env {
+    node "GitHub Repository (Monorepo)\n<<vcs: Shiba-dotcom/BrewLite_SWE>>" as gh_repo {
+        artifact "Git Branch: main / Pull Requests\n[apps/web, apps/api, docs, tests]" as git_source
+    }
+    
+    node "GitHub Actions Runner\n<<executionEnvironment: ubuntu-latest>>" as gh_runner {
+        component "CI Pipeline (.github/workflows/ci.yml)\n[npm ci -> Lint -> Unit/Integration Tests -> Build Image]" as ci_pipeline
+        component "CD Pipeline (.github/workflows/cd.yml)\n[Multi-stage Build -> Tag Commit SHA -> Push GHCR -> Trigger Deploy]" as cd_pipeline
+    }
+    
+    node "GitHub Container Registry (GHCR)\n<<registry: ghcr.io>>" as ghcr_registry {
+        artifact "ghcr.io/brewlite-web:sha" as ghcr_web
+        artifact "ghcr.io/brewlite-api:sha" as ghcr_api
+    }
+
+    note right of ci_env
+        <b>GitHub Repository Secrets:</b>
+        • GHCR_TOKEN / GITHUB_TOKEN
+        • RENDER_DEPLOY_HOOK_WEB
+        • RENDER_DEPLOY_HOOK_API
+    end note
+}
+
+' ==============================================================================
+' 4. MÔI TRƯỜNG PRODUCTION (RENDER CLOUD PLATFORM)
+' ==============================================================================
+node "Môi Trường Production (Render Cloud PaaS - Singapore Region)\n<<cloud: render.com>>" as prod_env {
+    node "Render Global Edge Gateway & CDN\n<<loadBalancer / reverseProxy>>" as render_edge {
+        component "TLS 1.3 Termination, DDoS Shield, CDN Caching\n[Domain: *.onrender.com / brewlite.vn]" as edge_proxy
+    }
+
+    node "Render Private Network (VPC Nội Bộ)\n<<network: 10.0.0.0/8>>" as prod_private_net {
+        node "Web Service: Frontend Web\n<<service: Render Container Engine>>" as prod_web_node {
+            artifact "brewlite-web\n<<container: Node 22-alpine>>" as prod_web_app {
+                component "Next.js 16 (App Router / SSR Standalone)\nThư mục nguồn: apps/web" as nextjs_engine
+            }
+        }
+
+        node "Web Service: Backend API\n<<service: Render Container Engine>>" as prod_api_node {
+            artifact "brewlite-api\n<<container: Node 22-alpine>>" as prod_api_app {
+                component "NestJS 11 REST API Core\nThư mục nguồn: apps/api" as nestjs_engine
+                component "Payments Module\n[ZaloPay Integration & MockGatewayService]\n(ADR-005: In-process & Sandbox)" as payment_module
+            }
+        }
+
+        database "Managed PostgreSQL 16\n<<database: Render Managed PostgreSQL>>" as prod_db_node {
+            storage "Render Persistent SSD Disk (10 GB - Auto-backup)\n<<persistentStorage>>" as prod_disk
+        }
+    }
+
+    note right of prod_web_node
+        <b>Port Container: 3000</b>
+        Environment Variables:
+        • NEXT_PUBLIC_API_URL=https://api.brewlite.vn
+    end note
+
+    note right of prod_api_node
+        <b>Port Container: 3001</b>
+        <b>Health Check Endpoint:</b>
+        • GET /health (Probe Interval: 10s)
+        <b>Centralized Logging:</b>
+        • stdout / stderr -> Render Log Streams
+        <b>Runtime Secrets (Render Secret Group):</b>
+        • DATABASE_URL (Private VPC host)
+        • JWT_SECRET (256-bit token key)
+        • ZALOPAY_APP_ID / KEY1 / KEY2
+    end note
+
+    note bottom of prod_db_node
+        <b>Bảo mật Cơ sở dữ liệu (ADR-003):</b>
+        • Cổng nội bộ: 5432 (Không cấp IP công khai)
+        • Chỉ kết nối từ backend trong cùng VPC
+        • Bắt buộc mã hóa SSL/TLS (sslmode=require)
+    end note
+}
+
+' ==============================================================================
+' 5. DỊCH VỤ THANH TOÁN BÊN THỨ BA (EXTERNAL SERVICES)
+' ==============================================================================
+node "Dịch Vụ Bên Thứ Ba (Third-Party Services)\n<<cloud>>" as ext_services {
+    node "Hạ Tầng Cổng Thanh Toán ZaloPay\n<<gateway: sb-openapi.zalopay.vn>>" as zalopay_cloud {
+        component "ZaloPay Sandbox Gateway API v2\n[Tạo đơn QR, Query Status, IPN Callback]\nGiao thức: REST API (HMAC-SHA256)" as zalopay_api
+    }
+}
+
+' ==============================================================================
+' CÁC KẾT NỐI VÀ GIAO THỨC (PROTOCOLS & CONNECTIONS)
+' ==============================================================================
+
+' Kết nối Client -> Production Edge
+spa_client -[bold]-> render_edge : "1. HTTPS :443\n(TLS 1.3 / REST & Dynamic SSR)"
+
+' Render Edge phân luồng
+render_edge --> prod_web_app : "2a. Reverse Proxy\n(HTTP :3000)"
+render_edge --> prod_api_app : "2b. Reverse Proxy / API calls\n(HTTP :3001)"
+
+' Kết nối nội bộ Backend -> PostgreSQL
+prod_api_app -[bold]-> prod_db_node : "3. Private Network (TCP :5432)\nInternal VPC Connection (Prisma Connection Pool)"
+
+' Kết nối Backend -> ZaloPay
+prod_api_app <..> zalopay_api : "4. HTTPS :443\n(HMAC-SHA256 Authenticated REST API)"
+
+' Luồng CI/CD
+git_source --> gh_runner : "Push commit / PR\nTrigger Workflow"
+gh_runner --> ghcr_registry : "Build & Push Multi-stage Image\n(TLS :443 via GHCR_PAT)"
+gh_runner ..> render_edge : "Deploy Hook Call\n(Trigger Auto-Deploy)"
+ghcr_registry ..> prod_web_node : "Pull Image\n(ghcr.io/brewlite-web:sha)"
+ghcr_registry ..> prod_api_node : "Pull Image\n(ghcr.io/brewlite-api:sha)"
+
+' Kết nối Local Development
+local_web --> local_api : "HTTP :3001 (API Proxy)"
+local_api --> local_db : "TCP :5432 (Docker Network)"
+spa_client ..> local_web : "Dev Test: http://localhost:3000"
+
+@enduml
