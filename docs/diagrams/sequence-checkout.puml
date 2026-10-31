@@ -1,0 +1,115 @@
+@startuml
+skinparam defaultFontName "Segoe UI, Arial, sans-serif"
+skinparam defaultFontSize 11
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+
+autonumber
+
+actor "Khách hàng\n(Customer)" as User
+boundary "Giao diện Thanh toán\n(Next.js UI)" as UI
+control "Hệ thống Backend\n(NestJS API)" as API
+database "Cơ sở dữ liệu\n(PostgreSQL DB)" as DB
+boundary "Cổng thanh toán\n(Payment Service)" as Gateway
+
+== 1. Khởi tạo Yêu cầu Đặt & Thanh toán (JWT & Idempotency) ==
+
+User -> UI : Bấm nút "Xác nhận & Thanh toán"
+activate UI
+UI -> UI : Sinh Idempotency-Key (UUIDv4)\nKhóa nút bấm (disable double-click)
+UI -> API : POST /api/v1/orders/checkout\n[Header: Authorization: Bearer <JWT>]\n[Header: Idempotency-Key: <UUID>]\n[Body: items, voucherCode, paymentMethod]
+activate API
+
+API -> API : Xác thực JWT Token & Kiểm tra tính hợp lệ dữ liệu (DTO)
+
+alt JWT Token không hợp lệ hoặc hết hạn
+    API --> UI : Trả về HTTP 401 Unauthorized { message: "Phiên đăng nhập hết hạn" }
+    UI --> User : Thông báo hết hạn phiên đăng nhập và chuyển sang /auth/login
+else JWT Token hợp lệ
+    API -> DB : Kiểm tra giao dịch trùng lặp theo Idempotency-Key
+    activate DB
+    DB --> API : Kết quả kiểm tra khóa Idempotency
+    deactivate DB
+
+    alt Idempotency-Key đã tồn tại (Yêu cầu gửi trùng)
+        API --> UI : Trả về kết quả giao dịch cũ đã xử lý (HTTP 200 OK, isIdempotent: true)
+        UI --> User : Thông báo giao dịch đã hoàn tất và chuyển sang màn hình theo dõi đơn
+    else Idempotency-Key mới hoàn toàn
+
+== 2. Quản lý Giao dịch & Khóa lạc quan Tồn kho (Optimistic Locking) ==
+
+        API -> DB : Bắt đầu giao dịch: prisma.$transaction(...)
+        activate DB
+
+        API -> DB : Truy vấn giá gốc & Định mức nguyên liệu BOM (kèm version tồn kho)
+        DB --> API : Bảng giá hệ thống & Số lượng tồn kho thực tế
+
+        API -> API : Thẩm định giá Server & Kiểm tra định mức tồn kho (stock >= quantity)
+
+        alt Nguyên liệu không đủ hoặc xung đột phiên bản (Optimistic Lock Version Mismatch)
+            API -> DB : Hủy bỏ giao dịch (ROLLBACK Transaction)
+            DB --> API : Giao dịch đã hủy
+            API --> UI : Trả về HTTP 409 Conflict { message: "Hết hàng hoặc xung đột tồn kho" }
+            UI --> User : Hiển thị cảnh báo hết nguyên liệu, giữ nguyên giỏ hàng để đổi món
+        else Tồn kho đầy đủ và hợp lệ
+            API -> DB : Cập nhật trừ tồn kho theo khóa lạc quan:\nUPDATE ingredients SET stock = stock - qty, version = version + 1\nWHERE id = :id AND version = :currentVersion
+            DB --> API : Xác nhận cập nhật tồn kho thành công (Rows updated: 1)
+
+            API -> DB : Tạo đơn hàng mới ở trạng thái chờ:\nINSERT INTO orders (status = 'PENDING', totalAmount = ...)
+            DB --> API : Đơn hàng mới đã được khởi tạo (id = 101, status = 'PENDING')
+
+== 3. Xử lý Thanh toán qua Cổng điện tử (Payment Gateway) ==
+
+            API -> Gateway : Gửi yêu cầu trừ tiền: POST /payments/process\n{ orderId: 101, amount: 54000, method: "EWALLET", idempotencyKey: <UUID> }
+            activate Gateway
+
+            alt Cổng thanh toán phản hồi THẤT BẠI (Payment Failed)
+                Gateway --> API : Trả về kết quả thất bại (status = 'FAILURE', code = 'DECLINED')
+                deactivate Gateway
+
+                API -> DB : Cập nhật đơn hàng: UPDATE orders SET status = 'PAYMENT_FAILED'\nGhi nhận lịch sử: INSERT INTO payments (status = 'FAILED', ...)
+                DB --> API : Xác nhận lưu trạng thái thất bại
+
+                API -> DB : Hoàn tất giao dịch ghi nhận thất bại (COMMIT Transaction)
+                DB --> API : Transaction hoàn tất
+
+                API --> UI : Trả về HTTP 400 Bad Request { error: "Thanh toán bị từ chối" }
+                UI --> User : Hiển thị thông báo thanh toán thất bại, đề xuất chọn phương thức khác
+            else Cổng thanh toán phản hồi THÀNH CÔNG (Payment Success)
+                activate Gateway
+                Gateway --> API : Trả về kết quả thành công (status = 'SUCCESS', transactionId = 'TX-998822')
+                deactivate Gateway
+
+                API -> DB : Cập nhật trạng thái đơn: UPDATE orders SET status = 'PAID'\nTạo bản ghi thanh toán: INSERT INTO payments (status = 'SUCCESS', transactionId = 'TX-998822')\nCộng điểm tích lũy: UPDATE users SET loyaltyPoints = loyaltyPoints + (amount / 1000)
+                DB --> API : Xác nhận cập nhật toàn bộ dữ liệu thành công
+
+                API -> DB : Xác nhận toàn bộ giao dịch thành công (COMMIT Transaction)
+                DB --> API : Transaction hoàn tất
+                deactivate DB
+
+                API --> UI : Trả về HTTP 201 Created { orderId: 101, status: 'PAID', ... }
+                deactivate API
+
+== 4. Hoàn tất Đơn hàng & Khởi động Theo dõi (Polling KDS) ==
+
+                UI -> UI : clearCart(): Xóa sạch giỏ hàng trong Zustand Store & Local Storage\nHiển thị thông báo "Thanh toán thành công!"
+                UI --> User : Điều hướng màn hình sang trang Chi tiết đơn hàng (/orders/101)
+                deactivate UI
+
+                loop Định kỳ mỗi 5 giây (Polling trạng thái đơn)
+                    UI -> API : GET /api/v1/orders/101 [Header: Authorization: Bearer <JWT>]
+                    activate API
+                    API -> DB : SELECT * FROM orders WHERE id = 101
+                    activate DB
+                    DB --> API : Trạng thái tiến trình đơn (PAID -> PREPARING -> READY)
+                    deactivate DB
+                    API --> UI : Trả về HTTP 200 OK { orderId: 101, status: "PREPARING" }
+                    deactivate API
+                    UI --> User : Cập nhật tiến trình hiển thị trên giao diện ("Barista đang pha chế...")
+                end
+            end
+        end
+    end
+end
+
+@enduml
