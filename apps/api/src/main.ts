@@ -9,3 +9,4 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap();
+const unusedVariable = 1;
