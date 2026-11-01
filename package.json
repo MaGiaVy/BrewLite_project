@@ -1,0 +1,13 @@
+{
+  "name": "brewlite",
+  "private": true,
+  "description": "BrewLite monorepo root: end-to-end tests (apps/api and apps/web keep their own package.json).",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}
