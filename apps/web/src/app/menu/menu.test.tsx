@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MenuContent } from './page';
+import { MenuContent } from '../../components/MenuContent';
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const retry = vi.fn();
 describe('Menu component', () => {

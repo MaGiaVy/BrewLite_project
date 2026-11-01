@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import Menu, { MenuContent } from '../../app/menu/page';
+import Menu from '../../app/menu/page';
+import { MenuContent } from '../MenuContent';
 import type { ProductSummary } from '../ProductCard';
 
 const example: ProductSummary = {
