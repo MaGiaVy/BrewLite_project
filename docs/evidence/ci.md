@@ -41,7 +41,7 @@ Một bước lỗi sẽ dừng job, job `ci` đỏ và PR không thể merge. C
 
 | Mục | PR / Ảnh | Mô tả |
 |-----|----------|-------|
-| Pipeline đỏ | PR: _(điền link PR cố ý lỗi lint)_ · ảnh `ci-fail.png` | PR cố ý vi phạm lint → `quality` đỏ → `ci` đỏ → nút Merge bị khóa. |
-| Pipeline xanh | PR: _(điền link PR đã sửa)_ · ảnh `ci-pass.png` | Sửa lỗi, push lại → mọi bước xanh → `ci` xanh → được merge. |
+| Pipeline đỏ | PR: https://github.com/MaGiaVy/BrewLite_project/pull/17 · ảnh `ci-fail.png` | PR cố ý vi phạm lint → `quality` đỏ → `ci` đỏ → nút Merge bị khóa. |
+| Pipeline xanh | PR: https://github.com/MaGiaVy/BrewLite_project/pull/17 · ảnh `ci-pass.png` | Sửa lỗi, push lại → mọi bước xanh → `ci` xanh → được merge. |
 
 Ảnh chụp lưu cùng thư mục: `docs/evidence/ci-fail.png`, `docs/evidence/ci-pass.png`.
