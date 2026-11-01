@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MenuContent } from './page';
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const retry = vi.fn();
 describe('Menu component', () => {
  it('WEB-T01 renders loading skeleton', () => { render(<MenuContent products={[]} state="loading" retry={retry}/>); expect(screen.getByRole('status')).toBeTruthy(); });

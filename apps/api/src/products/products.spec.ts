@@ -9,6 +9,10 @@ describe('Product API behavior', () => {
   expect(response).toEqual({ data: [product] });
   expect(db.product.findMany).toHaveBeenCalledWith({ orderBy: { id: 'asc' } });
  });
+ it('API-T01b GET /products returns empty array if there are no products', async () => {
+  const db = { product: { findMany: vi.fn().mockResolvedValue([]) } };
+  await expect(new ProductsService(db as never).findAll()).resolves.toEqual({ data: [] });
+ });
  it('API-T02 GET /products/:id returns available toppings', async () => {
   const db = { product: { findUnique: vi.fn().mockResolvedValue({ ...product, toppings: [{ topping: { id: 1, name: 'Thạch', price: 5000 } }] }) } };
   const response = await new ProductsService(db as never).findOne(1);

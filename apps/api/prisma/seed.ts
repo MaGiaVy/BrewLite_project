@@ -28,5 +28,7 @@ async function main() {
       });
     }
   }
+  // Keep PostgreSQL auto-increment in sync with seeded IDs.
+  await db.$queryRaw`SELECT setval(pg_get_serial_sequence('"Product"', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM "Product"), 1), true)`;
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => db.$disconnect());
