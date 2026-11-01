@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 const db = new PrismaClient();
 const drinks = [
@@ -18,8 +19,8 @@ async function main() {
     const id = i + 1;
     await db.product.upsert({
       where: { id },
-      update: { name, price, stock, imageUrl: `/images/products/${id}.jpg` },
-      create: { id, name, price, stock, imageUrl: `/images/products/${id}.jpg` },
+      update: { name, price, stock, imageUrl: `/images/products/${id}.svg` },
+      create: { id, name, price, stock, imageUrl: `/images/products/${id}.svg` },
     });
     for (const topping of toppings) {
       await db.productTopping.upsert({

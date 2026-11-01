@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="CHOCOLATE">
+  <rect width="480" height="300" fill="#f4efe8"/>
+  <circle cx="240" cy="148" r="110" fill="#9a6c50" opacity="0.15"/>
+  <path d="M168 95h144l-20 138c-4 26-100 26-104 0z" fill="#9a6c50"/>
+  <path d="M176 99h128" stroke="#ffffff" stroke-opacity=".8" stroke-width="7"/>
+  <path d="M188 120h104l-6 35h-92z" fill="#ffffff" opacity=".18"/>
+  <path d="M240 69v28" stroke="#9a6c50" stroke-width="8" stroke-linecap="round"/>
+  <text x="240" y="273" font-family="Arial,sans-serif" font-size="18" text-anchor="middle" fill="#334155">BREWLITE</text>
+</svg>
