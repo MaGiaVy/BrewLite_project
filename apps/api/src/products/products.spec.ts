@@ -7,12 +7,13 @@ describe('Product API behavior', () => {
   const db = { product: { findMany: vi.fn().mockResolvedValue([product]) } };
   const response = await new ProductsService(db as never).findAll();
   expect(response).toEqual({ data: [product] });
-  expect(db.product.findMany).toHaveBeenCalled();
+  expect(db.product.findMany).toHaveBeenCalledWith({ orderBy: { id: 'asc' } });
  });
  it('API-T02 GET /products/:id returns available toppings', async () => {
   const db = { product: { findUnique: vi.fn().mockResolvedValue({ ...product, toppings: [{ topping: { id: 1, name: 'Thạch', price: 5000 } }] }) } };
   const response = await new ProductsService(db as never).findOne(1);
   expect(response.data.toppings).toEqual([{ id: 1, name: 'Thạch', price: 5000 }]);
+  expect(db.product.findUnique).toHaveBeenCalledWith({ where: { id: 1 }, include: { toppings: { include: { topping: true } } } });
  });
  it('API-T03 GET /products/:id returns 404 for unknown product', async () => {
   const db = { product: { findUnique: vi.fn().mockResolvedValue(null) } };

@@ -29,4 +29,4 @@ async function main() {
     }
   }
 }
-main().finally(async () => db.$disconnect());
+main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => db.$disconnect());
