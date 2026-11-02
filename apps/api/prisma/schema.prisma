@@ -13,4 +13,21 @@ model Product {
   name      String @unique
   basePrice Int
   stock     Int    @default(0)
+  imageUrl  String?
+  toppings  ProductTopping[]
+}
+
+model Topping {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  price    Int
+  products ProductTopping[]
+}
+
+model ProductTopping {
+  productId Int
+  toppingId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  topping   Topping @relation(fields: [toppingId], references: [id], onDelete: Cascade)
+  @@id([productId, toppingId])
 }

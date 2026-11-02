@@ -1,12 +1,17 @@
-import { Controller, Get } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { ProductsService } from './products.service';
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly products: ProductsService) {}
 
   @Get()
-  list() {
-    return this.prisma.product.findMany({ orderBy: { id: 'asc' } });
+  findAll() {
+    return this.products.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.products.findOne(id);
   }
 }

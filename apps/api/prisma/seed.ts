@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-
 const products = [
   { name: 'Cà phê đen', basePrice: 25000, stock: 50 },
   { name: 'Cà phê sữa', basePrice: 29000, stock: 50 },
@@ -13,17 +12,37 @@ const products = [
   { name: 'Nước cam ép', basePrice: 39000, stock: 0 },
 ];
 
-// upsert theo `name` (unique) nên chạy lại nhiều lần không nhân đôi dữ liệu.
 async function main(): Promise<void> {
-  for (const p of products) {
-    await prisma.product.upsert({ where: { name: p.name }, update: {}, create: p });
+  const toppingSeeds = [
+    { name: 'Trân châu', price: 5000 },
+    { name: 'Thạch', price: 5000 },
+    { name: 'Kem cheese', price: 10000 },
+  ];
+  for (const topping of toppingSeeds) {
+    await prisma.topping.upsert({
+      where: { name: topping.name },
+      update: { price: topping.price },
+      create: topping,
+    });
   }
-  console.log(`Seeded ${products.length} products`);
+  const toppings = await prisma.topping.findMany();
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i];
+    const saved = await prisma.product.upsert({
+      where: { name: product.name },
+      update: { imageUrl: `/images/products/${i + 1}.svg` },
+      create: { ...product, imageUrl: `/images/products/${i + 1}.svg` },
+    });
+    for (const topping of toppings) {
+      await prisma.productTopping.upsert({
+        where: { productId_toppingId: { productId: saved.id, toppingId: topping.id } },
+        update: {},
+        create: { productId: saved.id, toppingId: topping.id },
+      });
+    }
+  }
+  console.log(`Seed checked: ${products.length} products, ${toppings.length} toppings`);
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((error) => { console.error(error); process.exitCode = 1; })
+  .finally(async () => prisma.$disconnect());
