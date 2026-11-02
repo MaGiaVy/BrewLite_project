@@ -38,3 +38,6 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+/apps/api/dist/
+/apps/web/.next/
+*.tsbuildinfo
