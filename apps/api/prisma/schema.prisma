@@ -1,0 +1,16 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  url      = env("DATABASE_URL")
+  provider = "postgresql"
+}
+
+model Product {
+  id        Int    @id @default(autoincrement())
+  name      String @unique
+  basePrice Int
+  stock     Int    @default(0)
+}
