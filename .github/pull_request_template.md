@@ -1,12 +1,23 @@
-## Loại thay đổi
-- [ ] Yêu cầu phần mềm (Requirements)
-- [ ] Sơ đồ thiết kế (Diagrams)
-- [ ] Kiến trúc hệ thống (Architecture)
-- [x] Quản lý tài liệu (Documentation Structure)
+ 1. Mã Nhiệm Vụ & Yêu Cầu Liên Quan (Traceability)
+- Mã Task:
+- Mã FR liên quan (SRS):
+- Sprint:
 
-## Lý do thay đổi
-Gom toàn bộ tài liệu Task 1, 2, 3 vào thư mục `docs/` và thêm PR template để kiểm soát thay đổi tài liệu.
+---
 
-## Danh sách tệp ảnh hưởng
-- `docs/`
-- `.github/pull_request_template.md`
+2. Lý Do Thay Đổi & Tóm Tắt Công Việc
+
+
+3. Loại Thay Đổi
+- [ ] Yêu cầu phần mềm & Tài liệu (Requirements / Docs)
+- [ ] Tính năng mới (Feature)
+- [ ] Sửa lỗi (Bug fix)
+- [ ] Tái cấu trúc & Kiểm thử (Refactor / Test / CI)
+
+---
+
+ 4. Checklist Kỹ Thuật Trước Khi Gửi
+- [ ] Đã chạy `npm run lint` không có lỗi.
+- [ ] Đã chạy `npm run test` và PASS 100%.
+- [ ] Đã chạy `npm run build` thành công.
+- [ ] Không commit file thừa/bí mật (`.env`, `.next/`, `dist/`).
