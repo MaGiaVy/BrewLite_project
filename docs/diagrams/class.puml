@@ -1,0 +1,410 @@
+@startuml class_diagram
+!theme plain
+title UML Class & Domain Entity Diagram — Hệ Thống BrewLite\n(Single Source of Truth: backend/prisma/schema.prisma & BOM Architecture)
+
+skinparam DefaultFontName "Arial"
+skinparam DefaultFontSize 11
+skinparam RoundCorner 10
+skinparam Shadowing true
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2C1810
+    BorderThickness 1.5
+    HeaderBackgroundColor #F4ECE1
+    FontColor #2C1810
+    FontStyle bold
+    AttributeFontColor #333333
+    AttributeFontSize 10
+    MethodFontColor #1F2937
+    MethodFontSize 10
+}
+
+skinparam enum {
+    BackgroundColor #FFF9F5
+    BorderColor #D97736
+    BorderThickness 1.2
+    HeaderBackgroundColor #FFEDE0
+    FontColor #7C2D12
+    FontStyle bold
+    AttributeFontColor #431407
+    AttributeFontSize 10
+}
+
+skinparam package {
+    BackgroundColor #FAFAFA
+    BorderColor #9CA3AF
+    BorderThickness 1.2
+    FontColor #111827
+    FontStyle bold
+}
+
+skinparam note {
+    BackgroundColor #FEF3C7
+    BorderColor #D97706
+    FontColor #78350F
+    FontSize 10
+}
+
+skinparam arrow {
+    Color #4B5563
+    Thickness 1.2
+    FontColor #374151
+    FontSize 10
+}
+
+' ==============================================================================
+' 1. PACKAGE: IDENTITY & ACCESS MANAGEMENT (IAM / RBAC)
+' ==============================================================================
+package "1. Identity & Access Management (RBAC)" #FDF8F6 {
+
+    enum Role <<enumeration>> {
+        + CUSTOMER
+        + STAFF
+        + ADMIN
+    }
+
+    class User <<Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + email: String <<Unique>>
+        + passwordHash: String
+        + fullName: String?
+        + phone: String?
+        + position: String? = "Barista Pha Chế"
+        + isActive: Boolean = true
+        + role: Role = CUSTOMER
+        + loyaltyPoints: Int = 0
+        + createdAt: DateTime
+        --
+        + addLoyaltyPoints(pts: Int): void
+        + deductLoyaltyPoints(pts: Int): Boolean
+        + hasRole(r: Role): Boolean
+        + deactivate(): void
+    }
+
+    class UserVoucher <<Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + userId: Int <<FK>>
+        + code: String
+        + quantity: Int = 1
+        + discountPercent: Float
+        + minOrderAmount: Float = 0
+        + maxDiscountAmount: Float?
+        + createdAt: DateTime
+        + updatedAt: DateTime
+        --
+        + isValidFor(orderSubtotal: Float): Boolean
+        + computeDiscount(orderSubtotal: Float): Float
+    }
+
+    User "1" *-- "0..*" UserVoucher : owns >
+    User --> Role : has role >
+}
+
+' ==============================================================================
+' 2. PACKAGE: CATALOG & MENU MANAGEMENT
+' ==============================================================================
+package "2. Catalog & Menu Management" #F0FDF4 {
+
+    class Category <<ValueObject / Dimension>> {
+        + code: String <<PK>>
+        + name: String
+        + description: String?
+        --
+        + getDisplayName(): String
+    }
+
+    enum ProductSize <<enumeration>> {
+        + S (Standard / Base)
+        + M (Medium + Upcharge)
+        + L (Large + Upcharge)
+        + ALL (Fixed size / Bakery)
+    }
+
+    class Product <<Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + name: String
+        + description: String?
+        + imageUrl: String?
+        + basePrice: Float
+        + sizeUpchargeM: Float?
+        + sizeUpchargeL: Float?
+        + category: String = "vietnamese" <<FK>>
+        + tag: String? = "Phổ biến"
+        + isActive: Boolean = true
+        + isSoldOutManual: Boolean = false
+        + createdAt: DateTime
+        + updatedAt: DateTime
+        --
+        + getEffectivePrice(size: ProductSize, defaultM: Float, defaultL: Float): Float
+        + calculateCOGS(size: ProductSize): Float
+        + calculateGrossProfit(size: ProductSize): Float
+        + calculateMarginPercent(size: ProductSize): Float
+        + getAvailableServings(): Int
+        + isAvailable(): Boolean
+    }
+
+    class StoreSetting <<Entity>> {
+        + key: String <<PK>>
+        + value: String
+        + description: String?
+        + updatedAt: DateTime
+        --
+        + getAsNumber(): Float
+        + getAsBoolean(): Boolean
+    }
+
+    Product --> Category : belongs to >
+    Product ..> ProductSize : supports >
+}
+
+' ==============================================================================
+' 3. PACKAGE: BOM & INVENTORY MANAGEMENT (BILL OF MATERIALS)
+' ==============================================================================
+package "3. BOM & Inventory Engine" #EFF6FF {
+
+    enum IngredientType <<enumeration>> {
+        + INGREDIENT (Pha chế cốt lõi)
+        + PACKAGING (Vật tư tiêu hao, ly, nắp, bao)
+    }
+
+    class Ingredient <<Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + code: String <<Unique>>
+        + name: String
+        + unit: String
+        + stock: Float = 0
+        + minThreshold: Float = 100
+        + costPerUnit: Float = 0
+        + type: String = "INGREDIENT"
+        + isRequiredForSale: Boolean = true
+        + version: Int = 0 <<OptimisticLock>>
+        + createdAt: DateTime
+        + updatedAt: DateTime
+        --
+        + isLowStock(): Boolean
+        + deductStock(amount: Float, expectedVer: Int): Boolean
+        + restock(amount: Float, unitCost: Float): void
+    }
+
+    class Recipe <<BOM Association Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + productId: Int <<FK>>
+        + ingredientId: Int <<FK>>
+        + size: String = "ALL"
+        + amount: Float
+        --
+        + calculateCost(): Float
+    }
+
+    class Topping <<Entity / Catalog>> {
+        + id: String <<PK>>
+        + name: String
+        + subtext: String?
+        + price: Float = 8000
+        + isActive: Boolean = true
+        --
+        + isAvailable(): Boolean
+    }
+
+    class ToppingRecipe <<BOM Association Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + toppingId: String <<FK>>
+        + toppingName: String
+        + subtext: String?
+        + price: Float = 8000
+        + isActive: Boolean = true
+        + ingredientId: Int <<FK>>
+        + amount: Float
+        --
+        + calculateCost(): Float
+    }
+
+    class InventoryLog <<Audit Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + ingredientId: Int <<FK>>
+        + ingredientName: String
+        + unit: String
+        + type: String = "RESTOCK"
+        + changeAmount: Float
+        + previousStock: Float
+        + newStock: Float
+        + unitCost: Float = 0
+        + totalCost: Float = 0
+        + note: String?
+        + performedBy: String?
+        + createdAt: DateTime
+    }
+
+    Ingredient ..> IngredientType : categorized by >
+    Product "1" *-- "0..*" Recipe : defines BOM >
+    Ingredient "1" <-- "0..*" Recipe : requires material <
+    Topping "1" *-- "0..*" ToppingRecipe : defines BOM >
+    Ingredient "1" <-- "0..*" ToppingRecipe : consumes material <
+    Ingredient "1" *-- "0..*" InventoryLog : audit history >
+}
+
+' ==============================================================================
+' 4. PACKAGE: SALES & ORDER FULFILLMENT
+' ==============================================================================
+package "4. Sales & Order Fulfillment" #FFFBEB {
+
+    enum OrderStatus <<enumeration>> {
+        + PENDING
+        + PAID
+        + PREPARING
+        + READY
+        + COMPLETED
+        + PAYMENT_FAILED
+        + CANCELLED
+    }
+
+    class DiscountCode <<Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + code: String <<Unique>>
+        + description: String?
+        + discountPercent: Float
+        + minOrderAmount: Float = 0
+        + maxDiscountAmount: Float?
+        + isActive: Boolean = true
+        + usageCount: Int = 0
+        + createdAt: DateTime
+        + updatedAt: DateTime
+        --
+        + isValidFor(subtotal: Float): Boolean
+        + computeDiscount(subtotal: Float): Float
+        + incrementUsage(): void
+    }
+
+    class Order <<Aggregate Root>> {
+        + id: Int <<PK, autoincrement>>
+        + userId: Int? <<FK>>
+        + status: OrderStatus = PENDING
+        + totalAmount: Float
+        + discountCode: String?
+        + discountAmount: Float = 0
+        + voucherDeducted: Boolean = false
+        + version: Int = 0 <<OptimisticLock>>
+        + staffId: Int?
+        + staffName: String?
+        + createdAt: DateTime
+        + updatedAt: DateTime
+        --
+        + calculateRawSubtotal(): Float
+        + calculateVat(net: Float): Float
+        + calculateFinalTotal(): Float
+        + canTransitionTo(next: OrderStatus): Boolean
+        + transitionTo(next: OrderStatus, staffId: Int?): void
+    }
+
+    class OrderItem <<Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + orderId: Int <<FK>>
+        + productId: Int <<FK>>
+        + productName: String
+        + size: String
+        + toppings: List<String>
+        + quantity: Int
+        + unitPrice: Float
+        --
+        + calculateLineTotal(): Float
+    }
+
+    class OrderItemTopping <<ValueObject / Customization>> {
+        + id: Int <<PK, autoincrement>>
+        + orderItemId: Int <<FK>>
+        + toppingId: String <<FK>>
+        + toppingName: String
+        + toppingPrice: Float
+        + quantity: Int = 1
+        --
+        + calculateSubtotal(): Float
+    }
+
+    Order --> OrderStatus : state >
+    Order "1" *-- "1..*" OrderItem : contains >
+    OrderItem --> Product : snapshot of >
+    OrderItem "1" *-- "0..*" OrderItemTopping : customized with >
+    OrderItemTopping --> Topping : references >
+    Order ..> DiscountCode : applies >
+    User "1" --> "0..*" Order : places >
+}
+
+' ==============================================================================
+' 5. PACKAGE: PAYMENT & SETTLEMENT
+' ==============================================================================
+package "5. Payment Engine" #FAF5FF {
+
+    enum PaymentMethod <<enumeration>> {
+        + EWALLET (ZaloPay, MoMo)
+        + BANK_CARD (VietQR, ATM, Visa/Master)
+    }
+
+    enum PaymentStatus <<enumeration>> {
+        + PENDING
+        + SUCCESS
+        + FAILED
+    }
+
+    class Payment <<Entity>> {
+        + id: Int <<PK, autoincrement>>
+        + orderId: Int <<FK>>
+        + idempotencyKey: String? <<Unique>>
+        + amount: Float
+        + method: PaymentMethod
+        + status: PaymentStatus
+        + createdAt: DateTime
+        --
+        + markSuccess(): void
+        + markFailed(): void
+    }
+
+    Payment --> PaymentMethod : uses >
+    Payment --> PaymentStatus : status >
+    Order "1" *-- "0..*" Payment : settled by >
+}
+
+' ==============================================================================
+' ARCHITECTURAL NOTES & BUSINESS RULES
+' ==============================================================================
+note as N_BOM
+    <b>Kiến Trúc BOM (Bill of Materials) & Tồn Kho:</b>
+    • Không lưu trường 'stock' cố định trên Product.
+    • Tồn kho khả dụng (servings) và Giá vốn (COGS) được tính động:
+      minServings = min(Ingredient.stock / Recipe.amount) với mọi nguyên liệu cốt lõi.
+    • COGS(Size) = SUM(Recipe.amount * Ingredient.costPerUnit).
+    • Khi đặt hàng, hệ thống trừ tồn kho trên từng Ingredient theo công thức BOM.
+end note
+
+note as N_LOCK
+    <b>Kiểm Soát Đồng Thời (Optimistic Locking):</b>
+    • <b>Ingredient.version:</b> Ngăn chặn Overselling khi nhiều khách đặt cùng lúc.
+      Câu lệnh: UPDATE Ingredient SET stock = stock - qty, version = version + 1
+      WHERE id = :id AND version = :version AND stock >= qty.
+    • <b>Order.version:</b> Đảm bảo tính toàn vẹn trạng thái đơn hàng (State Machine)
+      khi Staff và Khách thao tác song song.
+end note
+
+note as N_PACKAGING
+    <b>Phân Loại Nguyên Vật Liệu (Ingredient.type & isRequiredForSale):</b>
+    • <b>type = 'INGREDIENT':</b> Cốt lõi (cà phê, sữa, đường). isRequiredForSale = true.
+      Hết hàng -> Tự động khóa món (Sold Out) trên menu.
+    • <b>type = 'PACKAGING':</b> Vật tư tiêu hao (ly giấy, nắp, ống hút, bịch mang đi).
+      Nếu isRequiredForSale = false -> Hết hàng vẫn cho bán, chỉ cảnh báo Barista/Admin.
+end note
+
+note as N_IDEMPOTENCY
+    <b>An Toàn Giao Dịch & Idempotency:</b>
+    • <b>Payment.idempotencyKey:</b> Tránh trừ tiền trùng lặp từ Webhook cổng thanh toán.
+    • <b>User.loyaltyPoints:</b> Tích lũy Hạt Vàng tự động (1.000đ = 1 điểm) khi đơn PAID.
+    • <b>Soft Delete:</b> Quản lý qua cờ isActive (User, Product, ToppingRecipe, DiscountCode).
+end note
+
+N_BOM .. Recipe
+N_LOCK .. Ingredient
+N_PACKAGING .. Ingredient
+N_IDEMPOTENCY .. Payment
+
+@enduml
