@@ -17,29 +17,30 @@ skinparam swimlane {
     TitleFontColor black
 }
 
-title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): ĐẶT HÀNG & THANH TOÁN KHÔNG DÙNG TIỀN MẶT\n(Bao gồm xử lý ngoại lệ: Chưa đăng nhập, Hết hàng BOM 409, Thanh toán thất bại & Timeout 15p)
+title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): ĐẶT HÀNG & THANH TOÁN 100% CASHLESS\n(Phân tách 2 pha: Tạo đơn PENDING giữ kho BOM -> Thanh toán PAID tích lũy Hạt Vàng | Timeout 5 phút)
 
-|#White|Khách hàng|
-|#White|Giao diện Next.js (Frontend)|
-|#White|Hệ thống Backend & Database|
-|#White|Cổng thanh toán điện tử (ZaloPay / Mock)|
+|#White|Khách hàng (Customer)|
+|#White|Giao diện Web (Next.js)|
+|#White|Backend API (NestJS)|
+|#White|Cổng thanh toán (ZaloPay)|
+|#White|Cơ sở dữ liệu (PostgreSQL)|
 
-|Khách hàng|
+|Khách hàng (Customer)|
 start
 :Nhấn nút "Tiến hành đặt hàng" từ Giỏ hàng;
 
-|Giao diện Next.js (Frontend)|
+|Giao diện Web (Next.js)|
 :Kiểm tra trạng thái xác thực trong Zustand AuthStore;
 
 if (Đã đăng nhập tài khoản?) then ([Chưa có token / Hết hạn])
     :Lưu đường dẫn chuyển tiếp (redirect = /checkout);
     :Chuyển hướng sang trang Đăng nhập (/auth/login);
-    |Khách hàng|
+    |Khách hàng (Customer)|
     :Nhập email và mật khẩu tài khoản;
     :Bấm nút "Đăng nhập";
-    |Hệ thống Backend & Database|
-    :Xác thực danh tính và cấp phát JWT token 7 ngày;
-    |Giao diện Next.js (Frontend)|
+    |Backend API (NestJS)|
+    :Xác thực danh tính và cấp phát JWT Bearer Token (7 ngày);
+    |Giao diện Web (Next.js)|
     :Lưu JWT token vào AuthStore;
     :Điều hướng tự động quay lại trang Thanh toán (/checkout);
     :Bảo lưu nguyên vẹn danh sách món trong giỏ hàng;
@@ -47,101 +48,157 @@ else ([Đã có JWT hợp lệ])
     :Chuyển thẳng sang trang Thanh toán (/checkout);
 endif
 
-|Khách hàng|
+|Khách hàng (Customer)|
 :Xem tóm tắt đơn hàng (danh sách món, size, topping, tổng tiền);
 
-if (Khách có mã Voucher?) then ([Có mã giảm giá])
-    |Khách hàng|
-    :Nhập mã voucher (VD: BREWLITE10, WELCOME20);
+if (Khách áp dụng mã Voucher?) then ([Có mã giảm giá])
+    |Khách hàng (Customer)|
+    :Nhập mã voucher (VD: BREW10, BREWLITE10, WELCOME20);
     :Bấm nút "Áp dụng";
-    |Hệ thống Backend & Database|
-    :Kiểm tra tính hợp lệ, hạn dùng và số lượt của Voucher;
-    |Giao diện Next.js (Frontend)|
+    |Backend API (NestJS)|
+    :Kiểm tra điều kiện đơn hàng tối thiểu và hạn dùng voucher;
+    |Cơ sở dữ liệu (PostgreSQL)|
+    :Truy vấn bản ghi DiscountCode / UserVoucher;
+    |Backend API (NestJS)|
+    :Tính số tiền chiết khấu (áp dụng trần maxDiscountAmount);
+    |Giao diện Web (Next.js)|
     :Cập nhật chiết khấu trực tiếp vào tổng tiền thanh toán;
 else ([Không dùng voucher])
-    |Giao diện Next.js (Frontend)|
-    :Giữ nguyên tổng tiền niêm yết trọn gói;
+    |Giao diện Web (Next.js)|
+    :Giữ nguyên tổng tiền niêm yết theo công thức tính giá;
 endif
 
-|Khách hàng|
-:Chọn phương thức thanh toán (ZaloPay QR, Ví điện tử, Thẻ ngân hàng);
+|Khách hàng (Customer)|
+:Chọn phương thức thanh toán (ZaloPay QR, ATM / Thẻ quốc tế, Apple Pay);
 :Nhấn nút "Xác nhận & Thanh toán";
 
-|Giao diện Next.js (Frontend)|
+|Giao diện Web (Next.js)|
 :Tự động sinh khóa duy nhất Idempotency-Key (UUIDv4);
-:Khóa nút bấm thanh toán chống nhấn đúp (double-click);
+:Khóa nút bấm thanh toán chống gửi yêu cầu trùng lặp (double-click);
 :Gửi yêu cầu POST /orders kèm JWT Bearer và Idempotency-Key;
 
-|Hệ thống Backend & Database|
-:Bắt đầu Database Transaction;
+' =========================================================================
+' PHA 1: TẠO ĐƠN HÀNG PENDING & GIỮ CHỖ NGUYÊN LIỆU BOM
+' =========================================================================
+|Backend API (NestJS)|
+:Bắt đầu Database Transaction (Pha 1: Giữ kho BOM);
 :Thẩm định lại giá gốc sản phẩm, size và topping từ cơ sở dữ liệu;
-:Kiểm tra định mức nguyên liệu công thức (BOM) qua Khóa lạc quan;
+:Tính toán tổng định mức nguyên liệu tiêu hao (BOM) qua computeRequiredIngredients;
 
-if (Đủ nguyên liệu tồn kho BOM?) then ([Hết hàng / Xung đột phiên bản 409])
-    :Rollback toàn bộ Database Transaction;
-    :Trả về mã lỗi HTTP 409 Conflict;
-    |Giao diện Next.js (Frontend)|
+|Cơ sở dữ liệu (PostgreSQL)|
+:Kiểm tra tồn kho thực tế và phiên bản version trong bảng Ingredient;
+
+|Backend API (NestJS)|
+if (Đủ nguyên liệu tồn kho BOM & Khóa lạc quan hợp lệ?) then ([Hết hàng / Xung đột version 409])
+    |Cơ sở dữ liệu (PostgreSQL)|
+    :Rollback toàn bộ Database Transaction Pha 1;
+    |Backend API (NestJS)|
+    :Trả về mã lỗi HTTP 409 Conflict ("Nguyên liệu không đủ tồn kho");
+    |Giao diện Web (Next.js)|
     :Mở khóa nút bấm thanh toán;
     :Hiển thị Toast đỏ báo "Nguyên liệu vừa hết, vui lòng đổi món";
-    :Giữ nguyên giỏ hàng để khách hàng chọn lại;
-    |Khách hàng|
-    :Dừng phiên đặt hàng hiện tại để đổi món;
+    :Giữ nguyên giỏ hàng để khách hàng chọn lại món;
+    |Khách hàng (Customer)|
+    :Dừng phiên đặt hàng hiện tại để điều chỉnh món;
     stop
 else ([Đủ nguyên liệu tồn kho])
-    |Hệ thống Backend & Database|
-    :Giữ chỗ định mức tồn kho nguyên liệu trong bảng Ingredient;
+    |Cơ sở dữ liệu (PostgreSQL)|
+    :Thực thi Optimistic Locking trừ tồn kho tạm thời (giữ chỗ);
+    :Tăng version = version + 1 của nguyên liệu tương ứng;
     :Tạo bản ghi đơn hàng mới với trạng thái PENDING;
-    :Gửi yêu cầu khởi tạo giao dịch tài chính sang Cổng thanh toán;
+    |Backend API (NestJS)|
+    :Commit Database Transaction Pha 1 thành công;
+    :Kích hoạt đếm ngược thời gian giữ chỗ 5 phút (TTL = 300s);
+    :Gửi yêu cầu tạo giao dịch sang Cổng thanh toán (ZaloPay createOrder);
 endif
 
-|Cổng thanh toán điện tử (ZaloPay / Mock)|
-:Tạo mã giao dịch và liên kết thanh toán (ZaloPay QR / Mock Gateway);
+' =========================================================================
+' PHA 2: KHỞI TẠO VÀ XỬ LÝ THANH TOÁN
+' =========================================================================
+|Cổng thanh toán (ZaloPay)|
+:Tạo mã giao dịch và liên kết thanh toán (appTransId, zpTransToken, QR Code);
 
-|Giao diện Next.js (Frontend)|
-:Hiển thị mã QR ZaloPay Sandbox hoặc Form thẻ thanh toán;
-:Khởi động Polling tự động kiểm tra trạng thái mỗi 3 giây;
+|Giao diện Web (Next.js)|
+:Hiển thị mã QR ZaloPay Sandbox và đếm ngược thời gian giữ kho 5 phút;
+:Khởi động cơ chế Polling tự động kiểm tra trạng thái mỗi 3 giây;
 
-|Khách hàng|
-:Quét mã QR bằng ứng dụng ZaloPay hoặc xác nhận thanh toán thẻ;
+|Khách hàng (Customer)|
+:Mở ứng dụng ZaloPay quét mã QR hoặc xác nhận giao dịch thẻ;
 
-|Cổng thanh toán điện tử (ZaloPay / Mock)|
-:Xử lý trừ tiền tài chính;
+|Cổng thanh toán (ZaloPay)|
+:Thực hiện đối soát và trừ tiền tài khoản khách hàng;
 
-if (Giao dịch thanh toán thành công?) then ([Thanh toán thành công])
-    |Cổng thanh toán điện tử (ZaloPay / Mock)|
-    :Gửi tín hiệu Webhook Callback (kèm chữ ký HMAC-SHA256);
-    |Hệ thống Backend & Database|
-    :Xác thực chữ ký số hợp lệ;
-    :Cập nhật trạng thái đơn hàng từ PENDING sang PAID;
-    :Trừ dứt điểm tồn kho nguyên liệu BOM trong bảng Ingredient;
-    :Tạo bản ghi thanh toán Payment lưu trữ transactionId;
-    :Cộng dồn điểm thưởng Loyalty cho khách hàng (1.000đ = 1 điểm);
-    :Commit Transaction thành công;
-    |Giao diện Next.js (Frontend)|
-    :Nhận kết quả xác nhận thanh toán thành công (PAID);
+if (Kết quả xử lý giao dịch tại Cổng thanh toán?) then ([Thanh toán thành công])
+    |Cổng thanh toán (ZaloPay)|
+    :Gửi tín hiệu IPN Webhook Callback kèm chữ ký số HMAC-SHA256 (Mac Key2);
+    |Backend API (NestJS)|
+    :Xác thực chữ ký HMAC chống giả mạo dữ liệu giao dịch;
+    :Bắt đầu Database Transaction (Pha 2: Hoàn tất đơn hàng);
+    :assertTransition: Kiểm tra hợp lệ PENDING / PAYMENT_FAILED -> PAID;
+    |Cơ sở dữ liệu (PostgreSQL)|
+    :Cập nhật trạng thái Order sang PAID (tăng version = version + 1);
+    :Xác nhận dứt điểm trừ kho nguyên liệu BOM trong bảng Ingredient;
+    :Tạo bản ghi Payment với trạng thái SUCCESS và lưu idempotencyKey;
+    :Cộng dồn điểm thưởng Hạt Vàng vào tài khoản User (1.000đ = 1 Hạt Vàng);
+    |Backend API (NestJS)|
+    :Commit Database Transaction Pha 2 thành công;
+    :Phản hồi mã return_code = 1 ("success") cho ZaloPay;
+    |Giao diện Web (Next.js)|
+    :Polling nhận diện trạng thái đơn hàng đã chuyển sang PAID;
     :Xóa sạch giỏ hàng trong Zustand Store và localStorage;
-    :Điều hướng sang màn hình Xác nhận đơn hàng (/orders/:id);
-    |Khách hàng|
-    :Xem mã đơn hàng, điểm tích lũy và theo dõi tiến trình làm đồ uống;
+    :Điều hướng tự động sang màn hình Xác nhận đơn hàng (/order-confirmation);
+    |Khách hàng (Customer)|
+    :Xem mã nhận nước tại Quầy Bar Express, điểm Hạt Vàng tích lũy;
     stop
-else ([Giao dịch thất bại hoặc quá hạn])
-    if (Đơn hàng bị quá hạn thanh toán?) then ([Quá hạn 15 phút])
-        |Hệ thống Backend & Database|
-        :Scheduled Job quét phát hiện đơn PENDING quá 15 phút;
-        :Tự động chuyển trạng thái đơn hàng sang CANCELLED;
-        :Hoàn trả toàn bộ nguyên liệu định mức BOM về kho;
-        |Khách hàng|
-        :Xem trạng thái đơn hàng đã hết hạn;
+else ([Thanh toán thất bại])
+    |Backend API (NestJS)|
+    :Ghi nhận giao dịch thất bại từ Cổng thanh toán hoặc Mô phỏng lỗi;
+    |Cơ sở dữ liệu (PostgreSQL)|
+    :Cập nhật trạng thái đơn hàng sang PAYMENT_FAILED;
+    :Tạo bản ghi Payment với trạng thái FAILED;
+    note right
+      **LƯU Ý NGHIỆP VỤ QUAN TRỌNG:**
+      Không lập tức hoàn kho tại bước này.
+      Kho nguyên liệu BOM tiếp tục được giữ chỗ
+      trong tổng thời gian 5 phút để khách hàng
+      có thể đổi phương thức hoặc thử lại.
+    end note
+    |Giao diện Web (Next.js)|
+    :Nhận phản hồi giao dịch thất bại;
+    :Tự động sinh lại Idempotency-Key mới;
+    :Hiển thị cảnh báo lỗi thanh toán trên giao diện;
+    :Cung cấp tùy chọn: "Thử lại thanh toán" hoặc "Hủy giao dịch";
+
+    |Khách hàng (Customer)|
+    if (Khách hàng xử lý tiếp theo?) then ([Chọn Thử lại / Đổi phương thức])
+        :Chọn phương thức thanh toán khác hoặc quét lại mã;
+        :Bấm nút "Thử lại thanh toán";
+        |Giao diện Web (Next.js)|
+        :Gửi lại yêu cầu thanh toán cho đơn hàng hiện tại;
+        note left: Tiếp tục luồng thanh toán Pha 2
         stop
-    else ([Lỗi thẻ / Số dư không đủ])
-        |Hệ thống Backend & Database|
-        :Cập nhật trạng thái đơn hàng sang PAYMENT_FAILED;
-        :Hoàn trả lại số lượng nguyên liệu BOM đã giữ chỗ tạm thời;
-        |Giao diện Next.js (Frontend)|
-        :Hiển thị màn hình lỗi thanh toán;
-        :Cung cấp nút "Thử lại thanh toán" và "Hủy giao dịch";
-        |Khách hàng|
-        :Chọn phương thức thanh toán khác hoặc dừng giao dịch;
+    else ([Bấm "Hủy giao dịch" hoặc Quá hạn 5 phút])
+        if (Hình thức hủy?) then ([Khách chủ động bấm Hủy])
+            |Khách hàng (Customer)|
+            :Bấm nút "Hủy giao dịch";
+            |Giao diện Web (Next.js)|
+            :Gửi yêu cầu PATCH /orders/:id/status (CANCELLED);
+        else ([Hết hạn 5 phút - Timeout 300s])
+            |Backend API (NestJS)|
+            :Scheduled Job (quét mỗi 15s) phát hiện đơn quá 5 phút chưa PAID;
+        endif
+        |Backend API (NestJS)|
+        :Bắt đầu Database Transaction hoàn trả kho;
+        |Cơ sở dữ liệu (PostgreSQL)|
+        :Cập nhật trạng thái đơn hàng từ PENDING / PAYMENT_FAILED sang CANCELLED;
+        :Hoàn trả 100% định mức nguyên liệu BOM vào bảng Ingredient;
+        :Tăng version = version + 1 của nguyên liệu tương ứng;
+        |Backend API (NestJS)|
+        :Commit Transaction hoàn kho thành công;
+        |Giao diện Web (Next.js)|
+        :Hiển thị thông báo: "Đơn hàng đã bị hủy, nguyên liệu đã được hoàn về kho";
+        |Khách hàng (Customer)|
+        :Dừng phiên đặt hàng hiện tại;
         stop
     endif
 endif
