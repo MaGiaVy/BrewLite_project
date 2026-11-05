@@ -322,7 +322,12 @@ Dự án áp dụng phương pháp kiểm thử hướng hành vi (Behavior-Driv
 | **7** | `FR-06`, `NFR-02` | Ký HMAC-SHA256 & Callback ZaloPay Sandbox | `zalopay.service.spec.ts` | 4/4 tests passed (Tính MAC đúng chuẩn VNG, verify callback key2). |
 | **8** | `FR-06`, `FR-08` | Polling trạng thái ZaloPay & Webhook Controller | `zalopay.controller.spec.ts` | 6/6 tests passed (Tự động đổi đơn sang PAID khi nhận tiền). |
 | **9** | `FR-09`, `FR-10` | Định mức công thức BOM Recipe & Tồn kho | `inventory.service.spec.ts` | 8/8 tests passed (Tự động tính định mức, cảnh báo tồn kho). |
-| **Σ** | **TỔNG CỘNG** | **Kiểm thử toàn diện hệ thống** | **9 Test Suites** | **72 / 72 Tests Passed (100% Green)** |
+| **10** | `FR-04`, `NFR-02` | Lát cắt Auth (`API-T10..T13`): JWT hết hạn, Email trùng, Pass < 6, Ẩn `passwordHash` | `auth-api.spec.ts` | 6/6 tests passed (Kiểm chứng đầy đủ `API-T10`, `API-T11`, `API-T12`, `API-T13`). |
+| **11** | `FR-03`, `FR-04` | Xử lý 401 Client & Bảo toàn giỏ hàng (`WEB-T09`) | `api-client.spec.ts` | 2/2 tests passed (Xóa token, redirect `/login`, giữ nguyên 100% `cartStore`). |
+| **12** | `FR-04` | Cập nhật Hồ sơ cá nhân & Đổi mật khẩu an toàn | `auth-profile.spec.ts` | 7/7 tests passed (Xác minh mật khẩu cũ trước khi đổi mật khẩu mới). |
+| **13** | `FR-10` | Quản trị Khách hàng, Nhân sự & Phân quyền Admin | `customers.service.spec.ts` & `customers.controller.spec.ts` | 22/22 tests passed (CRUD nhân viên, khóa/mở khóa tài khoản, lịch sử mua hàng). |
+| **14** | `FR-09`, `FR-10` | Quản lý Bao bì & Vật tư tiêu hao (Ly/Nắp/Ống hút) | `inventory-packaging.spec.ts` | 5/5 tests passed (Trừ kho vật tư theo Size S/M/L). |
+| **Σ** | **TỔNG CỘNG** | **Kiểm thử toàn diện hệ thống (Backend + Web)** | **16 Test Suites** | **120 / 120 Tests Passed (100% Green)** |
 
 ---
 
