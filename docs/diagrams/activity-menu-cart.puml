@@ -19,68 +19,76 @@ skinparam swimlane {
 
 title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): DUYỆT THỰC ĐƠN, TÙY BIẾN MÓN & GIỎ HÀNG\n(Hệ thống BrewLite 100% Cashless Specialty Coffee Roastery)
 
-|#White|Khách hàng|
-|#White|Giao diện Next.js (Frontend)|
-|#White|Hệ thống Backend (NestJS API)|
+|#White|Khách hàng (Customer)|
+|#White|Giao diện Web (Next.js)|
+|#White|Backend API (NestJS)|
+|#White|Cơ sở dữ liệu (PostgreSQL)|
 
-|Khách hàng|
+|Khách hàng (Customer)|
 start
 :Truy cập trang Thực đơn (/menu);
 
-|Giao diện Next.js (Frontend)|
-:Hiển thị hiệu ứng Skeleton loader;
-:Gửi yêu cầu GET /products;
+|Giao diện Web (Next.js)|
+:Hiển thị hiệu ứng Skeleton loader trong khi tải dữ liệu;
+:Gửi yêu cầu GET /products sang Backend;
 
-|Hệ thống Backend (NestJS API)|
-:Truy vấn danh mục sản phẩm đang kích hoạt;
-:Trả về danh sách món cơ sở và định giá size, topping;
+|Backend API (NestJS)|
+:Tiếp nhận yêu cầu truy vấn danh mục sản phẩm;
 
-|Giao diện Next.js (Frontend)|
-:Hiển thị danh sách card món theo phân loại tab;
+|Cơ sở dữ liệu (PostgreSQL)|
+:Truy vấn danh sách Product đang kích hoạt (isActive = true);
+:Đính kèm danh sách kích cỡ (Size), công thức và Topping khả dụng;
 
-|Khách hàng|
+|Backend API (NestJS)|
+:Trả về danh sách sản phẩm kèm cấu hình định giá chi tiết;
+
+|Giao diện Web (Next.js)|
+:Hiển thị danh sách card món theo phân loại tab (Cà phê phin, Espresso, Trà, Bánh);
+
+|Khách hàng (Customer)|
 :Chọn xem 1 sản phẩm cụ thể;
 
-|Giao diện Next.js (Frontend)|
+|Giao diện Web (Next.js)|
 if (Sản phẩm còn hàng trong kho?) then ([Hết hàng / Sold Out])
     :Hiển thị badge "Hết hàng";
-    :Làm mờ và khóa nút chọn món;
-    |Khách hàng|
-    :Xem thông báo món tạm hết;
-    :Dừng thao tác với món này;
+    :Làm mờ card và khóa nút chọn món;
+    |Khách hàng (Customer)|
+    :Xem thông báo món tạm hết hàng;
+    :Dừng thao tác với món này để chọn món khác;
     stop
 else ([Còn hàng sẵn sàng])
-    |Giao diện Next.js (Frontend)|
-    :Mở Modal chi tiết món (ProductDetailModal);
+    |Giao diện Web (Next.js)|
+    :Mở Modal chi tiết tùy biến món (ProductDetailModal);
 endif
 
-|Khách hàng|
+|Khách hàng (Customer)|
 :Tùy chọn kích cỡ (Size S, M, L);
-:Tích chọn thêm Topping (Thạch, Kem muối, Trân châu);
-:Tùy chỉnh khẩu vị (Mức đá 0-100%, Mức đường 0-100%);
+:Tích chọn thêm Topping (Kem muối biển, Thạch cà phê, Trân châu);
+:Tùy chỉnh khẩu vị (Mức đá 0% - 100%, Mức đường 0% - 100%);
 
-|Giao diện Next.js (Frontend)|
-:Tính giá động: (basePrice + sizeUpcharge + sum(topping));
-:Cập nhật giá hiển thị trên nút "Thêm vào giỏ";
+|Giao diện Web (Next.js)|
+:Tính giá động thời gian thực (Dynamic Pricing):
+(basePrice + sizeUpcharge + sum(toppingPrice)) * quantity;
+:Cập nhật giá hiển thị trực tiếp trên nút "Thêm vào giỏ";
 
-|Khách hàng|
+|Khách hàng (Customer)|
 :Bấm nút "Thêm vào giỏ hàng";
 
-|Giao diện Next.js (Frontend)|
-:Kiểm tra composite key: (id|size|temp|toppings);
+|Giao diện Web (Next.js)|
+:Kiểm tra khóa kết hợp (composite key): productId-size-ice-sugar-toppings;
 
 if (Món đã có sẵn trong giỏ hàng?) then ([Đã có cùng tùy chọn])
-    :Cộng dồn số lượng (quantity = quantity + 1);
+    :Cộng dồn số lượng vào dòng món hiện có (quantity = quantity + 1);
 else ([Chưa có trong giỏ])
     :Tạo dòng mục mới trong Zustand Cart Store;
 endif
 
-:Đồng bộ trạng thái giỏ hàng vào localStorage;
-:Cập nhật số lượng Badge trên Header;
-:Hiển thị thông báo Toast "Đã thêm vào giỏ hàng";
+:Đồng bộ trạng thái giỏ hàng vào localStorage trình duyệt;
+:Cập nhật số lượng hiển thị trên Badge Giỏ hàng ở Header;
+:Hiển thị thông báo Toast xanh: "Đã thêm vào giỏ hàng thành công";
 
-|Khách hàng|
-:Xem giỏ hàng đã cập nhật thành công;
+|Khách hàng (Customer)|
+:Xem giỏ hàng đã được cập nhật thành công;
 stop
 
 @enduml
