@@ -1,0 +1,508 @@
+/* Staff KDS Mobile-First Neumorphism Style (C cải tiến) */
+
+.container {
+  background: #e9dfd3;
+  color: #3b2a1d;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.header {
+  padding: 16px 20px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  font-size: 19px;
+  border-bottom: 1px solid rgba(90, 70, 54, 0.1);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.totalChip {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #3b2a1d;
+  color: #fff;
+}
+
+/* Tabs */
+.tabsContainer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  overflow-x: auto;
+}
+
+.tabBtn {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: #e9dfd3;
+  box-shadow: 4px 4px 8px #c9bfb3, -4px -4px 8px #ffffff;
+  color: #5a4636;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+.tabBtnActive {
+  box-shadow: inset 4px 4px 8px #c9bfb3, inset -4px -4px 8px #ffffff;
+  color: #3b2a1d;
+}
+
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #3b2a1d;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Order Grid / List */
+.orderList {
+  flex: 1;
+  padding: 12px 16px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .orderList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+  }
+}
+
+/* Order Card */
+.card {
+  background: #e9dfd3;
+  border-radius: 20px;
+  padding: 16px 16px 16px 20px;
+  box-shadow: 8px 8px 16px #c9bfb3, -8px -8px 16px #ffffff;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+}
+
+.cardPaid::before {
+  background: #d94f2b;
+}
+
+.cardPreparing::before {
+  background: #e0a100;
+}
+
+.cardReady::before {
+  background: #2e8b57;
+}
+
+.cardCompleted::before {
+  background: #5a4636;
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.orderId {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.chip {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chipPaid {
+  background: #fde0d6;
+  color: #8f2a10;
+}
+
+.chipPreparing {
+  background: #fff0c2;
+  color: #6b4c00;
+}
+
+.chipReady {
+  background: #d4f0df;
+  color: #14532d;
+}
+
+.chipCompleted {
+  background: #e2d7cb;
+  color: #4a3b2c;
+}
+
+/* Wait status */
+.waitStatus {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5a4636;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.waitLate {
+  color: #b3261e;
+}
+
+.pulseDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d94f2b;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pulseDot {
+    animation: pulseAnim 1.4s infinite;
+  }
+}
+
+@keyframes pulseAnim {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Items */
+.itemsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px dashed rgba(90, 70, 54, 0.2);
+  padding-top: 8px;
+}
+
+.itemRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.itemMain {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.sizeBadge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #c9bfb3;
+  color: #3b2a1d;
+}
+
+.toppingBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.recipeTriggerBtn {
+  background: transparent;
+  border: 1px dashed #b8a99a;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5a4636;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.recipeTriggerBtn:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.noteBox {
+  font-size: 12px;
+  font-weight: 600;
+  color: #854d0e;
+  background: #fef9c3;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid #fef08a;
+}
+
+/* Actions */
+.cardActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+  align-items: stretch;
+}
+
+.btnPrimary {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: #6f4e37;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 4px 4px 8px #c9bfb3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease;
+}
+
+.btnPrimary:active {
+  transform: translateY(1px);
+}
+
+.btnPrimaryReady {
+  background: #2e8b57;
+}
+
+.btnCancel {
+  width: 48px;
+  min-height: 48px;
+  border: 2px solid #b8a99a;
+  border-radius: 14px;
+  background: transparent;
+  color: #5a4636;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+}
+
+.btnCancel:hover {
+  background: rgba(217, 79, 43, 0.1);
+  color: #d94f2b;
+}
+
+/* Stock Banner */
+.stockBanner {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Recipe Sheet Modal */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+}
+
+@media (min-width: 640px) {
+  .modalOverlay {
+    align-items: center;
+    padding: 20px;
+  }
+}
+
+.sheetContent {
+  width: 100%;
+  max-width: 480px;
+  background: #e9dfd3;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  padding: 20px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .sheetContent {
+    border-radius: 24px;
+  }
+}
+
+.sheetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  font-size: 17px;
+}
+
+.recipeTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.recipeTable th,
+.recipeTable td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(90, 70, 54, 0.15);
+}
+
+.recipeTable th {
+  font-size: 12px;
+  color: #5a4636;
+}
+
+/* Confirm Dialog */
+.dialogContent {
+  width: 90%;
+  max-width: 380px;
+  background: #e9dfd3;
+  border-radius: 24px;
+  padding: 24px 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+
+.dialogTitle {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.dialogActions {
+  display: flex;
+  gap: 12px;
+}
+
+.btnDialogConfirm {
+  flex: 1;
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: #2e8b57;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnDialogCancel {
+  flex: 1;
+  min-height: 48px;
+  border: 1px solid #b8a99a;
+  border-radius: 14px;
+  background: transparent;
+  color: #5a4636;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Empty State */
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  font-weight: 700;
+  color: #5a4636;
+  font-size: 15px;
+}
+
+/* Bottom Nav */
+.bottomNav {
+  display: flex;
+  min-height: 60px;
+  background: #e9dfd3;
+  box-shadow: 0 -4px 10px #c9bfb3;
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
+}
+
+.navItem {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5a4636;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.navItemActive {
+  color: #3b2a1d;
+  border-top: 3px solid #6f4e37;
+}
