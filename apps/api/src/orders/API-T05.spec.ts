@@ -29,7 +29,16 @@ function makePrisma(voucher: any) {
       findUnique: jest.fn().mockResolvedValue(voucher),
       update: jest.fn().mockResolvedValue({}),
     },
-    $transaction: jest.fn((callback: any) => callback({ order: { create } })),
+    $transaction: jest.fn((callback: any) => callback({
+      product: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, stock: 10, version: 0 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      order: { create },
+      discountCode: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+    })),
   } as any;
 }
 

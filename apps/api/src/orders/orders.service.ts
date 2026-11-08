@@ -57,6 +57,26 @@ export class OrdersService {
     }
     const totalAmount = subtotal - discountAmount;
     return this.prisma.$transaction(async (tx: any) => {
+      for (const item of dto.items) {
+        let updated = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          if (!product || product.stock < item.quantity) {
+            throw new ConflictException(`Sản phẩm #${item.productId} không đủ số lượng tồn kho.`);
+          }
+          const result = await tx.product.updateMany({
+            where: { id: item.productId, version: product.version, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity }, version: { increment: 1 } },
+          });
+          if (result.count === 1) {
+            updated = true;
+            break;
+          }
+        }
+        if (!updated) {
+          throw new ConflictException(`Xung đột tồn kho cho sản phẩm #${item.productId}, vui lòng thử lại.`);
+        }
+      }
       const order = await tx.order.create({
         data: { userId, status: OrderStatus.PENDING, totalAmount, discountCode: dto.discountCode ?? null, discountAmount, idempotencyKey: idempotencyKey ?? null, idempotencyPayload: payload, items: { create: items } },
         include: { items: true },
@@ -108,9 +128,20 @@ export class OrdersService {
       const claimed = await this.prisma.$transaction(async (tx: any) => {
         const result = await tx.order.updateMany({ where: { id: order.id, version: order.version, status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] } }, data: { status: OrderStatus.CANCELLED, version: { increment: 1 } } });
         if (result.count !== 1) return false;
-        if (tx.recipe?.findMany && tx.ingredient?.update) {
-          const recipes = await tx.recipe.findMany({ where: { productId: { in: order.items.map((item: any) => item.productId) } }, include: { ingredient: true } });
-          for (const recipe of recipes) await tx.ingredient.update({ where: { id: recipe.ingredient.id }, data: { stock: { increment: recipe.amount * (order.items.find((item: any) => item.productId === recipe.productId)?.quantity ?? 1) }, version: { increment: 1 } } });
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity }, version: { increment: 1 } },
+          });
+        }
+        if (order.discountCode) {
+          const voucherStore = tx.voucher ?? tx.discountCode;
+          if (voucherStore?.update) {
+            await voucherStore.update({
+              where: { code: order.discountCode },
+              data: { usageCount: { decrement: 1 } },
+            });
+          }
         }
         return true;
       });
