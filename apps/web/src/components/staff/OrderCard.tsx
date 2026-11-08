@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   isLate,
   nextAction,
+  parseNotesChips,
   parseToppings,
   waitMinutes,
   type StaffOrder,
@@ -18,6 +19,18 @@ export interface OrderCardProps {
   onOpenRecipe?: (item: StaffOrderItem) => void;
 }
 
+interface CupEntry {
+  cupKey: string;
+  item: StaffOrderItem;
+  cupIndex: number;
+  totalForThisItem: number;
+  productName: string;
+  size: string | null;
+  noteChips: string[];
+  toppingChips: string[];
+  hasRecipe: boolean;
+}
+
 export function OrderCard({
   order,
   now = new Date(),
@@ -30,6 +43,55 @@ export function OrderCard({
   const late = isLate(minutes);
   const action = nextAction(order.status);
 
+  // Per-cup completed state for checklist
+  const [completedCups, setCompletedCups] = useState<Record<string, boolean>>({});
+
+  const toggleCup = (key: string) => {
+    setCompletedCups((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  // Expand items into cup entries
+  const cupsList = useMemo<CupEntry[]>(() => {
+    const list: CupEntry[] = [];
+    order.items.forEach((item) => {
+      const qty = Math.max(1, item.quantity || 1);
+      const hasRecipe = Boolean(
+        (item.recipeBreakdown && item.recipeBreakdown.length > 0) ||
+        (item.toppingBreakdown && item.toppingBreakdown.length > 0)
+      );
+      const noteChips = parseNotesChips(item.notes);
+      const toppingChips = parseToppings(item.toppings);
+      const productName =
+        item.productName || item.product?.name || `Món #${item.productId}`;
+
+      for (let i = 0; i < qty; i++) {
+        list.push({
+          cupKey: `${item.id}-${i}`,
+          item,
+          cupIndex: i + 1,
+          totalForThisItem: qty,
+          productName,
+          size: item.size || null,
+          noteChips,
+          toppingChips,
+          hasRecipe,
+        });
+      }
+    });
+    return list;
+  }, [order.items]);
+
+  const totalCups = cupsList.length;
+  const completedCount = useMemo(() => {
+    return cupsList.filter((c) => completedCups[c.cupKey]).length;
+  }, [cupsList, completedCups]);
+
+  const allCupsChecked = totalCups > 0 && completedCount === totalCups;
+
+  // Status Chip mapping
   const statusChipMap = {
     PAID: { label: 'Mới', class: styles.chipPaid, cardClass: styles.cardPaid },
     PREPARING: { label: 'Đang pha', class: styles.chipPreparing, cardClass: styles.cardPreparing },
@@ -40,11 +102,34 @@ export function OrderCard({
 
   const statusConfig = statusChipMap[order.status] || statusChipMap.COMPLETED;
 
+  // Dynamic Action Button Label
+  const getActionLabel = () => {
+    if (busy) return 'Đang xử lý...';
+    if (!action) return '';
+
+    if (order.status === 'PREPARING') {
+      if (allCupsChecked) {
+        return `🎉 Đã xong đủ ${totalCups}/${totalCups} ly — Báo Sẵn Sàng!`;
+      }
+      if (completedCount > 0) {
+        return `🔔 Báo đã xong (Đã làm ${completedCount}/${totalCups} ly)`;
+      }
+      return action.label;
+    }
+
+    return action.label;
+  };
+
   return (
     <div className={`${styles.card} ${statusConfig.cardClass}`}>
       {/* Top: ID + Chip */}
       <div className={styles.cardTop}>
-        <span className={styles.orderId}>#BL-{order.id}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={styles.orderId}>#BL-{order.id}</span>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#6f4e37' }}>
+            ({totalCups} ly)
+          </span>
+        </div>
         <span className={`${styles.chip} ${statusConfig.class}`}>
           {statusConfig.label}
         </span>
@@ -60,48 +145,101 @@ export function OrderCard({
         </div>
       )}
 
-      {/* Items List */}
+      {/* Items Section: Checklist + Tag Chips */}
       <div className={styles.itemsSection}>
-        {order.items.map((item) => {
-          const hasRecipe =
-            (item.recipeBreakdown && item.recipeBreakdown.length > 0) ||
-            (item.toppingBreakdown && item.toppingBreakdown.length > 0);
-          const toppingsList = parseToppings(item.toppings);
+        {cupsList.map((cup, globalIdx) => {
+          const isChecked = Boolean(completedCups[cup.cupKey]);
+          const showCupNum = cup.totalForThisItem > 1;
 
           return (
-            <div key={item.id} className={styles.itemRow}>
-              <div className={styles.itemMain}>
-                <span>
-                  <strong>{item.quantity}x</strong>{' '}
-                  {item.productName || item.product?.name || `Món #${item.productId}`}
-                </span>
-                {item.size && (
-                  <span className={styles.sizeBadge}>Size {item.size}</span>
-                )}
-              </div>
+            <div
+              key={cup.cupKey}
+              className={`${styles.cupBox} ${isChecked ? styles.cupBoxCompleted : ''}`}
+            >
+              <div className={styles.cupMain}>
+                {/* Circular indicator */}
+                <div
+                  className={`${styles.cupIndex} ${
+                    isChecked ? styles.cupIndexChecked : ''
+                  }`}
+                  aria-hidden="true"
+                >
+                  {isChecked ? '✓' : globalIdx + 1}
+                </div>
 
-              <div className={styles.itemMeta}>
-                {toppingsList.map((top, idx) => (
-                  <span key={idx} className={styles.toppingBadge}>
-                    +{top}
-                  </span>
-                ))}
-
-                {hasRecipe && onOpenRecipe && (
-                  <button
-                    type="button"
-                    className={styles.recipeTriggerBtn}
-                    onClick={() => onOpenRecipe(item)}
-                    aria-label={`Xem công thức ${item.productName || ''}`}
+                <div className={styles.cupDetails}>
+                  {/* Drink Name */}
+                  <div
+                    className={`${styles.cupTitle} ${
+                      isChecked ? styles.cupTitleCompleted : ''
+                    }`}
                   >
-                    📖 Xem công thức
-                  </button>
-                )}
+                    1x {cup.productName}
+                    {showCupNum && (
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#7a6350',
+                          marginLeft: '6px',
+                        }}
+                      >
+                        (Ly {cup.cupIndex}/{cup.totalForThisItem})
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Tag Chips for Customizations */}
+                  <div className={styles.chipGroup}>
+                    {cup.size && (
+                      <span className={styles.chipSize}>SIZE {cup.size}</span>
+                    )}
+                    {cup.noteChips.map((chip, idx) => (
+                      <span key={idx} className={styles.chipOption}>
+                        {chip}
+                      </span>
+                    ))}
+                    {cup.toppingChips.map((top, idx) => (
+                      <span key={idx} className={styles.chipTopping}>
+                        +{top}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Recipe Trigger Button (once per item) */}
+                  {cup.hasRecipe && cup.cupIndex === 1 && onOpenRecipe && (
+                    <button
+                      type="button"
+                      className={styles.recipeTriggerBtn}
+                      onClick={() => onOpenRecipe(cup.item)}
+                      aria-label={`Xem công thức ${cup.productName}`}
+                    >
+                      📖 Xem công thức
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {item.notes && (
-                <div className={styles.noteBox}>
-                  <span>Ghi chú: {item.notes}</span>
+              {/* Checklist Toggle Button (Only in PREPARING mode) */}
+              {order.status === 'PREPARING' && (
+                <div>
+                  {isChecked ? (
+                    <button
+                      type="button"
+                      className={styles.btnUndoCup}
+                      onClick={() => toggleCup(cup.cupKey)}
+                    >
+                      Hoàn tác
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.btnCheckCup}
+                      onClick={() => toggleCup(cup.cupKey)}
+                    >
+                      Xong ly này
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -109,18 +247,18 @@ export function OrderCard({
         })}
       </div>
 
-      {/* Actions */}
+      {/* Primary Action Button */}
       {action && (
         <div className={styles.cardActions}>
           <button
             type="button"
             className={`${styles.btnPrimary} ${
               action.next === 'COMPLETED' ? styles.btnPrimaryReady : ''
-            }`}
+            } ${allCupsChecked && order.status === 'PREPARING' ? styles.btnAllCupsReady : ''}`}
             disabled={busy}
             onClick={() => onAction(order, action.next)}
           >
-            {busy ? 'Đang xử lý...' : action.label}
+            {getActionLabel()}
           </button>
 
           {order.status === 'PAID' && onCancel && (

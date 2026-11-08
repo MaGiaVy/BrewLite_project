@@ -120,3 +120,19 @@ export function parseToppings(value: string[] | string | null | undefined): stri
   }
   return [];
 }
+
+export function parseNotesChips(notes: string | null | undefined): string[] {
+  if (!notes) return [];
+  return notes
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const lower = s.toLowerCase();
+      if (lower.includes('đá') || lower.includes('ice')) return `🧊 ${s}`;
+      if (lower.includes('đường') || lower.includes('ngọt') || lower.includes('sugar')) return `🍬 ${s}`;
+      if (lower.includes('sả') || lower.includes('chanh') || lower.includes('đào')) return `🌿 ${s}`;
+      if (lower.includes('trứng') || lower.includes('kem') || lower.includes('foam')) return `🥚 ${s}`;
+      return `📝 ${s}`;
+    });
+}

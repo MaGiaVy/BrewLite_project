@@ -3,6 +3,7 @@ import {
   groupByStatus,
   isLate,
   nextAction,
+  parseNotesChips,
   parseToppings,
   sortOldestFirst,
   waitMinutes,
@@ -60,5 +61,13 @@ describe('T5.1f staff helpers', () => {
     expect(parseToppings(null)).toEqual([]);
     expect(parseToppings(undefined)).toEqual([]);
     expect(parseToppings('')).toEqual([]);
+  });
+
+  it('WEB-T17 parseNotesChips categorizes ice, sugar, tea aroma and custom notes', () => {
+    const chips = parseNotesChips('50% đá, 50% ngọt, nhiều sả, ít sữa');
+    expect(chips).toContain('🧊 50% đá');
+    expect(chips).toContain('🍬 50% ngọt');
+    expect(chips).toContain('🌿 nhiều sả');
+    expect(chips).toContain('📝 ít sữa');
   });
 });

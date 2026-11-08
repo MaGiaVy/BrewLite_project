@@ -172,4 +172,47 @@ describe('T5.1f Staff Components (WEB-T18)', () => {
     rerender(<StockBanner lowItems={[]} />);
     expect(screen.queryByText(/Sắp hết:/i)).toBeNull();
   });
+
+  it('WEB-T18 renders tag chips for size, notes, and toppings', () => {
+    render(
+      <OrderCard
+        order={sampleOrder}
+        now={new Date()}
+        busy={false}
+        onAction={vi.fn()}
+        onCancel={vi.fn()}
+        onOpenRecipe={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText(/SIZE L/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/🍬 Ít đường/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\+Trân châu/i).length).toBeGreaterThan(0);
+  });
+
+  it('WEB-T18 checklist toggles cup done and updates action progress during PREPARING', () => {
+    const preparingOrder: StaffOrder = {
+      ...sampleOrder,
+      status: 'PREPARING',
+    };
+
+    render(
+      <OrderCard
+        order={preparingOrder}
+        now={new Date()}
+        busy={false}
+        onAction={vi.fn()}
+        onCancel={vi.fn()}
+        onOpenRecipe={vi.fn()}
+      />,
+    );
+
+    const checkButtons = screen.getAllByRole('button', { name: /xong ly này/i });
+    expect(checkButtons.length).toBe(3); // 2 from Bạc xỉu + 1 from Nước suối
+
+    // Click 1st cup
+    fireEvent.click(checkButtons[0]);
+    expect(screen.getByText(/Đã làm 1\/3 ly/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /hoàn tác/i })).toBeTruthy();
+  });
 });
