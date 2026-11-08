@@ -25,33 +25,33 @@
 
 ---
 
-## 2. Kết Quả Kiểm Thử Tự Động (Automated Test Evidence)
+## 3. Hình Ảnh Minh Chứng Giao Diện Mobile (Visual Evidence)
 
-Bộ kiểm thử của Task T5.1f được tự động hóa qua Vitest trong `apps/web`:
+Các ảnh chụp màn hình thực tế tại độ phân giải chuẩn di động (390px) và máy tính bảng (Tablet 2 cột):
 
-### 🔹 `WEB-T17` — Kiểm thử Logic Điều Phối Hàng Đợi (`staff-orders.test.ts` & `page.test.tsx`):
-- ✅ Phân nhóm đơn hàng theo trạng thái `PAID`, `PREPARING`, `READY`, `COMPLETED`
-- ✅ Sắp xếp đơn có thời gian chờ lâu nhất lên đầu danh sách
-- ✅ Đánh dấu cảnh báo `isLate = true` khi đơn chờ $\ge 10$ phút
-- ✅ Chuyển đổi trạng thái tuần tự và khóa thao tác không hợp lệ
-- ✅ Phân giải mảng topping từ chuỗi JSON hoặc phân cách dấu phẩy
-- ✅ Chặn vai trò không hợp lệ (CUSTOMER) và chuyển hướng về `/login?redirect=%2Fstaff`
-- ✅ Hiển thị trạng thái "Không có đơn" khi danh sách trống
-- ✅ Hiển thị banner cảnh báo khi nguyên liệu chạm ngưỡng `LOW_STOCK` hoặc `OUT_OF_STOCK`
+| Trạng thái / Màn hình | Hình ảnh minh chứng | Mô tả chi tiết |
+| :--- | :---: | :--- |
+| **1. Hàng đợi Đơn mới (Mới / PAID)** | `![Hàng đợi đơn mới](mobile-staff-queue.png)` | Thẻ đơn hàng bo góc 20px, dải màu cam đậm, mã `#BL-1042` to rõ, tag chips `[SIZE M]`, `[🧊 50% Đá]`, `[🍬 50% Ngọt]`, `[🧋 +Trân châu đen]`. |
+| **2. Tiến độ Checklist từng ly (Đang pha)** | `![Checklist từng ly](mobile-staff-checklist.png)` | Từng ly có nút "Xong ly này", dấu tích xanh `✓`, gạch mờ ly đã làm, nút chính tự đếm `(Đã làm X/Y ly)`. |
+| **3. Bảng công thức định lượng (BOM Sheet)** | `![Công thức định lượng BOM](mobile-staff-recipe.png)` | Bảng trượt từ đáy màn hình, hiển thị chi tiết định lượng 1 ly và tổng số ly cho nguyên liệu & topping. |
+| **4. Bố cục máy tính bảng (Tablet Responsive)** | `![Bố cục Tablet](mobile-staff-tablet.png)` | Tự động mở rộng thành lưới 2 cột khi xem trên màn hình tablet quầy bar $\ge 768\text{px}$. |
 
-### 🔹 `WEB-T18` — Kiểm thử Tương Tác Giao Diện (`staff.test.tsx`):
-- ✅ Bấm "Xem công thức" trên món hiển thị đầy đủ bảng nguyên liệu & topping
-- ✅ Món không có công thức ẩn nút xem công thức
-- ✅ Nút bấm chính và nút hủy đơn đạt chuẩn chiều cao $\ge 48\text{px}$
-- ✅ Đơn chờ lâu hiển thị nhãn "quá lâu"
-- ✅ Hộp thoại xác nhận hoạt động chính xác khi bấm nút xác nhận hoặc hủy
-- ✅ Bảng công thức hỗ trợ đóng bằng phím `Escape` và nút Đóng
+---
+
+## 4. Kết Quả Kiểm Thử Tự Động (Automated Test Evidence)
+
+Toàn bộ **29/29 tests PASS 100%** qua Vitest trong `apps/web`:
 
 ```text
- ✓ src/lib/staff-orders.test.ts (5 tests)
+ ✓ src/lib/staff-orders.test.ts (6 tests)
+ ✓ src/lib/api-client.test.ts (2 tests)
+ ✓ src/lib/format.test.ts (1 test)
  ✓ src/lib/use-barista-queue.test.ts (3 tests)
- ✓ src/components/staff/staff.test.tsx (7 tests)
  ✓ src/app/staff/page.test.tsx (4 tests)
- Test Files  4 passed (4)
-      Tests  19 passed (19)
+ ✓ src/app/menu/menu.test.tsx (4 tests)
+ ✓ src/components/staff/staff.test.tsx (9 tests)
+
+ Test Files  7 passed (7)
+      Tests  29 passed (29)
+   Duration  8.23s
 ```
