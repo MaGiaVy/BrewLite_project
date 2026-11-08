@@ -12,9 +12,102 @@ model Product {
   id        Int    @id @default(autoincrement())
   name      String @unique
   basePrice Int
+  sizeUpchargeM Int @default(0)
+  sizeUpchargeL Int @default(0)
   stock     Int    @default(0)
+  version   Int    @default(0)
   imageUrl  String?
   toppings  ProductTopping[]
+  orderItems OrderItem[]
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  loyaltyPoints Int      @default(0)
+  orders        Order[]
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PREPARING
+  READY
+  COMPLETED
+  PAYMENT_FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  EWALLET
+  BANK_CARD
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+enum Role {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+model Order {
+  id Int @id @default(autoincrement())
+  userId Int?
+  user User? @relation(fields: [userId], references: [id])
+  status OrderStatus @default(PENDING)
+  totalAmount Int
+  discountCode String?
+  discountAmount Int @default(0)
+  version Int @default(0)
+  idempotencyKey String?
+  idempotencyPayload String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items OrderItem[]
+  payments Payment[]
+  @@unique([userId, idempotencyKey])
+}
+
+model OrderItem {
+  id Int @id @default(autoincrement())
+  orderId Int
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int
+  product Product @relation(fields: [productId], references: [id])
+  productName String
+  size String
+  toppings String[]
+  quantity Int
+  unitPrice Int
+}
+
+model Payment {
+  id Int @id @default(autoincrement())
+  orderId Int
+  order Order @relation(fields: [orderId], references: [id])
+  idempotencyKey String? @unique
+  amount Int
+  method PaymentMethod
+  status PaymentStatus
+  createdAt DateTime @default(now())
+}
+
+model Voucher {
+  id Int @id @default(autoincrement())
+  code String @unique
+  discountPercent Int @default(0)
+  discountAmount Int?
+  minOrderAmount Int @default(0)
+  maxDiscountAmount Int?
+  expiresAt DateTime?
+  isActive Boolean @default(true)
+  usageCount Int @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Topping {

@@ -1,0 +1,32 @@
+import { OrderStatus } from '@prisma/client';
+import { OrdersService } from './orders.service';
+
+describe('API-T08 — order expiration', () => {
+  it('cancels an expired pending order and restores stock once', async () => {
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const productUpdate = jest.fn().mockResolvedValue({});
+    const order = {
+      id: 20,
+      version: 2,
+      status: OrderStatus.PAYMENT_FAILED,
+      createdAt: new Date(Date.now() - 16 * 60 * 1000),
+      items: [{ productId: 1, size: 'M', toppings: [], quantity: 2 }],
+    };
+    const prisma: any = {
+      order: { findMany: jest.fn().mockResolvedValue([order]) },
+      $transaction: jest.fn((callback: any) => callback({
+        order: { updateMany },
+        product: { update: productUpdate },
+      })),
+    };
+
+    expect(await new OrdersService(prisma).cancelExpiredPendingOrders()).toBe(1);
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 20, version: 2 }),
+    }));
+    expect(productUpdate).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { stock: { increment: 2 }, version: { increment: 1 } },
+    });
+  });
+});

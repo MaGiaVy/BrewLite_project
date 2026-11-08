@@ -1,0 +1,11 @@
+{
+  "name": "brewlite-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "npm test -w apps/api"
+  }
+}
