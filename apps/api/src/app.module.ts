@@ -7,9 +7,10 @@ import { ProductsController } from './products/products.controller';
 import { ProductsService } from './products/products.service';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }), PrismaModule, HealthModule, OrdersModule, PaymentsModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }), ScheduleModule.forRoot(), PrismaModule, HealthModule, OrdersModule, PaymentsModule],
   controllers: [ProductsController],
   providers: [ProductsService],
 })
