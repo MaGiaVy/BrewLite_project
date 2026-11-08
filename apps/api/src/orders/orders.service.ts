@@ -28,26 +28,32 @@ export class OrdersService {
     const products: any[] = await (this.prisma as any).product.findMany({
       where: { id: { in: dto.items.map((item) => item.productId) } },
     });
-    const toppings: any[] = (this.prisma as any).toppingRecipe
-      ? await (this.prisma as any).toppingRecipe.findMany({ where: { isActive: true } })
+    const toppingIds = [...new Set(dto.items.flatMap((item) => item.toppings.map((id) => Number(id))))];
+    if (toppingIds.some((id) => !Number.isInteger(id) || id < 1)) {
+      throw new BadRequestException('Topping không hợp lệ.');
+    }
+    const toppings: any[] = toppingIds.length
+      ? await (this.prisma as any).topping.findMany({ where: { id: { in: toppingIds } } })
       : [];
     const productMap = new Map(products.map((product: any) => [product.id, product]));
-    const toppingMap = new Map(toppings.map((topping: any) => [topping.toppingId, topping]));
+    const toppingMap = new Map(toppings.map((topping: any) => [topping.id, topping]));
+    if (toppings.length !== toppingIds.length) {
+      throw new BadRequestException('Topping không tồn tại.');
+    }
 
     const items = dto.items.map((item) => {
       const product = productMap.get(item.productId);
       if (!product) throw new NotFoundException(`Product ${item.productId} not found`);
       const sizeExtra = item.size === 'M' ? product.sizeUpchargeM ?? 0 : item.size === 'L' ? product.sizeUpchargeL ?? 0 : 0;
-      const toppingsTotal = item.toppings.reduce((sum, id) => sum + (toppingMap.get(id)?.price ?? 0), 0);
+      const toppingsTotal = item.toppings.reduce((sum, id) => sum + (toppingMap.get(Number(id))?.price ?? 0), 0);
       const unitPrice = Number(product.basePrice) + Number(sizeExtra) + toppingsTotal;
-      return { productId: item.productId, productName: item.productName, size: item.size, toppings: item.toppings, quantity: item.quantity, unitPrice };
+      return { productId: item.productId, productName: product.name, size: item.size, toppings: item.toppings, quantity: item.quantity, unitPrice };
     });
     const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     let discountAmount = 0;
     let voucher: any = null;
     if (dto.discountCode) {
-      const voucherStore = (this.prisma as any).voucher ?? (this.prisma as any).discountCode;
-      voucher = await voucherStore.findUnique({ where: { code: dto.discountCode } });
+      voucher = await (this.prisma as any).voucher.findUnique({ where: { code: dto.discountCode } });
       if (!voucher || !voucher.isActive || (voucher.expiresAt && new Date(voucher.expiresAt) <= new Date()) || subtotal < voucher.minOrderAmount) {
         throw new BadRequestException('Voucher không hợp lệ.');
       }
@@ -81,8 +87,7 @@ export class OrdersService {
         data: { userId, status: OrderStatus.PENDING, totalAmount, discountCode: dto.discountCode ?? null, discountAmount, idempotencyKey: idempotencyKey ?? null, idempotencyPayload: payload, items: { create: items } },
         include: { items: true },
       });
-      const voucherStore = tx.voucher ?? tx.discountCode;
-      if (voucher && voucherStore?.update) await voucherStore.update({ where: { id: voucher.id }, data: { usageCount: { increment: 1 } } });
+      if (voucher) await tx.voucher.update({ where: { id: voucher.id }, data: { usageCount: { increment: 1 } } });
       return { ...order, orderId: order.id };
     });
   }
@@ -101,19 +106,17 @@ export class OrdersService {
       if (next === OrderStatus.CANCELLED && order.status === OrderStatus.PAID && tx.user?.update) {
         await tx.user.update({ where: { id: order.userId }, data: { loyaltyPoints: { decrement: Math.floor(order.totalAmount / 1000) } } });
       }
-      if (next === OrderStatus.CANCELLED && tx.recipe?.findMany && tx.ingredient?.update) {
-        const recipes = await tx.recipe.findMany({
-          where: { productId: { in: order.items.map((item: any) => item.productId) } },
-          include: { ingredient: true },
-        });
-        for (const recipe of recipes) {
-          const item = order.items.find((candidate: any) => candidate.productId === recipe.productId);
-          await tx.ingredient.update({
-            where: { id: recipe.ingredient.id },
-            data: {
-              stock: { increment: recipe.amount * (item?.quantity ?? 1) },
-              version: { increment: 1 },
-            },
+      if (next === OrderStatus.CANCELLED) {
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity }, version: { increment: 1 } },
+          });
+        }
+        if (order.discountCode && tx.voucher?.update) {
+          await tx.voucher.update({
+            where: { code: order.discountCode },
+            data: { usageCount: { decrement: 1 } },
           });
         }
       }
@@ -122,7 +125,7 @@ export class OrdersService {
   }
 
   async cancelExpiredPendingOrders(): Promise<number> {
-    const orders = await (this.prisma as any).order.findMany({ where: { status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] }, createdAt: { lte: new Date(Date.now() - EXPIRE_MS) } }, include: { items: true } });
+    const orders = await (this.prisma as any).order.findMany({ where: { status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] }, createdAt: { lte: new Date(Date.now() - EXPIRE_MS) } }, include: { items: true }, take: 100 });
     let count = 0;
     for (const order of orders) {
       const claimed = await this.prisma.$transaction(async (tx: any) => {
@@ -135,13 +138,10 @@ export class OrdersService {
           });
         }
         if (order.discountCode) {
-          const voucherStore = tx.voucher ?? tx.discountCode;
-          if (voucherStore?.update) {
-            await voucherStore.update({
-              where: { code: order.discountCode },
-              data: { usageCount: { decrement: 1 } },
-            });
-          }
+          await tx.voucher.update({
+            where: { code: order.discountCode },
+            data: { usageCount: { decrement: 1 } },
+          });
         }
         return true;
       });

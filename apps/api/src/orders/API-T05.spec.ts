@@ -23,9 +23,9 @@ function makePrisma(voucher: any) {
   }));
   return {
     product: { findMany: jest.fn().mockResolvedValue([{ id: 1, basePrice: 100000 }]) },
-    toppingRecipe: { findMany: jest.fn().mockResolvedValue([]) },
+    topping: { findMany: jest.fn().mockResolvedValue([]) },
     storeSetting: { findMany: jest.fn().mockResolvedValue([]) },
-    discountCode: {
+    voucher: {
       findUnique: jest.fn().mockResolvedValue(voucher),
       update: jest.fn().mockResolvedValue({}),
     },
@@ -35,7 +35,7 @@ function makePrisma(voucher: any) {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       order: { create },
-      discountCode: {
+      voucher: {
         update: jest.fn().mockResolvedValue({}),
       },
     })),
@@ -73,6 +73,22 @@ describe('API-T05 — vouchers', () => {
 
     expect(result.discountAmount).toBe(20000);
     expect(result.totalAmount).toBe(80000);
+  });
+
+  it('caps a fixed voucher discount at the subtotal', async () => {
+    const service = new OrdersService(makePrisma({
+      code: 'FIXED150',
+      discountPercent: 0,
+      discountAmount: 150000,
+      minOrderAmount: 0,
+      maxDiscountAmount: null,
+      isActive: true,
+    }));
+
+    const result = await service.createOrder(orderDto('FIXED150'), 1);
+
+    expect(result.discountAmount).toBe(100000);
+    expect(result.totalAmount).toBe(0);
   });
 
   it('rejects expired and below-minimum vouchers', async () => {

@@ -23,14 +23,13 @@ describe('API-T06 — loyalty points', () => {
       $transaction: jest.fn((callback: any) => callback(prisma)),
     };
     const payment = {
-      processPayment: jest.fn().mockResolvedValue({
+      charge: jest.fn().mockResolvedValue({
         success: true,
         transactionId: 'TXN-POINTS',
-        message: 'Thành công',
       }),
     };
 
-    const result = await new PaymentsService(prisma, payment as any, {} as any).processPayment(
+    const result = await new PaymentsService(prisma, payment as any).processPayment(
       { orderId: 10, method: PaymentMethod.EWALLET },
       3,
     );

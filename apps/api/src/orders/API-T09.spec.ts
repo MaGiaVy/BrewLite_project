@@ -3,7 +3,7 @@ import { OrdersService } from './orders.service';
 
 describe('API-T09 — PAID order cancellation', () => {
   it('cancels PAID order, restores stock and revokes loyalty points', async () => {
-    const ingredientUpdate = jest.fn().mockResolvedValue({});
+    const productUpdate = jest.fn().mockResolvedValue({});
     const userUpdate = jest.fn().mockResolvedValue({});
     const orderUpdate = jest.fn().mockResolvedValue({
       id: 30, status: OrderStatus.CANCELLED, updatedAt: new Date(),
@@ -24,14 +24,7 @@ describe('API-T09 — PAID order cancellation', () => {
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
           update: orderUpdate,
         },
-        recipe: { findMany: jest.fn().mockResolvedValue([{
-          productId: 1,
-          size: 'M',
-          amount: 25,
-          ingredient: { id: 4, code: 'COFFEE', name: 'Coffee', unit: 'g' },
-        }]) },
-        toppingRecipe: { findMany: jest.fn().mockResolvedValue([]) },
-        ingredient: { update: ingredientUpdate },
+        product: { update: productUpdate },
         user: { update: userUpdate },
       })),
     };
@@ -41,9 +34,9 @@ describe('API-T09 — PAID order cancellation', () => {
     );
 
     expect(result.status).toBe(OrderStatus.CANCELLED);
-    expect(ingredientUpdate).toHaveBeenCalledWith({
-      where: { id: 4 },
-      data: { stock: { increment: 50 }, version: { increment: 1 } },
+    expect(productUpdate).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { stock: { increment: 2 }, version: { increment: 1 } },
     });
     expect(userUpdate).toHaveBeenCalledWith({
       where: { id: 5 },
