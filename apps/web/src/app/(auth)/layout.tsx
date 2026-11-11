@@ -18,7 +18,7 @@ import {
 import { BrewLiteLogo } from '../../components/BrewLiteLogo';
 import styles from './auth.module.css';
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+function AuthLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get('redirect');
@@ -182,5 +182,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <React.Suspense fallback={<div style={{ minHeight: '100vh', background: '#fef8f4' }} />}>
+      <AuthLayoutInner>{children}</AuthLayoutInner>
+    </React.Suspense>
   );
 }

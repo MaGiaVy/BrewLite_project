@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
@@ -85,7 +87,7 @@ function LoginFormContent() {
       <div className={styles.authHeader}>
         <h1 className={styles.authHeading}>Đăng nhập BrewLite</h1>
         <p className={styles.authSubheading}>
-          Đăng nhập để tiếp tục đơn hàng và thanh toán không tiền mặt siêu tốc.
+          Đăng nhập để thanh toán và tiếp tục đơn hàng.
         </p>
       </div>
 
@@ -112,7 +114,7 @@ function LoginFormContent() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="barista@brewlite.com hoặc your-email@example.com"
+              placeholder="barista@brewlite.com"
               className={styles.input}
               style={{ minHeight: 48 }}
             />
@@ -136,7 +138,7 @@ function LoginFormContent() {
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Nhập mật khẩu an toàn"
+              placeholder="Nhập mật khẩu"
               className={styles.input}
               style={{ minHeight: 48 }}
             />
