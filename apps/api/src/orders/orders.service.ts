@@ -149,4 +149,21 @@ export class OrdersService {
     }
     return count;
   }
+
+  async getOrder(id: number) {
+    const order = await (this.prisma as any).order.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async getOrdersByUser(userId: number) {
+    return (this.prisma as any).order.findMany({
+      where: { userId },
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

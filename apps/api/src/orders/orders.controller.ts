@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { OrderStatus } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrdersService } from './orders.service';
@@ -10,6 +10,16 @@ export class OrdersController {
   @Post()
   create(@Body() dto: CreateOrderDto, @Headers('x-user-id') userId = '1', @Headers('idempotency-key') key?: string) {
     return this.ordersService.createOrder(dto, Number(userId), key);
+  }
+
+  @Get('me')
+  getMyOrders(@Headers('x-user-id') userId = '1') {
+    return this.ordersService.getOrdersByUser(Number(userId));
+  }
+
+  @Get(':id')
+  getOrderById(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.getOrder(id);
   }
 
   @Patch(':id/status')
