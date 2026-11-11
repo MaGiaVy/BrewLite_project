@@ -1,0 +1,228 @@
+name: CD - Render GHCR
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'publish: build images; deploy: publish and deploy; rollback: redeploy existing tag'
+        required: true
+        type: choice
+        options:
+          - publish
+          - deploy
+          - rollback
+      release_tag:
+        description: 'Optional release tag for publish/deploy (e.g. v1.0.0); required for rollback'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brewlite-production-cd
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.check.outputs.image_tag }}
+      api_image: ${{ steps.check.outputs.api_image }}
+      web_image: ${{ steps.check.outputs.web_image }}
+    steps:
+      - name: Validate release inputs and branch
+        id: check
+        env:
+          OPERATION: ${{ inputs.operation }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF_TYPE" != "branch" || "$REF_NAME" != "main" ]]; then
+            echo 'CD only runs when manually selected on main.' >&2
+            exit 1
+          fi
+          if [[ -n "$RELEASE_TAG" && ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'release_tag must look like v1.0.0.' >&2
+            exit 1
+          fi
+          if [[ "$OPERATION" == "rollback" && -z "$RELEASE_TAG" ]]; then
+            echo 'Rollback requires a previously published release_tag.' >&2
+            exit 1
+          fi
+          if [[ "$OPERATION" == "rollback" ]]; then
+            IMAGE_TAG="$RELEASE_TAG"
+          elif [[ -n "$RELEASE_TAG" ]]; then
+            IMAGE_TAG="$RELEASE_TAG"
+          else
+            IMAGE_TAG="sha-${SHA}"
+          fi
+          OWNER="${REPOSITORY%%/*}"
+          OWNER="${OWNER,,}"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "api_image=ghcr.io/$OWNER/brewlite-api:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "web_image=ghcr.io/$OWNER/brewlite-web:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+  quality:
+    if: inputs.operation != 'rollback'
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  security:
+    needs: validate
+    if: needs.validate.result == 'success' && inputs.operation != 'rollback'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Scan repository history for leaked credentials
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: [validate, quality, security]
+    if: needs.validate.result == 'success' && needs.quality.result == 'success' && needs.security.result == 'success' && inputs.operation != 'rollback'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check API URL build configuration
+        env:
+          API_URL: ${{ vars.RENDER_API_URL }}
+        run: |
+          set -euo pipefail
+          [[ "$API_URL" =~ ^https://[^/]+ ]] || { echo 'Set vars.RENDER_API_URL to the public HTTPS API origin.' >&2; exit 1; }
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          file: ./apps/api/Dockerfile
+          push: true
+          tags: ${{ needs.validate.outputs.api_image }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          file: ./apps/web/Dockerfile
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.RENDER_API_URL }}
+          tags: ${{ needs.validate.outputs.web_image }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  deploy:
+    needs: [validate, quality, security, publish]
+    if: always() && inputs.operation == 'deploy' && needs.validate.result == 'success' && needs.quality.result == 'success' && needs.security.result == 'success' && needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deploy configuration
+        env:
+          API_URL: ${{ vars.RENDER_API_URL }}
+          WEB_URL: ${{ vars.RENDER_WEB_URL }}
+          API_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+          WEB_HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          [[ "$API_URL" =~ ^https://[^/]+ && "$WEB_URL" =~ ^https://[^/]+ ]] || exit 1
+          [[ -n "$API_HOOK" && -n "$WEB_HOOK" ]] || { echo 'Deploy hooks are missing.' >&2; exit 1; }
+      - name: Deploy and verify API image on Render
+        env:
+          HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+          TOKEN: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ vars.RENDER_API_SERVICE_ID }}
+          IMAGE: ${{ needs.validate.outputs.api_image }}
+        run: bash scripts/render-deploy.sh "$HOOK" "$TOKEN" "$SERVICE_ID" "$IMAGE"
+      - name: Wait for API health and products
+        env:
+          API_URL: ${{ vars.RENDER_API_URL }}
+        run: bash scripts/smoke-test.sh "$API_URL" 40 15
+      - name: Deploy and verify Web image on Render
+        env:
+          HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
+          TOKEN: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ vars.RENDER_WEB_SERVICE_ID }}
+          IMAGE: ${{ needs.validate.outputs.web_image }}
+        run: bash scripts/render-deploy.sh "$HOOK" "$TOKEN" "$SERVICE_ID" "$IMAGE"
+      - name: Wait for Web homepage
+        env:
+          WEB_URL: ${{ vars.RENDER_WEB_URL }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error --max-time 15 "$WEB_URL" > /dev/null; then
+              echo 'Web responded.'
+              exit 0
+            fi
+            sleep 15
+          done
+          echo 'Web smoke test failed.' >&2
+          exit 1
+
+  rollback:
+    needs: validate
+    if: inputs.operation == 'rollback'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deployment variables
+        env:
+          API_URL: ${{ vars.RENDER_API_URL }}
+          WEB_URL: ${{ vars.RENDER_WEB_URL }}
+          API_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+          WEB_HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          [[ "$API_URL" =~ ^https://[^/]+ && "$WEB_URL" =~ ^https://[^/]+ ]] || exit 1
+          [[ -n "$API_HOOK" && -n "$WEB_HOOK" ]] || exit 1
+      - name: Redeploy and verify previous API image
+        env:
+          HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+          TOKEN: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ vars.RENDER_API_SERVICE_ID }}
+          IMAGE: ${{ needs.validate.outputs.api_image }}
+        run: bash scripts/render-deploy.sh "$HOOK" "$TOKEN" "$SERVICE_ID" "$IMAGE"
+      - name: API smoke check after rollback
+        env:
+          API_URL: ${{ vars.RENDER_API_URL }}
+        run: bash scripts/smoke-test.sh "$API_URL" 40 15
+      - name: Redeploy and verify previous Web image
+        env:
+          HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
+          TOKEN: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ vars.RENDER_WEB_SERVICE_ID }}
+          IMAGE: ${{ needs.validate.outputs.web_image }}
+        run: bash scripts/render-deploy.sh "$HOOK" "$TOKEN" "$SERVICE_ID" "$IMAGE"
+      - name: Wait for Web after rollback
+        env:
+          WEB_URL: ${{ vars.RENDER_WEB_URL }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error --max-time 15 "$WEB_URL" > /dev/null; then exit 0; fi
+            sleep 15
+          done
+          exit 1
