@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
@@ -7,6 +7,8 @@ import request from 'supertest';
 import { AppModule } from '../app.module';
 import { MockGatewayService } from '../payments/mock-gateway.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+jest.setTimeout(30000);
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const runIntegrationSuite = databaseUrl ? describe : describe.skip;
@@ -32,7 +34,7 @@ runIntegrationSuite('orders and payments integration', () => {
 
   beforeAll(async () => {
     if (databaseUrl) {
-      execFileSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['prisma', 'migrate', 'reset', '--force', '--skip-seed'], {
+      execSync('npx prisma migrate reset --force --skip-seed', {
         cwd: process.cwd(),
         env: process.env,
         stdio: 'inherit',
