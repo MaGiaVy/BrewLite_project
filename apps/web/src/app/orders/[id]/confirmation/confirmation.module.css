@@ -1,0 +1,827 @@
+/* Mobile-first Order Confirmation Styling */
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 16px 48px 16px;
+  min-height: 100vh;
+  background-color: #fef8f4;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1d1b19;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ambient Backdrops */
+.ambientGlow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(254, 188, 133, 0.22) 0%, rgba(254, 248, 244, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.contentWrapper {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+/* Success Checkmark Circle */
+.iconContainer {
+  position: relative;
+  margin-bottom: 16px;
+  display: inline-flex;
+}
+
+.iconPulseRing {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  background-color: rgba(220, 252, 231, 0.6);
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
+.iconCircle {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px -4px rgba(44, 24, 16, 0.12);
+  border: 3px solid #f3ede9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconInner {
+  width: 50px;
+  height: 50px;
+  border-radius: 9999px;
+  background-color: #2c1810;
+  color: #ffdcc2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+}
+
+.iconInner.ready {
+  background-color: #059669;
+  color: #ffffff;
+}
+
+.iconInner.completed {
+  background-color: #2d6a4f;
+  color: #ffffff;
+}
+
+.iconInner.cancelled {
+  background-color: #8c3b32;
+  color: #ffffff;
+}
+
+.loyaltyFloatingBadge {
+  position: absolute;
+  top: -4px;
+  right: -12px;
+  background-color: #ffdcc2;
+  color: #2e1500;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+/* Status Pill Tag */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 10px;
+  background-color: #f3ede9;
+  color: #78491d;
+  border: 1px solid rgba(44, 24, 16, 0.08);
+}
+
+.statusPill.ready {
+  background-color: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
+}
+
+.statusPill.cancelled {
+  background-color: #faf0ee;
+  color: #8c3b32;
+  border-color: rgba(140, 59, 50, 0.25);
+}
+
+.pingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #845326;
+  animation: pingDot 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.pingDot.ready {
+  background-color: #059669;
+}
+
+.pingDot.cancelled {
+  background-color: #8c3b32;
+}
+
+/* Headline */
+.headline {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 23px;
+  font-weight: 800;
+  color: #2c1810;
+  margin: 0 0 6px 0;
+  line-height: 1.25;
+}
+
+.subheadline {
+  font-size: 13px;
+  color: #6d625d;
+  line-height: 1.5;
+  margin: 0 0 20px 0;
+  max-width: 380px;
+}
+
+/* Boarding Pass Ticket Card */
+.ticketCard {
+  width: 100%;
+  background-color: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e7e1dd;
+  box-shadow: 0 8px 24px -4px rgba(44, 24, 16, 0.06);
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.topRibbon {
+  height: 5px;
+  width: 100%;
+  background: linear-gradient(90deg, #2c1810 0%, #845326 50%, #febc85 100%);
+}
+
+.topRibbon.ready {
+  background: linear-gradient(90deg, #059669 0%, #10b981 50%, #6ee7b7 100%);
+}
+
+.topRibbon.cancelled {
+  background: linear-gradient(90deg, #8c3b32 0%, #a2483e 50%, #845326 100%);
+}
+
+.ticketHeader {
+  padding: 18px 16px 14px 16px;
+  background-color: rgba(248, 242, 238, 0.45);
+  border-bottom: 1px solid #f1eae4;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.orderNumberLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #786c67;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.orderIdRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.orderIdText {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: #2c1810;
+  letter-spacing: -0.5px;
+}
+
+.copyButton {
+  background: #f3ede9;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #504440;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.copyButton:active {
+  transform: scale(0.95);
+  background: #e7e1dd;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fdf3eb;
+  color: #845326;
+  border: 1px solid rgba(132, 83, 38, 0.2);
+  white-space: nowrap;
+}
+
+.statusBadge.ready {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
+}
+
+.statusBadge.cancelled {
+  background: #faf0ee;
+  color: #8c3b32;
+  border-color: rgba(140, 59, 50, 0.25);
+}
+
+.orderMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #786c67;
+}
+
+.paymentTag {
+  background: #f3ede9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #504440;
+}
+
+/* Express Station Callout */
+.expressCard {
+  margin: 14px 16px 0 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f8f2ee;
+  border: 1px solid #eadecf;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.expressCard.ready {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.expressIconWrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #2c1810;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.expressIconWrapper.ready {
+  background: #059669;
+}
+
+.expressTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2c1810;
+  line-height: 1.3;
+}
+
+.expressDesc {
+  font-size: 11px;
+  color: #6d625d;
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+/* Stepper Tracker */
+.stepperSection {
+  margin: 14px 16px 0 16px;
+}
+
+.stepperHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.stepperTitle {
+  font-weight: 700;
+  color: #2c1810;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.stepperStation {
+  color: #786c67;
+}
+
+.stepperGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.stepperItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stepperBar {
+  height: 6px;
+  border-radius: 9999px;
+  background: #ede7e3;
+  overflow: hidden;
+  position: relative;
+}
+
+.stepperBarFilled {
+  height: 100%;
+  background: #2c1810;
+  border-radius: 9999px;
+}
+
+.stepperBarActive {
+  height: 100%;
+  width: 80%;
+  background: #845326;
+  border-radius: 9999px;
+  animation: pulseBar 1.5s infinite ease-in-out;
+}
+
+.stepperBarReady {
+  height: 100%;
+  width: 100%;
+  background: #059669;
+  border-radius: 9999px;
+}
+
+.stepperLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #504440;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepperLabel.active {
+  color: #845326;
+}
+
+.stepperLabel.ready {
+  color: #059669;
+}
+
+/* Cutout Notches */
+.cutoutWrapper {
+  position: relative;
+  margin: 16px 0;
+  padding: 0;
+}
+
+.notchLeft {
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 24px;
+  background-color: #fef8f4;
+  border-radius: 0 12px 12px 0;
+  border: 1px solid #e7e1dd;
+  border-left: none;
+  z-index: 2;
+}
+
+.notchRight {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 24px;
+  background-color: #fef8f4;
+  border-radius: 12px 0 0 12px;
+  border: 1px solid #e7e1dd;
+  border-right: none;
+  z-index: 2;
+}
+
+.dashedLine {
+  width: 100%;
+  height: 1px;
+  border-top: 1.5px dashed #ded4cc;
+}
+
+/* Product Items List */
+.itemsSection {
+  padding: 0 16px 14px 16px;
+}
+
+.itemsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #786c67;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 10px;
+}
+
+.itemCard {
+  background: #faf7f5;
+  border: 1px solid #f1eae4;
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.itemImageWrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ede7e3;
+  flex-shrink: 0;
+  border: 1px solid rgba(44, 24, 16, 0.08);
+}
+
+.itemImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.itemContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.itemTitle {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2c1810;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.attributesRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.attrBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  background-color: #f3ede9;
+  color: #504440;
+  border: 1px solid rgba(44, 24, 16, 0.05);
+  line-height: 1.3;
+}
+
+/* Icon inside attribute badge matching text color */
+.attrIcon {
+  color: #504440;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Topping Column - 1 topping per row */
+.toppingsColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.toppingItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: rgba(254, 220, 194, 0.55);
+  color: #78491d;
+  border: 1px solid #fedcc2;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  align-self: flex-start;
+  line-height: 1.25;
+}
+
+.toppingPlus {
+  font-weight: 800;
+  color: #845326;
+  font-size: 9px;
+}
+
+.itemNotes {
+  font-size: 10px;
+  color: #786c67;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.itemRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.itemPrice {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2c1810;
+}
+
+.itemQty {
+  font-size: 11px;
+  font-weight: 700;
+  background: #f3ede9;
+  color: #504440;
+  padding: 2px 6px;
+  border-radius: 6px;
+  margin-top: auto;
+}
+
+/* Payment Totals */
+.totalsCard {
+  margin: 4px 16px 14px 16px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f8f4f0;
+  border: 1px solid #ede4dc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #6d625d;
+}
+
+.totalValue {
+  color: #2c1810;
+  font-weight: 600;
+}
+
+.discountRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.voucherChip {
+  font-size: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid #fde68a;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.finalTotalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: 8px;
+  border-top: 1px solid #e7ded5;
+}
+
+.finalTotalLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2c1810;
+}
+
+.finalTotalValue {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #2c1810;
+}
+
+.loyaltyRewardCard {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 220, 194, 0.45);
+  border: 1px solid #fedcc2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #78491d;
+}
+
+.loyaltyRewardPoints {
+  font-weight: 800;
+  color: #845326;
+}
+
+/* Eco Note & E-receipt */
+.ecoSection {
+  margin: 0 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+  color: #6d625d;
+}
+
+.ecoRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.receiptBtn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #845326;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Action Buttons */
+.actionsWrapper {
+  width: 100%;
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.primaryBtn {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  background-color: #2c1810;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(44, 24, 16, 0.18);
+  border: none;
+  cursor: pointer;
+}
+
+.primaryBtn:active {
+  transform: scale(0.98);
+  background-color: #1e0f09;
+}
+
+.secondaryBtn {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  background-color: #ffffff;
+  color: #2c1810;
+  border: 1.5px solid #ded4cc;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.secondaryBtn:active {
+  transform: scale(0.98);
+  background-color: #f7f3ef;
+}
+
+/* Keyframes */
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.25;
+  }
+}
+
+@keyframes pingDot {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(132, 83, 38, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(132, 83, 38, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(132, 83, 38, 0);
+  }
+}
+
+@keyframes pulseBar {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
