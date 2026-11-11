@@ -29,6 +29,15 @@ describe('AUTH-01: Hardcode Fallback JWT Secret Protection', () => {
     );
   });
 
+  it('phải ném lỗi nghiêm trọng trong môi trường Production nếu khóa ngắn hơn 16 ký tự', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'short_key';
+
+    expect(() => getJwtSecret()).toThrow(
+      /FATAL SECURITY CONFIGURATION: process.env.JWT_SECRET must be configured/,
+    );
+  });
+
   it('phải trả về khóa hợp lệ khi cấu hình chuẩn trong Production', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SECRET = 'super_secure_production_key_123456789!';

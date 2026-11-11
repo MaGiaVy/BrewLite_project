@@ -460,14 +460,14 @@ describe('InventoryService — Sprint 4 (Admin BOM Warehouse, Full CRUD & Optimi
     });
   });
 
-  describe('FE-I4 — getDashboardStats expires stale >5m PENDING/PAYMENT_FAILED orders', () => {
-    it('cancels stale >5m PENDING orders via $transaction before reading recentOrders', async () => {
+  describe('FE-I4 — getDashboardStats expires stale >15m PENDING/PAYMENT_FAILED orders', () => {
+    it('cancels stale >15m PENDING orders via $transaction before reading recentOrders', async () => {
       const staleOrder = {
         id: 501,
         status: 'PENDING',
         discountCode: null,
         voucherDeducted: false,
-        createdAt: new Date(Date.now() - 6 * 60 * 1000),
+        createdAt: new Date(Date.now() - 16 * 60 * 1000),
         items: [{ productId: 1, size: 'M', toppings: [], quantity: 1 }],
       };
 

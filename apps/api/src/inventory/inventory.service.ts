@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { expirePendingOrders } from '../orders/order-refund.helper';
 import {
   CreateIngredientDto,
   CreateToppingRecipeDto,
@@ -63,139 +64,6 @@ export async function fetchGlobalSizePricing(prisma: any) {
   }
 
   return pricing;
-}
-
-// shortcut: Task 2 local expiry helper until Task 4 ports orders/order-refund.helper; handles SALE log & voucher refunds
-async function expirePendingOrders(
-  prisma: any,
-  logger?: { log?: (...args: any[]) => void; error?: (...args: any[]) => void },
-): Promise<number> {
-  if (!prisma?.order?.findMany || !prisma?.$transaction) {
-    return 0;
-  }
-
-  const EXPIRE_TIMEOUT_MS = 5 * 60 * 1000;
-  const expiryThreshold = new Date(Date.now() - EXPIRE_TIMEOUT_MS);
-
-  const expiredOrders = await prisma.order.findMany({
-    where: {
-      status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
-      createdAt: { lte: expiryThreshold },
-    },
-    include: { items: true },
-  });
-
-  if (!expiredOrders || expiredOrders.length === 0) {
-    return 0;
-  }
-
-  let cancelledCount = 0;
-  for (const order of expiredOrders) {
-    try {
-      let didCancel = false;
-      await prisma.$transaction(async (tx: any) => {
-        if (tx.order?.updateMany) {
-          const casResult = await tx.order.updateMany({
-            where: { id: order.id, status: order.status },
-            data: {
-              status: OrderStatus.CANCELLED,
-              voucherDeducted: false,
-              version: { increment: 1 },
-            },
-          });
-          if (casResult && casResult.count === 0) {
-            return;
-          }
-        } else {
-          await tx.order.update({
-            where: { id: order.id },
-            data: {
-              status: OrderStatus.CANCELLED,
-              voucherDeducted: false,
-              version: { increment: 1 },
-            },
-          });
-        }
-        didCancel = true;
-
-        const saleLogs = tx.inventoryLog?.findMany
-          ? await tx.inventoryLog.findMany({
-              where: { type: 'SALE', note: `Xuất bán đơn hàng #${order.id}` },
-            })
-          : [];
-
-        if (Array.isArray(saleLogs) && tx.ingredient?.update) {
-          for (const log of saleLogs) {
-            const amount = Math.abs(Number(log.changeAmount || 0));
-            if (amount > 0) {
-              const updatedIng = await tx.ingredient.update({
-                where: { id: log.ingredientId },
-                data: {
-                  stock: { increment: amount },
-                  version: { increment: 1 },
-                },
-              });
-              if (tx.inventoryLog?.create) {
-                const newStock = Number(updatedIng?.stock ?? 0);
-                const previousStock = Math.max(
-                  0,
-                  Number((newStock - amount).toFixed(2)),
-                );
-                await tx.inventoryLog.create({
-                  data: {
-                    ingredientId: log.ingredientId,
-                    ingredientName:
-                      log.ingredientName || updatedIng?.name || 'Nguyên vật liệu',
-                    unit: log.unit || updatedIng?.unit || '',
-                    type: 'CANCEL_REFUND',
-                    changeAmount: amount,
-                    previousStock,
-                    newStock,
-                    unitCost: 0,
-                    totalCost: 0,
-                    note: `Hoàn kho do tự động hủy đơn quá hạn 5 phút #${order.id}`,
-                    performedBy: 'Hệ thống (Auto-Expire)',
-                  },
-                });
-              }
-            }
-          }
-        }
-
-        if (
-          order.userId &&
-          order.discountCode &&
-          order.voucherDeducted &&
-          tx.userVoucher?.updateMany
-        ) {
-          await tx.userVoucher.updateMany({
-            where: { userId: order.userId, code: order.discountCode },
-            data: { quantity: { increment: 1 } },
-          });
-        } else if (
-          order.discountCode &&
-          !order.voucherDeducted &&
-          tx.discountCode?.updateMany
-        ) {
-          await tx.discountCode.updateMany({
-            where: { code: order.discountCode, usageCount: { gt: 0 } },
-            data: { usageCount: { decrement: 1 } },
-          });
-        }
-      });
-
-      if (didCancel) {
-        cancelledCount++;
-        logger?.log?.(
-          `[Auto-Expire 5m] Đơn hàng #${order.id} (${order.status}) đã tự động hủy do quá 5 phút chưa hoàn tất thanh toán. Đã hoàn trả nguyên liệu vào kho.`,
-        );
-      }
-    } catch (err) {
-      logger?.error?.(`Lỗi khi tự động hủy đơn hết hạn #${order.id}:`, err);
-    }
-  }
-
-  return cancelledCount;
 }
 
 @Injectable()
@@ -1073,7 +941,7 @@ export class InventoryService {
   }
 
   async getDashboardStats() {
-    await expirePendingOrders(this.prisma, this.logger);
+    await expirePendingOrders(this.prisma, this.logger, { timeoutMinutes: 15 });
 
     const [ingredients, orders, sizePricing, vouchers, logs, allRecipes] =
       await Promise.all([

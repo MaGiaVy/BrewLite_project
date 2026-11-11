@@ -16,6 +16,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { ToggleStatusDto } from '../common/dto/toggle-status.dto';
 
 @Controller('admin/customers')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -49,9 +50,9 @@ export class CustomersController {
   @Patch(':id/status')
   toggleCustomerStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body('isActive') isActive: boolean,
+    @Body() dto: ToggleStatusDto,
   ) {
-    return this.customersService.toggleCustomerStatus(id, isActive);
+    return this.customersService.toggleCustomerStatus(id, dto.isActive);
   }
 
   @Delete(':id')

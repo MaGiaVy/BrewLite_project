@@ -15,7 +15,7 @@ export function getJwtSecret(): string {
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (isProduction) {
-    if (!secret || secret === 'brewlite_secret_key') {
+    if (!secret || secret.trim().length < 16 || secret === 'brewlite_secret_key') {
       throw new Error(
         'FATAL SECURITY CONFIGURATION: process.env.JWT_SECRET must be configured with a secure key in production!',
       );

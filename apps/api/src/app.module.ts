@@ -10,8 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { CustomersModule } from './customers/customers.module';
 import { InventoryModule } from './inventory/inventory.module';
-import { ProductsController } from './products/products.controller';
-import { ProductsService } from './products/products.service';
+import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 
@@ -31,12 +30,12 @@ import { PaymentsModule } from './payments/payments.module';
     UsersModule,
     CustomersModule,
     InventoryModule,
+    ProductsModule,
     OrdersModule,
     PaymentsModule,
   ],
-  controllers: [ProductsController],
+  controllers: [],
   providers: [
-    ProductsService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

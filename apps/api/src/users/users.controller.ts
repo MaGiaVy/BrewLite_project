@@ -16,6 +16,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { ToggleStatusDto } from '../common/dto/toggle-status.dto';
 import { UsersService } from './users.service';
 
 @Controller('staff')
@@ -51,10 +52,10 @@ export class UsersController {
   @Patch(':id/status')
   toggleStaffStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body('isActive') isActive: boolean,
+    @Body() dto: ToggleStatusDto,
     @Request() req: any,
   ) {
-    return this.usersService.toggleStaffStatus(id, isActive, req.user?.userId);
+    return this.usersService.toggleStaffStatus(id, dto.isActive, req.user?.userId);
   }
 
   @Delete(':id')

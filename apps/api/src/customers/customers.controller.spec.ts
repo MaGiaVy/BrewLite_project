@@ -75,7 +75,7 @@ describe('CustomersController', () => {
 
   it('toggleCustomerStatus gọi service.toggleCustomerStatus với id và status', async () => {
     service.toggleCustomerStatus.mockResolvedValue({ id: 1, isActive: false });
-    await controller.toggleCustomerStatus(1, false);
+    await controller.toggleCustomerStatus(1, { isActive: false });
     expect(service.toggleCustomerStatus).toHaveBeenCalledWith(1, false);
   });
 
