@@ -35,11 +35,7 @@ export class PaymentsController {
   }
 
   private assertSandboxConfirmAllowed(message: string): void {
-    const isProd = process.env.NODE_ENV === 'production';
-    const blocked = isProd
-      ? process.env.ALLOW_SANDBOX_CONFIRM !== 'true'
-      : process.env.ALLOW_SANDBOX_CONFIRM === 'false';
-    if (blocked) {
+    if (process.env.ALLOW_SANDBOX_CONFIRM !== 'true') {
       throw new ForbiddenException(message);
     }
   }
