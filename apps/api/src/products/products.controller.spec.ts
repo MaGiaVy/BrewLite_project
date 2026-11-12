@@ -328,28 +328,53 @@ describe('ProductsController (T4.3 + Ass1 BOM Integration)', () => {
       expect(visibilityRoles).toEqual([Role.ADMIN]);
     });
 
-    it('delegates controller.toggleSoldOut(1, { isSoldOutManual: true }) to productsService.toggleSoldOut without touching isActive', async () => {
+    it('delegates controller.toggleSoldOut(1, { isSoldOutManual: true }) to productsService.toggleSoldOut without touching isActive and hides recipes/COGS from STAFF', async () => {
       const dto = { isSoldOutManual: true };
       const spy = jest.spyOn(service, 'toggleSoldOut');
       mockPrisma.product.findUnique.mockResolvedValue({ id: 1, name: 'Cà phê Đen', isActive: true });
       mockPrisma.product.update.mockResolvedValue({
         id: 1,
         name: 'Cà phê Đen',
+        basePrice: 29000,
+        category: 'vietnamese',
         isActive: true,
         isSoldOutManual: true,
-        recipes: [],
+        recipes: [
+          {
+            id: 1,
+            size: 'S',
+            amount: 20,
+            ingredient: { id: 10, stock: 200, costPerUnit: 200, isRequiredForSale: true },
+          },
+        ],
       });
 
-      const res = await controller.toggleSoldOut(1, dto);
+      const staffRes: any = await controller.toggleSoldOut(1, dto, {
+        user: { role: Role.STAFF },
+      });
 
-      expect(spy).toHaveBeenCalledWith(1, dto);
+      expect(spy).toHaveBeenCalledWith(1, dto, false);
       expect(mockPrisma.product.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 1 },
           data: { isSoldOutManual: true },
         }),
       );
-      expect(res).toMatchObject({ id: 1, isSoldOutManual: true });
+      expect(staffRes).toMatchObject({ id: 1, isSoldOutManual: true, isOutOfStock: true });
+      expect(staffRes.recipes).toBeUndefined();
+      expect(staffRes.cogsSizeS).toBeUndefined();
+      expect(staffRes.cogsSizeM).toBeUndefined();
+      expect(staffRes.cogsSizeL).toBeUndefined();
+      expect(staffRes.grossProfitS).toBeUndefined();
+      expect(staffRes.marginPercentS).toBeUndefined();
+
+      const adminRes: any = await controller.toggleSoldOut(1, dto, {
+        user: { role: Role.ADMIN },
+      });
+      expect(spy).toHaveBeenCalledWith(1, dto, true);
+      expect(adminRes.isSoldOutManual).toBe(true);
+      expect(adminRes.recipes).toBeDefined();
+      expect(adminRes.cogsSizeS).toBe(4000);
     });
 
     it('calls service.create on controller.create', async () => {
