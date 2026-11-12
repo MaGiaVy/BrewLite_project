@@ -3,6 +3,21 @@ import { useAuthStore, AUTH_STORAGE_KEY, User } from '../stores/auth-store';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export { AUTH_STORAGE_KEY };
+export const SESSION_ROLE_COOKIE = 'brewlite_session_role';
+
+export function syncSessionRoleCookie(role?: User['role'] | string | null): void {
+  if (typeof document === 'undefined') return;
+  if (role === 'CUSTOMER' || role === 'STAFF' || role === 'ADMIN') {
+    document.cookie = `${SESSION_ROLE_COOKIE}=${role}; Path=/; SameSite=Lax; Max-Age=86400`;
+    return;
+  }
+  document.cookie = `${SESSION_ROLE_COOKIE}=; Path=/; SameSite=Lax; Max-Age=0`;
+}
+
+export function clearSessionRoleCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${SESSION_ROLE_COOKIE}=; Path=/; SameSite=Lax; Max-Age=0`;
+}
 export const CART_STORAGE_KEY = 'brewlite-cart';
 export const CART_PERSIST_KEY = 'brewlite-cart-storage';
 
@@ -41,8 +56,10 @@ export function getAuthToken(): string | null {
 
 export function setAuthSession(session: AuthSession): void {
   if (session.token && session.user) {
+    syncSessionRoleCookie(session.user.role ?? 'CUSTOMER');
     useAuthStore.getState().login(session.token, session.user);
   } else if (!session.token) {
+    clearSessionRoleCookie();
     useAuthStore.getState().logout();
   }
   if (typeof window !== 'undefined') {
@@ -61,6 +78,7 @@ export function setAuthSession(session: AuthSession): void {
 }
 
 export function clearAuthSession(): void {
+  clearSessionRoleCookie();
   useAuthStore.getState().logout();
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
