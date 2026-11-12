@@ -34,4 +34,38 @@ describe('env.validation', () => {
       'failure',
     );
   });
+
+  it('validates optional ALLOW_MOCK_PAYMENT and ALLOW_SANDBOX_CONFIRM flags', () => {
+    const enabled = validateEnv({
+      ...validEnv,
+      ALLOW_MOCK_PAYMENT: 'true',
+      ALLOW_SANDBOX_CONFIRM: 'false',
+    });
+    expect(enabled.ALLOW_MOCK_PAYMENT).toBe('true');
+    expect(enabled.ALLOW_SANDBOX_CONFIRM).toBe('false');
+
+    expect(() =>
+      validateEnv({ ...validEnv, ALLOW_MOCK_PAYMENT: 'yes' }),
+    ).toThrow(/ALLOW_MOCK_PAYMENT/);
+    expect(() =>
+      validateEnv({ ...validEnv, ALLOW_SANDBOX_CONFIRM: '1' }),
+    ).toThrow(/ALLOW_SANDBOX_CONFIRM/);
+  });
+
+  it('accepts optional ZaloPay configuration variables', () => {
+    const env = validateEnv({
+      ...validEnv,
+      ZALOPAY_APP_ID: '2554',
+      ZALOPAY_KEY1: 'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn',
+      ZALOPAY_KEY2: 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf',
+      ZALOPAY_ENDPOINT: 'https://sb-openapi.zalopay.vn/v2/create',
+      ZALOPAY_CALLBACK_URL: 'https://example.com/payments/zalopay/callback',
+    });
+
+    expect(env.ZALOPAY_APP_ID).toBe('2554');
+    expect(env.ZALOPAY_KEY1).toBe('sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn');
+    expect(env.ZALOPAY_KEY2).toBe('trMrHtvjo6myautxDUiAcYsVtaeQ8nhf');
+    expect(env.ZALOPAY_ENDPOINT).toBe('https://sb-openapi.zalopay.vn/v2/create');
+    expect(env.ZALOPAY_CALLBACK_URL).toBe('https://example.com/payments/zalopay/callback');
+  });
 });
