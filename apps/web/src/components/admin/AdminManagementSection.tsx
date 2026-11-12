@@ -7,6 +7,7 @@ export interface StaffUserItem {
   fullName: string | null;
   email: string;
   phone?: string | null;
+  position?: string | null;
   role: string;
   isActive?: boolean;
 }
@@ -16,8 +17,11 @@ export interface CustomerUserItem {
   fullName: string | null;
   email: string;
   phone?: string | null;
+  loyaltyPoints?: number;
   points?: number;
+  isActive?: boolean;
   ordersCount?: number;
+  _count?: { orders: number };
 }
 
 export interface VoucherItem {
@@ -33,6 +37,7 @@ interface AdminManagementSectionProps {
   customerList: CustomerUserItem[];
   voucherList: VoucherItem[];
   onToggleStaffStatus: (staffId: number, currentActive: boolean) => void;
+  onToggleCustomerStatus?: (customerId: number, currentActive: boolean) => void;
   onToggleVoucherStatus: (voucherId: number, currentActive: boolean) => void;
   onOpenCreateStaff: () => void;
   onOpenCreateVoucher: () => void;
@@ -43,6 +48,7 @@ export function AdminManagementSection({
   customerList,
   voucherList,
   onToggleStaffStatus,
+  onToggleCustomerStatus,
   onToggleVoucherStatus,
   onOpenCreateStaff,
   onOpenCreateVoucher,
@@ -102,68 +108,100 @@ export function AdminManagementSection({
               type="button"
               className={styles.secondaryBtn}
               onClick={onOpenCreateStaff}
+              data-testid="add-staff-btn"
             >
               <PlusIcon size={16} />
               <span>Thêm nhân viên</span>
             </button>
           </div>
 
-          {staffList.map((st) => {
-            const active = st.isActive !== false;
-            return (
-              <div key={st.id} className={styles.itemCard} data-testid={`staff-card-${st.id}`}>
-                <div className={styles.itemHeaderRow}>
-                  <div>
-                    <h3 className={styles.itemName}>
-                      {st.fullName || 'Nhân viên #' + st.id}
-                    </h3>
-                    <span className={styles.itemSubtext}>
-                      {st.email} • {st.role}
+          {staffList.length === 0 ? (
+            <div className={`${styles.card} text-center py-6 text-xs text-[#a89587]`}>
+              Chưa có nhân viên nào
+            </div>
+          ) : (
+            staffList.map((st) => {
+              const active = st.isActive !== false;
+              return (
+                <div key={st.id} className={styles.itemCard} data-testid={`staff-card-${st.id}`}>
+                  <div className={styles.itemHeaderRow}>
+                    <div>
+                      <h3 className={styles.itemName}>
+                        {st.fullName || 'Nhân viên #' + st.id}
+                      </h3>
+                      <span className={styles.itemSubtext}>
+                        {st.email} • {st.position || st.role}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`${styles.toggleSwitch} ${active ? styles.toggleSwitchActive : ''}`}
+                      onClick={() => onToggleStaffStatus(st.id, active)}
+                      aria-label={`Bật tắt hoạt động nhân viên ${st.fullName || st.email}`}
+                      data-testid={`toggle-staff-${st.id}`}
+                    >
+                      <div
+                        className={`${styles.toggleKnob} ${active ? styles.toggleKnobActive : ''}`}
+                      />
+                    </button>
+                  </div>
+                  <div className="pt-2 border-t border-[#361f15] text-[10px]">
+                    <span className={active ? 'text-[#34d399]' : 'text-[#ef4444]'}>
+                      {active ? '● Đang làm việc' : '○ Đã khóa tài khoản'}
                     </span>
                   </div>
-
-                  <button
-                    type="button"
-                    className={`${styles.toggleSwitch} ${active ? styles.toggleSwitchActive : ''}`}
-                    onClick={() => onToggleStaffStatus(st.id, active)}
-                    aria-label={`Bật tắt hoạt động nhân viên ${st.fullName}`}
-                  >
-                    <div
-                      className={`${styles.toggleKnob} ${active ? styles.toggleKnobActive : ''}`}
-                    />
-                  </button>
                 </div>
-                <div className="pt-2 border-t border-[#361f15] text-[10px]">
-                  <span className={active ? 'text-[#34d399]' : 'text-[#ef4444]'}>
-                    {active ? '● Đang làm việc' : '○ Đã khóa tài khoản'}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       )}
 
       {/* Sub Tab: Customers */}
       {subTab === 'customers' && (
         <div className="space-y-2.5">
-          {customerList.map((c) => (
-            <div key={c.id} className={styles.itemCard}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className={styles.itemName}>
-                    {c.fullName || c.email.split('@')[0]}
-                  </h3>
-                  <span className={styles.itemSubtext}>{c.email}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold text-[#d4af37]">
-                    ⭐ {c.points ?? 0} hạt vàng
-                  </span>
-                </div>
-              </div>
+          {customerList.length === 0 ? (
+            <div className={`${styles.card} text-center py-6 text-xs text-[#a89587]`}>
+              Chưa có khách hàng nào
             </div>
-          ))}
+          ) : (
+            customerList.map((c) => {
+              const points = c.loyaltyPoints ?? c.points ?? 0;
+              const orderTotal = c._count?.orders ?? c.ordersCount ?? 0;
+              const active = c.isActive !== false;
+              return (
+                <div key={c.id} className={styles.itemCard} data-testid={`customer-card-${c.id}`}>
+                  <div className="flex justify-between items-center gap-3">
+                    <div>
+                      <h3 className={styles.itemName}>
+                        {c.fullName || c.email.split('@')[0]}
+                      </h3>
+                      <span className={styles.itemSubtext}>
+                        {c.email} • {orderTotal} đơn
+                      </span>
+                      <div className="text-xs font-bold text-[#d4af37] mt-1">
+                        ⭐ {points} hạt vàng
+                      </div>
+                    </div>
+                    {onToggleCustomerStatus && (
+                      <button
+                        type="button"
+                        className={`${styles.toggleSwitch} ${active ? styles.toggleSwitchActive : ''}`}
+                        onClick={() => onToggleCustomerStatus(c.id, active)}
+                        aria-label={`Bật tắt tài khoản khách hàng ${c.fullName || c.email}`}
+                        data-testid={`toggle-customer-${c.id}`}
+                      >
+                        <div
+                          className={`${styles.toggleKnob} ${active ? styles.toggleKnobActive : ''}`}
+                        />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 
@@ -178,40 +216,48 @@ export function AdminManagementSection({
               type="button"
               className={styles.secondaryBtn}
               onClick={onOpenCreateVoucher}
+              data-testid="add-voucher-btn"
             >
               <PlusIcon size={16} />
-              <span>Thêm mã</span>
+              <span>Tạo Voucher</span>
             </button>
           </div>
 
-          {voucherList.map((v) => (
-            <div key={v.id} className={styles.itemCard}>
-              <div className={styles.itemHeaderRow}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-[#991b1b] text-white">
-                      {v.code}
-                    </span>
-                    <span className="text-xs font-bold text-[#d4af37]">
-                      Giảm {v.discountPercent}%
-                    </span>
-                  </div>
-                  <p className={styles.itemSubtext}>{v.description}</p>
-                </div>
-
-                <button
-                  type="button"
-                  className={`${styles.toggleSwitch} ${v.isActive ? styles.toggleSwitchActive : ''}`}
-                  onClick={() => onToggleVoucherStatus(v.id, v.isActive)}
-                  aria-label={`Bật tắt mã voucher ${v.code}`}
-                >
-                  <div
-                    className={`${styles.toggleKnob} ${v.isActive ? styles.toggleKnobActive : ''}`}
-                  />
-                </button>
-              </div>
+          {voucherList.length === 0 ? (
+            <div className={`${styles.card} text-center py-6 text-xs text-[#a89587]`}>
+              Chưa có mã voucher nào
             </div>
-          ))}
+          ) : (
+            voucherList.map((v) => (
+              <div key={v.id} className={styles.itemCard} data-testid={`voucher-card-${v.id}`}>
+                <div className={styles.itemHeaderRow}>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-[#991b1b] text-white">
+                        {v.code}
+                      </span>
+                      <span className="text-xs font-bold text-[#d4af37]">
+                        Giảm {v.discountPercent}%
+                      </span>
+                    </div>
+                    <p className={styles.itemSubtext}>{v.description}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={`${styles.toggleSwitch} ${v.isActive ? styles.toggleSwitchActive : ''}`}
+                    onClick={() => onToggleVoucherStatus(v.id, v.isActive)}
+                    aria-label={`Bật tắt mã voucher ${v.code}`}
+                    data-testid={`toggle-voucher-${v.id}`}
+                  >
+                    <div
+                      className={`${styles.toggleKnob} ${v.isActive ? styles.toggleKnobActive : ''}`}
+                    />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

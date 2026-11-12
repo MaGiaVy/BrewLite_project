@@ -135,4 +135,30 @@ describe('T5.1f useBaristaQueue hook', () => {
 
     expect(result.current.pendingId).toBeNull();
   });
+
+  it('surfaces backend error message when transition fails with non-2xx JSON body', async () => {
+    vi.spyOn(apiClientModule, 'apiClient').mockImplementation(async (path, opts) => {
+      if (path === '/orders/barista/queue') {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (path === '/orders/101/status' && opts?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ message: 'Không thể chuyển trạng thái đơn này' }),
+          { status: 400 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { result } = renderHook(() => useBaristaQueue(3000));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.transition(101, 'PREPARING');
+    });
+
+    expect(result.current.error).toBe('Không thể chuyển trạng thái đơn này');
+  });
 });

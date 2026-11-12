@@ -24,6 +24,25 @@ import { ConfirmDialog } from '../../components/staff/ConfirmDialog';
 import { StockBanner } from '../../components/staff/StockBanner';
 import styles from '../../components/staff/staff.module.css';
 
+function readStoredUser(): AuthSession['user'] {
+  if (typeof window === 'undefined') return null;
+  const keys = Array.from(
+    new Set([AUTH_STORAGE_KEY, 'brewlite-auth-storage', 'brewlite-auth']),
+  );
+  for (const key of keys) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as { state?: AuthSession } & AuthSession;
+      const candidate = parsed?.state?.user ?? parsed?.user ?? null;
+      if (candidate) return candidate;
+    } catch {
+      // ignore malformed storage value and continue to fallback key
+    }
+  }
+  return null;
+}
+
 export default function StaffBaristaKdsPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState<boolean | null>(null);
@@ -37,42 +56,36 @@ export default function StaffBaristaKdsPage() {
   } | null>(null);
 
   const [lowStockItems, setLowStockItems] = useState<string[]>([]);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
 
   // 1. Role Guard: only STAFF and ADMIN
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!raw) {
-        router.replace('/login?redirect=%2Fstaff');
-        setAuthorized(false);
-        return;
-      }
-      const parsed = JSON.parse(raw) as { state?: AuthSession } & AuthSession;
-      const user = parsed?.state?.user ?? parsed?.user;
-      const role = user?.role;
-      if (role === 'STAFF' || role === 'ADMIN') {
-        setAuthorized(true);
-      } else {
-        router.replace('/login?redirect=%2Fstaff');
-        setAuthorized(false);
-      }
-    } catch {
+    const user = readStoredUser();
+    const role = user?.role;
+    if (role === 'STAFF' || role === 'ADMIN') {
+      setAuthorized(true);
+    } else {
       router.replace('/login?redirect=%2Fstaff');
       setAuthorized(false);
     }
   }, [router]);
 
-  // 2. Barista Queue Polling Hook
-  const { orders, error, pendingId, transition } = useBaristaQueue(3000);
+  // 2. Barista Queue Polling Hook (only starts once authorized)
+  const { orders, error, pendingId, transition } = useBaristaQueue(3000, authorized === true);
 
   // 3. Low stock polling (inventory ingredients)
   useEffect(() => {
+    if (!authorized) return;
     let active = true;
+
     const fetchInventory = async () => {
       try {
         const res = await apiClient('/inventory/ingredients', { cache: 'no-store' });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (active) setInventoryError('Không thể kiểm tra cảnh báo tồn kho nguyên liệu');
+          return;
+        }
         const data = await res.json();
         const list = Array.isArray(data) ? data : data?.data ?? [];
         const low = list
@@ -80,9 +93,12 @@ export default function StaffBaristaKdsPage() {
           .map((i: any) => i.name || `Nguyên liệu #${i.id}`);
         if (active) {
           setLowStockItems(low);
+          setInventoryError(null);
         }
       } catch {
-        // Silently ignore inventory poll error
+        if (active) {
+          setInventoryError('Không thể kiểm tra cảnh báo tồn kho nguyên liệu');
+        }
       }
     };
 
@@ -92,7 +108,7 @@ export default function StaffBaristaKdsPage() {
       active = false;
       clearInterval(invTimer);
     };
-  }, []);
+  }, [authorized]);
 
   // 4. Group & Sort orders
   const grouped = useMemo(() => groupByStatus(orders), [orders]);
@@ -104,12 +120,10 @@ export default function StaffBaristaKdsPage() {
   const displayedOrders = useMemo(() => {
     const list = grouped[activeTab] || [];
     if (activeTab === 'COMPLETED') {
-      // Recent completed first
       return [...list].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
     }
-    // Active orders: longest wait first
     return sortOldestFirst(list);
   }, [grouped, activeTab]);
 
@@ -146,6 +160,14 @@ export default function StaffBaristaKdsPage() {
     transition(order.id, next);
   };
 
+  if (authorized === null) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState}>Đang kiểm tra quyền truy cập...</div>
+      </div>
+    );
+  }
+
   if (authorized === false) {
     return null;
   }
@@ -156,6 +178,8 @@ export default function StaffBaristaKdsPage() {
     READY: grouped.READY.length,
     COMPLETED: grouped.COMPLETED.length,
   };
+
+  const displayError = error || inventoryError;
 
   return (
     <div className={styles.container}>
@@ -170,9 +194,10 @@ export default function StaffBaristaKdsPage() {
         <span className={styles.totalChip}>{activeOrdersCount} đơn chờ</span>
       </header>
 
-      {/* Error notification if polling fails */}
-      {error && (
+      {/* Error notification if polling or transition fails */}
+      {displayError && (
         <div
+          role="alert"
           style={{
             background: '#fffbeb',
             color: '#b45309',
@@ -183,7 +208,7 @@ export default function StaffBaristaKdsPage() {
             textAlign: 'center',
           }}
         >
-          ⚠️ {error}
+          ⚠️ {displayError}
         </div>
       )}
 

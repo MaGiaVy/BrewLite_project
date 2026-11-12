@@ -39,6 +39,7 @@ export function AdminInventorySection({
           type="button"
           className={styles.secondaryBtn}
           onClick={onOpenAddModal}
+          data-testid="open-stockin-btn"
         >
           <PlusIcon size={16} />
           <span>Nhập kho</span>
@@ -57,12 +58,18 @@ export function AdminInventorySection({
               ing.status === 'LOW_STOCK' || ing.status === 'OUT_OF_STOCK' || ing.stock <= ing.minThreshold;
             const pct = Math.min(
               100,
-              Math.max(10, ing.percentage ?? Math.round((ing.stock / (ing.minThreshold * 2 || 10)) * 100)),
+              Math.max(0, ing.percentage ?? Math.round((ing.stock / (ing.minThreshold * 2 || 10)) * 100)),
             );
 
             let fillClass = styles.fillGreen;
             if (pct <= 35) fillClass = styles.fillRed;
             else if (pct <= 60) fillClass = styles.fillAmber;
+
+            const quickAmount = ing.unit?.includes('kg')
+              ? 5
+              : ing.unit === 'g' || ing.unit === 'ml'
+                ? 500
+                : 10;
 
             return (
               <div
@@ -116,10 +123,10 @@ export function AdminInventorySection({
                     type="button"
                     className={styles.secondaryBtn}
                     style={{ padding: '6px 12px', minHeight: '38px', fontSize: '11px' }}
-                    onClick={() => onQuickStockIn(ing.id, ing.unit.includes('kg') ? 5 : 10)}
+                    onClick={() => onQuickStockIn(ing.id, quickAmount)}
                     data-testid={`quick-stockin-${ing.id}`}
                   >
-                    + Nhập {ing.unit.includes('kg') ? '5 kg' : '10 ' + ing.unit}
+                    + Nhập {quickAmount} {ing.unit}
                   </button>
                 </div>
               </div>

@@ -25,7 +25,6 @@ describe('T5.1f Staff Page (/staff)', () => {
   });
 
   it('WEB-T17 page redirects a CUSTOMER to /login?redirect=/staff', async () => {
-    // Session with CUSTOMER role
     apiClientModule.setAuthSession({
       token: 'jwt-customer-token',
       user: {
@@ -47,8 +46,36 @@ describe('T5.1f Staff Page (/staff)', () => {
     });
   });
 
+  it('WEB-T17 authorizes STAFF from fallback key (brewlite-auth-storage)', async () => {
+    window.localStorage.setItem(
+      'brewlite-auth-storage',
+      JSON.stringify({
+        state: {
+          token: 'jwt-staff-fallback',
+          user: { id: 2, email: 'barista@brewlite.vn', role: 'STAFF' },
+        },
+      }),
+    );
+
+    vi.spyOn(apiClientModule, 'apiClient').mockImplementation(async (path) => {
+      if (path === '/orders/barista/queue') {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (path === '/inventory/ingredients') {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    render(<StaffPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Không có đơn')).toBeTruthy();
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+  });
+
   it('WEB-T17 page shows only PAID orders on the "Mới" tab, longest wait first', async () => {
-    // Set valid STAFF role
     apiClientModule.setAuthSession({
       token: 'jwt-staff-token',
       user: {
@@ -63,13 +90,13 @@ describe('T5.1f Staff Page (/staff)', () => {
       {
         id: 101,
         status: 'PAID',
-        createdAt: '2026-11-07T10:10:00Z', // 5m wait
+        createdAt: '2026-11-07T10:10:00Z',
         items: [{ id: 1, productId: 1, productName: 'Espresso', quantity: 1, unitPrice: 25000 }],
       },
       {
         id: 102,
         status: 'PAID',
-        createdAt: '2026-11-07T10:00:00Z', // 15m wait (older!)
+        createdAt: '2026-11-07T10:00:00Z',
         items: [{ id: 2, productId: 2, productName: 'Bạc xỉu', quantity: 2, unitPrice: 35000 }],
       },
       {
@@ -97,10 +124,8 @@ describe('T5.1f Staff Page (/staff)', () => {
       expect(screen.getByText(/#BL-101/)).toBeTruthy();
     });
 
-    // 103 is PREPARING, so it should NOT be in the "Mới" tab list
     expect(screen.queryByText(/#BL-103/)).toBeNull();
 
-    // Verify ordering: 102 is older than 101, so 102 appears first
     const cardHeadings = screen.getAllByText(/#BL-10[12]/);
     expect(cardHeadings[0].textContent).toContain('102');
     expect(cardHeadings[1].textContent).toContain('101');
@@ -167,5 +192,58 @@ describe('T5.1f Staff Page (/staff)', () => {
       expect(screen.getByText(/Sắp hết:/i)).toBeTruthy();
       expect(screen.getByText(/Hạt Arabica, Trân châu trắng/i)).toBeTruthy();
     });
+  });
+
+  it('WEB-T17 transitions order via PATCH /orders/:id/status ({ status }) and surfaces backend error', async () => {
+    apiClientModule.setAuthSession({
+      token: 'jwt-staff-token',
+      user: {
+        id: 2,
+        email: 'barista@brewlite.com',
+        fullName: 'Barista Nguyễn',
+        role: 'STAFF',
+      },
+    });
+
+    const mockQueue: StaffOrder[] = [
+      {
+        id: 205,
+        status: 'PAID',
+        createdAt: '2026-11-07T10:00:00Z',
+        items: [{ id: 1, productId: 1, productName: 'Cà phê Đen', quantity: 1, unitPrice: 29000 }],
+      },
+    ];
+
+    const apiSpy = vi.spyOn(apiClientModule, 'apiClient').mockImplementation(async (path, init) => {
+      if (path === '/orders/barista/queue') {
+        return new Response(JSON.stringify(mockQueue), { status: 200 });
+      }
+      if (path === '/inventory/ingredients') {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (path === '/orders/205/status' && init?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ message: 'Trạng thái đơn hàng đã thay đổi bởi nhân viên khác.' }),
+          { status: 409 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    render(<StaffPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Bắt đầu pha/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Bắt đầu pha/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Trạng thái đơn hàng đã thay đổi bởi nhân viên khác/i)).toBeTruthy();
+    });
+
+    const patchCall = apiSpy.mock.calls.find(([p]) => p === '/orders/205/status');
+    expect(patchCall).toBeTruthy();
+    expect(JSON.parse(String(patchCall![1]?.body))).toEqual({ status: 'PREPARING' });
   });
 });

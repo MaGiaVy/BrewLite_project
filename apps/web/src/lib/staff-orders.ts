@@ -40,7 +40,7 @@ export interface StaffOrder {
   items: StaffOrderItem[];
   user?: {
     id: number;
-    email: string;
+    email?: string;
     fullName: string | null;
     phone?: string | null;
   } | null;

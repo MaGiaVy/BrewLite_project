@@ -148,7 +148,7 @@ export function AdminMenuSection({
                     {isSelling ? '● Đang mở bán' : '○ Tạm ngưng bán'}
                   </span>
                   <span className="text-[#a89587]">
-                    Ước tính tồn: ~{item.availableServings ?? 50} ly
+                    Ước tính tồn: ~{item.availableServings ?? 0} ly
                   </span>
                 </div>
               </div>

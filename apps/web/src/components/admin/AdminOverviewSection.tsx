@@ -6,6 +6,9 @@ import { formatVnd } from '../../lib/format';
 interface AdminOverviewSectionProps {
   revenueToday: number;
   ordersCount: number;
+  completedCount?: number;
+  activeCount?: number;
+  grossProfit?: number;
   lowStockItemsCount: number;
   recentOrders: Array<{
     id: number;
@@ -20,6 +23,9 @@ interface AdminOverviewSectionProps {
 export function AdminOverviewSection({
   revenueToday,
   ordersCount,
+  completedCount = 0,
+  activeCount = 0,
+  grossProfit = 0,
   lowStockItemsCount,
   recentOrders,
   onNavigateInventory,
@@ -31,51 +37,26 @@ export function AdminOverviewSection({
         <div className={styles.metricHeader}>
           <div>
             <p className={styles.metricLabel}>Doanh thu hôm nay</p>
-            <h2 className={styles.metricValue}>
-              {formatVnd(revenueToday || 18450000)}
-            </h2>
+            <h2 className={styles.metricValue}>{formatVnd(revenueToday)}</h2>
           </div>
-          <span className={styles.growthPill}>▲ +14.2%</span>
-        </div>
-
-        {/* 7-Day Mini Sparkline Chart */}
-        <div className="mt-4 pt-3 border-t border-[#361f15] flex items-end justify-between gap-1 h-14">
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-[#361f15] rounded-t h-7" />
-            <span className="text-[9px] text-[#a89587]">T2</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-[#361f15] rounded-t h-9" />
-            <span className="text-[9px] text-[#a89587]">T3</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-[#361f15] rounded-t h-6" />
-            <span className="text-[9px] text-[#a89587]">T4</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-[#361f15] rounded-t h-10" />
-            <span className="text-[9px] text-[#a89587]">T5</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-[#361f15] rounded-t h-8" />
-            <span className="text-[9px] text-[#a89587]">T6</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-[#d4af37] rounded-t h-12" />
-            <span className="text-[9px] font-bold text-[#d4af37]">H.Nay</span>
-          </div>
+          <span className={styles.growthPill}>{activeCount} đang xử lý</span>
         </div>
 
         {/* 2-col Stats */}
         <div className={styles.gridStats}>
           <div className={styles.statBox}>
             <span className={styles.statBoxLabel}>Tổng đơn hàng</span>
-            <div className={styles.statBoxValue}>{ordersCount || 142} đơn</div>
+            <div className={styles.statBoxValue}>{ordersCount} đơn</div>
           </div>
           <div className={styles.statBox}>
-            <span className={styles.statBoxLabel}>Tốc độ pha chế</span>
-            <div className={styles.statBoxValue}>~4.2 phút / đơn</div>
+            <span className={styles.statBoxLabel}>Lợi nhuận gộp</span>
+            <div className={styles.statBoxValue}>{formatVnd(grossProfit)}</div>
           </div>
+        </div>
+
+        <div className="mt-2.5 text-[11px] text-[#a89587] flex justify-between">
+          <span>Hoàn tất: {completedCount} đơn</span>
+          <span>Đang chờ/pha: {activeCount} đơn</span>
         </div>
       </div>
 
@@ -89,7 +70,7 @@ export function AdminOverviewSection({
                 {lowStockItemsCount} nguyên liệu sắp hết
               </h3>
               <p className={styles.alertDesc}>
-                Hạt cà phê và sữa tươi đang ở mức tối thiểu
+                Vui lòng kiểm tra và nhập thêm nguyên vật liệu
               </p>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from './api-client';
-import type { OrderStatus, StaffOrder } from './staff-orders';
+import type { StaffOrder } from './staff-orders';
 
 export interface UseBaristaQueueReturn {
   orders: StaffOrder[];
@@ -13,13 +13,17 @@ export interface UseBaristaQueueReturn {
   ) => Promise<void>;
 }
 
-export function useBaristaQueue(intervalMs: number = 3000): UseBaristaQueueReturn {
+export function useBaristaQueue(
+  intervalMs: number = 3000,
+  enabled: boolean = true,
+): UseBaristaQueueReturn {
   const [orders, setOrders] = useState<StaffOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef<boolean>(true);
+  const pendingRef = useRef<number | null>(null);
 
   const fetchQueue = useCallback(async () => {
     if (abortControllerRef.current) {
@@ -40,7 +44,6 @@ export function useBaristaQueue(intervalMs: number = 3000): UseBaristaQueueRetur
 
       const data = await res.json();
       if (isMountedRef.current) {
-        // data can be array directly or wrapped in { data: [...] }
         const list = Array.isArray(data) ? data : data?.data ?? [];
         setOrders(list);
         setError(null);
@@ -58,8 +61,9 @@ export function useBaristaQueue(intervalMs: number = 3000): UseBaristaQueueRetur
       id: number,
       next: 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED',
     ): Promise<void> => {
-      if (pendingId !== null) return; // Prevent double tap / concurrent transitions
+      if (pendingRef.current !== null) return; // Prevent double tap / concurrent transitions
 
+      pendingRef.current = id;
       setPendingId(id);
       try {
         const res = await apiClient(`/orders/${id}/status`, {
@@ -68,7 +72,18 @@ export function useBaristaQueue(intervalMs: number = 3000): UseBaristaQueueRetur
         });
 
         if (!res.ok) {
-          throw new Error(`Cập nhật thất bại: HTTP ${res.status}`);
+          let message = `Cập nhật thất bại: HTTP ${res.status}`;
+          try {
+            const errData = await res.json();
+            if (Array.isArray(errData?.message)) {
+              message = errData.message.join(', ');
+            } else if (typeof errData?.message === 'string' && errData.message.trim()) {
+              message = errData.message;
+            }
+          } catch {
+            // Non-JSON error body
+          }
+          throw new Error(message);
         }
 
         await fetchQueue();
@@ -77,18 +92,24 @@ export function useBaristaQueue(intervalMs: number = 3000): UseBaristaQueueRetur
           setError(err?.message || 'Lỗi khi cập nhật trạng thái đơn');
         }
       } finally {
+        pendingRef.current = null;
         if (isMountedRef.current) {
           setPendingId(null);
         }
       }
     },
-    [pendingId, fetchQueue],
+    [fetchQueue],
   );
 
   useEffect(() => {
     isMountedRef.current = true;
-    fetchQueue();
+    if (!enabled) {
+      return () => {
+        isMountedRef.current = false;
+      };
+    }
 
+    fetchQueue();
     const intervalId = setInterval(fetchQueue, intervalMs);
 
     return () => {
@@ -98,7 +119,7 @@ export function useBaristaQueue(intervalMs: number = 3000): UseBaristaQueueRetur
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchQueue, intervalMs]);
+  }, [fetchQueue, intervalMs, enabled]);
 
   return {
     orders,
