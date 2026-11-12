@@ -389,14 +389,33 @@ export default function OrderListPage() {
     };
   }, [isAuthenticated, router, fetchOrders]);
 
+  const requestCancelOrder = async (
+    orderId: string | number,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const res = await apiClient(`/orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'CANCELLED' }),
+    });
+    if (res.ok) return { ok: true };
+    const err = await res.json().catch(() => null);
+    return {
+      ok: false,
+      error: err?.message || 'Không thể hủy đơn hàng lúc này.',
+    };
+  };
+
   // 4. Hủy một đơn nháp PENDING
   const handleCancelSingleOrder = async (orderId: string | number) => {
     try {
-      await apiClient(`/orders/${orderId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'CANCELLED' }),
-      });
-      // Cập nhật state cục bộ ngay lập tức
+      const result = await requestCancelOrder(orderId);
+      if (!result.ok) {
+        setLiveToast({
+          orderId,
+          status: 'CANCEL_ERROR',
+          message: result.error || 'Không thể hủy đơn hàng lúc này.',
+        });
+        return;
+      }
       setOrders((prev) =>
         prev.map((o) =>
           String(o.id) === String(orderId) ? { ...o, status: 'CANCELLED' } : o,
@@ -404,11 +423,11 @@ export default function OrderListPage() {
       );
       void fetchOrders(false);
     } catch {
-      setOrders((prev) =>
-        prev.map((o) =>
-          String(o.id) === String(orderId) ? { ...o, status: 'CANCELLED' } : o,
-        ),
-      );
+      setLiveToast({
+        orderId,
+        status: 'CANCEL_ERROR',
+        message: 'Không thể kết nối máy chủ để hủy đơn hàng.',
+      });
     }
   };
 
@@ -418,26 +437,37 @@ export default function OrderListPage() {
     if (!pendings.length) return;
     setCancellingPending(true);
     try {
-      await Promise.all(
-        pendings.map((p) =>
-          apiClient(`/orders/${p.id}/status`, {
-            method: 'PATCH',
-            body: JSON.stringify({ status: 'CANCELLED' }),
-          }),
-        ),
+      const results = await Promise.all(
+        pendings.map(async (p) => ({
+          id: p.id,
+          ...(await requestCancelOrder(p.id)),
+        })),
       );
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.status === 'PENDING' ? { ...o, status: 'CANCELLED' } : o,
-        ),
+      const cancelledIds = new Set(
+        results.filter((r) => r.ok).map((r) => String(r.id)),
       );
-      void fetchOrders(false);
+      if (cancelledIds.size > 0) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            cancelledIds.has(String(o.id)) ? { ...o, status: 'CANCELLED' } : o,
+          ),
+        );
+        void fetchOrders(false);
+      }
+      const failed = results.find((r) => !r.ok);
+      if (failed) {
+        setLiveToast({
+          orderId: failed.id,
+          status: 'CANCEL_ERROR',
+          message: failed.error || 'Một số đơn không thể hủy.',
+        });
+      }
     } catch {
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.status === 'PENDING' ? { ...o, status: 'CANCELLED' } : o,
-        ),
-      );
+      setLiveToast({
+        orderId: pendings[0].id,
+        status: 'CANCEL_ERROR',
+        message: 'Không thể kết nối máy chủ để hủy các đơn chờ.',
+      });
     } finally {
       setCancellingPending(false);
     }
@@ -1174,6 +1204,8 @@ export default function OrderListPage() {
               ? 'notifications_active'
               : liveToast.status === 'COMPLETED'
               ? 'task_alt'
+              : liveToast.status === 'CANCEL_ERROR'
+              ? 'error'
               : 'coffee_maker'}
           </span>
           <div style={{ flex: 1, fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
