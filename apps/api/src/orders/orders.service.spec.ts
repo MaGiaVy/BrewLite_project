@@ -3278,5 +3278,78 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       expect(mockTx.userVoucher.deleteMany).not.toHaveBeenCalled();
       expect(mockTx.order.create).not.toHaveBeenCalled();
     });
+
+    it('pendingWithVoucher counts only voucherDeducted: false orders so quantity=1 allows 2nd order when 1st PENDING already deducted', async () => {
+      const makeTx = (unDeductedVoucherCount: number) => ({
+        $queryRaw: jest.fn().mockResolvedValue([{ id: 1 }]),
+        recipe: { findMany: jest.fn().mockResolvedValue([]) },
+        toppingRecipe: { findMany: jest.fn().mockResolvedValue([]) },
+        ingredient: { findMany: jest.fn().mockResolvedValue([]) },
+        userVoucher: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 88,
+            userId: 1,
+            code: 'PERSONAL10',
+            quantity: 1,
+            discountPercent: 10,
+            minOrderAmount: 0,
+            maxDiscountAmount: 15000,
+          }),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        order: {
+          count: jest.fn().mockImplementation(async ({ where }: any) => {
+            if (where?.discountCode === 'PERSONAL10') {
+              // Simulate 1 existing PENDING order with voucherDeducted: true
+              return where?.voucherDeducted === false ? unDeductedVoucherCount : 1;
+            }
+            return 1; // 1 existing PENDING order overall
+          }),
+          create: jest.fn().mockImplementation(({ data }: any) =>
+            Promise.resolve({ id: 961, status: OrderStatus.PENDING, items: [], ...data }),
+          ),
+        },
+      });
+
+      const allowTx = makeTx(0);
+      prisma.$transaction.mockImplementationOnce(async (cb: any) => cb(allowTx));
+
+      const created = await service.createOrder(
+        {
+          items: [{ productId: 1, size: 'M', toppings: [], quantity: 1 }],
+          discountCode: 'PERSONAL10',
+        } as any,
+        1,
+      );
+
+      expect(created.id).toBe(961);
+      expect(allowTx.order.count).toHaveBeenCalledWith({
+        where: {
+          userId: 1,
+          discountCode: 'PERSONAL10',
+          status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
+          voucherDeducted: false,
+        },
+      });
+      expect(allowTx.userVoucher.updateMany).toHaveBeenCalledTimes(1);
+      expect(allowTx.order.create).toHaveBeenCalledTimes(1);
+
+      const blockTx = makeTx(1);
+      prisma.$transaction.mockImplementationOnce(async (cb: any) => cb(blockTx));
+
+      await expect(
+        service.createOrder(
+          {
+            items: [{ productId: 1, size: 'M', toppings: [], quantity: 1 }],
+            discountCode: 'PERSONAL10',
+          } as any,
+          1,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(blockTx.userVoucher.updateMany).not.toHaveBeenCalled();
+      expect(blockTx.order.create).not.toHaveBeenCalled();
+    });
   });
 });
