@@ -355,21 +355,41 @@ export class PaymentsService {
           },
         });
         if (userVoucher) {
-          if (userVoucher.quantity > 1) {
-            await (tx as any).userVoucher.update({
-              where: { id: userVoucher.id },
+          if (typeof (tx as any).userVoucher.updateMany === 'function') {
+            const decRes = await (tx as any).userVoucher.updateMany({
+              where: { id: userVoucher.id, quantity: { gte: 1 } },
               data: { quantity: { decrement: 1 } },
             });
+            if ((decRes?.count ?? 0) > 0) {
+              if (typeof (tx as any).userVoucher.deleteMany === 'function') {
+                await (tx as any).userVoucher.deleteMany({
+                  where: { id: userVoucher.id, quantity: { lte: 0 } },
+                });
+              }
+              if (tx.order?.updateMany) {
+                await tx.order.updateMany({
+                  where: { id: order.id },
+                  data: { voucherDeducted: true },
+                });
+              }
+            }
           } else {
-            await (tx as any).userVoucher.delete({
-              where: { id: userVoucher.id },
-            });
-          }
-          if (tx.order?.updateMany) {
-            await tx.order.updateMany({
-              where: { id: order.id },
-              data: { voucherDeducted: true },
-            });
+            if (userVoucher.quantity > 1) {
+              await (tx as any).userVoucher.update({
+                where: { id: userVoucher.id },
+                data: { quantity: { decrement: 1 } },
+              });
+            } else {
+              await (tx as any).userVoucher.delete({
+                where: { id: userVoucher.id },
+              });
+            }
+            if (tx.order?.updateMany) {
+              await tx.order.updateMany({
+                where: { id: order.id },
+                data: { voucherDeducted: true },
+              });
+            }
           }
         }
       });

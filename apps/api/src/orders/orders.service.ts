@@ -89,23 +89,6 @@ export class OrdersService {
       }
     }
 
-    // 0. Chống Spam đơn hàng ảo (Cart Hoarding DoS): Giới hạn tối đa 5 đơn PENDING / PAYMENT_FAILED
-    if (userId && this.prisma.order?.count) {
-      const activePendingCount = await this.prisma.order
-        .count({
-          where: {
-            userId,
-            status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
-          },
-        })
-        .catch(() => 0);
-      if (activePendingCount >= 5) {
-        throw new BadRequestException(
-          'Bạn đang có 5 đơn hàng chờ thanh toán. Vui lòng hoàn tất thanh toán hoặc hủy đơn cũ trước khi đặt đơn mới.',
-        );
-      }
-    }
-
     // 1. Tính rawSubtotal và serverUnitPrice hoàn toàn từ DB
     const productIds = [...new Set(dto.items.map((i) => i.productId))];
 
@@ -145,6 +128,11 @@ export class OrdersService {
       }
 
       const normalizedSize = (item.size || 'M').toUpperCase();
+      if (matchedProduct.category !== 'bakery' && normalizedSize === 'ALL') {
+        throw new BadRequestException(
+          `Sản phẩm "${matchedProduct.name}" là đồ uống, bắt buộc chọn kích cỡ S, M hoặc L.`,
+        );
+      }
       const sizeUpcharge =
         matchedProduct.category === 'bakery'
           ? 0
@@ -186,6 +174,25 @@ export class OrdersService {
     // 2. Transaction: Voucher + BOM Ingredient Optimistic Locking + tạo đơn PENDING
     try {
       const order = await this.prisma.$transaction(async (tx: any) => {
+        if (userId && typeof tx.$queryRaw === 'function') {
+          await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+        }
+
+        // Chống Spam đơn hàng ảo (Cart Hoarding DoS): Giới hạn tối đa 5 đơn PENDING / PAYMENT_FAILED
+        if (userId && tx.order?.count) {
+          const activePendingCount = await tx.order.count({
+            where: {
+              userId,
+              status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
+            },
+          });
+          if (activePendingCount >= 5) {
+            throw new BadRequestException(
+              'Bạn đang có 5 đơn hàng chờ thanh toán. Vui lòng hoàn tất thanh toán hoặc hủy đơn cũ trước khi đặt đơn mới.',
+            );
+          }
+        }
+
         let discountAmount = 0;
         let appliedDiscountCode: string | null = null;
         let voucherDeducted = false;
@@ -248,25 +255,33 @@ export class OrdersService {
             discountAmount = Math.min(rawDiscount, maxCap, rawSubtotal);
             appliedDiscountCode = code;
 
-            const voucherUpdateModel = tx.userVoucher?.update
-              ? tx.userVoucher
-              : (this.prisma as any).userVoucher;
-            if (personalVoucher.quantity > 1) {
-              if (voucherUpdateModel?.update) {
-                await voucherUpdateModel.update({
+            const voucherModel = tx.userVoucher ?? (this.prisma as any).userVoucher;
+            if (voucherModel?.updateMany) {
+              const decRes = await voucherModel.updateMany({
+                where: { id: personalVoucher.id, quantity: { gte: 1 } },
+                data: { quantity: { decrement: 1 } },
+              });
+              if ((decRes?.count ?? 0) === 0) {
+                throw new BadRequestException(
+                  `Bạn đã sử dụng hết mã giảm giá cá nhân "${code}".`,
+                );
+              }
+              if (typeof voucherModel.deleteMany === 'function') {
+                await voucherModel.deleteMany({
+                  where: { id: personalVoucher.id, quantity: { lte: 0 } },
+                });
+              }
+            } else if (personalVoucher.quantity > 1) {
+              if (voucherModel?.update) {
+                await voucherModel.update({
                   where: { id: personalVoucher.id },
                   data: { quantity: { decrement: 1 } },
                 });
               }
-            } else {
-              const voucherDeleteModel = tx.userVoucher?.delete
-                ? tx.userVoucher
-                : (this.prisma as any).userVoucher;
-              if (voucherDeleteModel?.delete) {
-                await voucherDeleteModel.delete({
-                  where: { id: personalVoucher.id },
-                });
-              }
+            } else if (voucherModel?.delete) {
+              await voucherModel.delete({
+                where: { id: personalVoucher.id },
+              });
             }
             voucherDeducted = true;
           } else {
