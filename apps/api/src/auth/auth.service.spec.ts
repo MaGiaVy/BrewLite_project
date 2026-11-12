@@ -18,6 +18,9 @@ describe('AuthService - Loyalty Points Redemption & Voucher Accumulation', () =>
       update: jest.Mock;
       findMany: jest.Mock;
     };
+    discountCode: {
+      findUnique: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
 
@@ -33,6 +36,9 @@ describe('AuthService - Loyalty Points Redemption & Voucher Accumulation', () =>
         create: jest.fn(),
         update: jest.fn(),
         findMany: jest.fn(),
+      },
+      discountCode: {
+        findUnique: jest.fn(),
       },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
@@ -145,6 +151,31 @@ describe('AuthService - Loyalty Points Redemption & Voucher Accumulation', () =>
       ).rejects.toThrow(
         new BadRequestException('Mã voucher đổi thưởng không hợp lệ'),
       );
+    });
+
+    it('throws BadRequestException and does not deduct loyaltyPoints if db DiscountCode has isActive === false', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 1,
+        email: 'test@example.com',
+        fullName: 'Test User',
+        phone: '0901234567',
+        loyaltyPoints: 100,
+        createdAt: new Date(),
+      });
+      prisma.discountCode.findUnique.mockResolvedValue({
+        code: 'INACTIVE20',
+        discountPercent: 20,
+        isActive: false,
+      });
+
+      await expect(
+        service.redeemPoints(1, 20, undefined, 'INACTIVE20'),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Mã voucher đổi thưởng hiện đang tạm ngưng áp dụng',
+        ),
+      );
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException if points < catalog.requiredPoints', async () => {
