@@ -42,10 +42,10 @@ control "OrdersController" as OrderCtrl
 entity "OrdersService" as OrderSvc
 control "PaymentsController" as PayCtrl
 entity "PaymentsService" as PaySvc
-participant "MockPaymentService" as MockPay
+participant "MockGatewayService" as MockPay
 participant "ZaloPayService\n(Sandbox Gateway)" as ZaloPay
 database "PostgreSQL DB\n(Prisma Transaction)" as DB
-control "Background Worker\n(OrdersService Scheduler)" as CronJob
+control "ExpireOrdersJob\n(@Cron '*/1 * * * *')" as CronJob
 
 == PHA 1: TẠO ĐƠN HÀNG & GIỮ KHO BOM (POST /orders) ==
 
@@ -62,8 +62,8 @@ note over OrderSvc
     1. Tính rawSubtotal server-side = sum(unitPrice * quantity)
     2. Xác thực mã giảm giá (DiscountCode DB / UserVoucher / Preset):
        - Kiểm tra isActive, minOrderAmount, maxDiscountAmount
-       - Tính discountAmount & làm tròn VAT 8%
-       - totalAmount = floor((afterDiscount + VAT) / 1000) * 1000
+       - Tính discountAmount (VAT 0%)
+       - totalAmount = max(0, rawSubtotal - discountAmount)
 end note
 
 OrderSvc -> DB: Bắt đầu Prisma Transaction: prisma.$transaction(...)
@@ -105,16 +105,16 @@ deactivate OrderSvc
 OrderCtrl --> WebApp: HTTP 201 Created\n{ orderId, status: "PENDING", totalAmount: 75000, ... }
 deactivate OrderCtrl
 
-WebApp -> WebApp: Lưu orderId vào State, bắt đầu đếm ngược 5 phút
-WebApp --> Client: Hiển thị màn hình chờ thanh toán (TTL: 5 phút)
+WebApp -> WebApp: Lưu orderId vào State, bắt đầu đếm ngược 15 phút
+WebApp --> Client: Hiển thị màn hình chờ thanh toán (TTL: 15 phút)
 deactivate WebApp
 
 == PHA 2 - PHƯƠNG ÁN A: THANH TOÁN KHÔNG TIỀN MẶT / MOCK GATEWAY (POST /payments) ==
 
-Client -> WebApp: Chọn phương thức (QR / Ví), ấn "Xác Nhận Thanh Toán"
+Client -> WebApp: Chọn phương thức (EWALLET / BANK_CARD), ấn "Xác Nhận Thanh Toán"
 activate WebApp
 
-WebApp -> PayCtrl: POST /payments\nHeaders:\n  Authorization: Bearer <JWT>\n  Idempotency-Key: <UUID-v4>\nBody: { orderId, method: "MOCK_QR", simulateFailure?: false }
+WebApp -> PayCtrl: POST /payments\nHeaders:\n  Authorization: Bearer <JWT>\n  Idempotency-Key: <UUID-v4>\nBody: { orderId, method: "EWALLET" | "BANK_CARD", simulateFailure?: false }
 activate PayCtrl
 
 PayCtrl -> PaySvc: processPayment(dto, userId, idempotencyKey)
@@ -130,14 +130,14 @@ deactivate DB
 
 alt Key đã tồn tại và giao dịch trước đã SUCCESS
     PaySvc --> PayCtrl: Trả về kết quả cũ (isIdempotent: true)
-    PayCtrl --> WebApp: HTTP 200 OK (Idempotent response)
+    PayCtrl --> WebApp: HTTP 201 Created (Idempotent response)
     WebApp --> Client: Thông báo đơn hàng đã được thanh toán
 else Key mới hoặc giao dịch trước FAILED
     note over PaySvc
         2. Kiểm tra đơn hàng & quyền sở hữu:
            - findUnique(orderId)
            - Chặn IDOR: order.userId == userId
-           - Kiểm tra hết hạn: Date.now() - createdAt <= 5 phút (300.000 ms)
+           - Kiểm tra hết hạn: Date.now() - createdAt <= 15 phút (900.000 ms)
            - Lấy số tiền thanh toán = order.totalAmount (Bảo mật: không lấy từ client)
            - Kiểm tra State Machine Guard: assertTransition(order.status, 'PAID')
     end note
@@ -145,7 +145,7 @@ else Key mới hoặc giao dịch trước FAILED
     PaySvc -> DB: Bắt đầu Prisma Transaction: prisma.$transaction(...)
     activate DB
 
-    PaySvc -> MockPay: processPayment({ amount: order.totalAmount, method, simulateFailure })
+    PaySvc -> MockPay: charge({ orderId, amount: order.totalAmount, method, simulateFailure })
     activate MockPay
     MockPay --> PaySvc: { success: true, transactionId: "TXN-xxx", message: "..." }
     deactivate MockPay
@@ -154,9 +154,9 @@ else Key mới hoặc giao dịch trước FAILED
         PaySvc -> DB: tx.order.updateMany({\n  where: { id: order.id, version: order.version },\n  data: { status: 'PAYMENT_FAILED', version: { increment: 1 } }\n})
         PaySvc -> DB: tx.payment.create({\n  data: { orderId, amount, method, status: 'FAILED', idempotencyKey }\n})
         PaySvc -> DB: Commit Transaction
-        PaySvc --> PayCtrl: { success: false, status: 'PAYMENT_FAILED', message: "..." }
-        PayCtrl --> WebApp: HTTP 200 OK (success: false)
-        WebApp --> Client: Báo lỗi thanh toán, cho phép thử lại
+        PaySvc --> PayCtrl: { success: false, status: 'PAYMENT_FAILED', paymentStatus: 'FAILED', message: "..." }
+        PayCtrl --> WebApp: HTTP 201 Created (success: false)
+        WebApp --> Client: Báo lỗi thanh toán, cho phép thử lại (giữ nguyên kho BOM)
     else Thanh toán Gateway thành công (success == true)
         note over PaySvc, DB
             Áp dụng Optimistic Locking khi cập nhật trạng thái đơn:
@@ -182,7 +182,7 @@ else Key mới hoặc giao dịch trước FAILED
 
             PaySvc --> PayCtrl: { success: true, paymentId, orderId, status: 'PAID', pointsEarned }
             deactivate PaySvc
-            PayCtrl --> WebApp: HTTP 200 OK\n{ success: true, status: "PAID", pointsEarned: 75, ... }
+            PayCtrl --> WebApp: HTTP 201 Created\n{ success: true, status: "PAID", pointsEarned: 75, ... }
             deactivate PayCtrl
 
             WebApp --> Client: Chúc mừng! Thanh toán thành công & tích lũy +75 Hạt Vàng
@@ -254,17 +254,17 @@ opt Polling từ Frontend (Dự phòng Webhook trễ / Localhost)
 end
 deactivate WebApp
 
-== LUỒNG BỔ TRỢ 1: TIMEOUT 5 PHÚT TỰ HỦY ĐƠN PENDING & HOÀN KHO BOM ==
+== LUỒNG BỔ TRỢ 1: TIMEOUT 15 PHÚT TỰ HỦY ĐƠN PENDING / PAYMENT_FAILED & HOÀN KHO BOM ==
 
 note over CronJob
-    OrdersService định kỳ chạy mỗi 15 giây (setInterval)
-    Hoặc quét ngay lúc server khởi động (onModuleInit)
-    EXPIRE_TIMEOUT_MS = 5 * 60 * 1000 (5 phút = 300.000 ms)
+    ExpireOrdersJob chạy định kỳ mỗi 1 phút (@Cron('*/1 * * * *'))
+    gọi expirePendingOrders(..., { timeoutMinutes: 15 })
+    ORDER_PAYMENT_TTL_MS = 15 * 60 * 1000 (15 phút = 900.000 ms)
 end note
 
-CronJob -> DB: prisma.order.findMany({\n  where: { status: 'PENDING', createdAt: { lte: now - 5 phút } },\n  include: { items: true }\n})
+CronJob -> DB: prisma.order.findMany({\n  where: { status: { in: ['PENDING', 'PAYMENT_FAILED'] }, createdAt: { lte: now - 15 phút } },\n  include: { items: true }\n})
 activate DB
-DB --> CronJob: Danh sách expiredOrders quá hạn 5 phút
+DB --> CronJob: Danh sách expiredOrders quá hạn 15 phút
 deactivate DB
 
 loop Duyệt từng expiredOrder
@@ -286,12 +286,12 @@ loop Duyệt từng expiredOrder
     note over CronJob, DB
         3. Cập nhật trạng thái đơn hàng sang CANCELLED
     end note
-    CronJob -> DB: tx.order.update({\n  where: { id: order.id },\n  data: { status: 'CANCELLED' }\n})
+    CronJob -> DB: tx.order.update({\n  where: { id: order.id },\n  data: { status: 'CANCELLED', version: { increment: 1 } }\n})
 
     CronJob -> DB: Commit Transaction
     deactivate DB
     note over CronJob
-        Ghi log: [Auto-Expire 5m] Đơn hàng #id đã tự động hủy do quá 5 phút chưa thanh toán.
+        Ghi log: [Auto-Expire 15m] Đơn hàng #id đã tự động hủy do quá 15 phút chưa thanh toán.
     end note
 end
 

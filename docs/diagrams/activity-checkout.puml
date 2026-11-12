@@ -17,7 +17,7 @@ skinparam swimlane {
     TitleFontColor black
 }
 
-title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): ĐẶT HÀNG & THANH TOÁN 100% CASHLESS\n(Phân tách 2 pha: Tạo đơn PENDING giữ kho BOM -> Thanh toán PAID tích lũy Hạt Vàng | Timeout 5 phút)
+title SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM): ĐẶT HÀNG & THANH TOÁN 100% CASHLESS\n(Phân tách 2 pha: Tạo đơn PENDING giữ kho BOM -> Thanh toán PAID tích lũy Hạt Vàng | Timeout 15 phút)
 
 |#White|Khách hàng (Customer)|
 |#White|Giao diện Web (Next.js)|
@@ -108,7 +108,7 @@ else ([Đủ nguyên liệu tồn kho])
     :Tạo bản ghi đơn hàng mới với trạng thái PENDING;
     |Backend API (NestJS)|
     :Commit Database Transaction Pha 1 thành công;
-    :Kích hoạt đếm ngược thời gian giữ chỗ 5 phút (TTL = 300s);
+    :Kích hoạt đếm ngược thời gian giữ chỗ 15 phút (TTL = 900s);
     :Gửi yêu cầu tạo giao dịch sang Cổng thanh toán (ZaloPay createOrder);
 endif
 
@@ -119,7 +119,7 @@ endif
 :Tạo mã giao dịch và liên kết thanh toán (appTransId, zpTransToken, QR Code);
 
 |Giao diện Web (Next.js)|
-:Hiển thị mã QR ZaloPay Sandbox và đếm ngược thời gian giữ kho 5 phút;
+:Hiển thị mã QR ZaloPay Sandbox và đếm ngược thời gian giữ kho 15 phút;
 :Khởi động cơ chế Polling tự động kiểm tra trạng thái mỗi 3 giây;
 
 |Khách hàng (Customer)|
@@ -146,7 +146,7 @@ if (Kết quả xử lý giao dịch tại Cổng thanh toán?) then ([Thanh to�
     |Giao diện Web (Next.js)|
     :Polling nhận diện trạng thái đơn hàng đã chuyển sang PAID;
     :Xóa sạch giỏ hàng trong Zustand Store và localStorage;
-    :Điều hướng tự động sang màn hình Xác nhận đơn hàng (/order-confirmation);
+    :Điều hướng tự động sang màn hình Xác nhận đơn hàng (/orders/:id/confirmation);
     |Khách hàng (Customer)|
     :Xem mã nhận nước tại Quầy Bar Express, điểm Hạt Vàng tích lũy;
     stop
@@ -160,7 +160,7 @@ else ([Thanh toán thất bại])
       **LƯU Ý NGHIỆP VỤ QUAN TRỌNG:**
       Không lập tức hoàn kho tại bước này.
       Kho nguyên liệu BOM tiếp tục được giữ chỗ
-      trong tổng thời gian 5 phút để khách hàng
+      trong tổng thời gian 15 phút để khách hàng
       có thể đổi phương thức hoặc thử lại.
     end note
     |Giao diện Web (Next.js)|
@@ -177,15 +177,15 @@ else ([Thanh toán thất bại])
         :Gửi lại yêu cầu thanh toán cho đơn hàng hiện tại;
         note left: Tiếp tục luồng thanh toán Pha 2
         stop
-    else ([Bấm "Hủy giao dịch" hoặc Quá hạn 5 phút])
+    else ([Bấm "Hủy giao dịch" hoặc Quá hạn 15 phút])
         if (Hình thức hủy?) then ([Khách chủ động bấm Hủy])
             |Khách hàng (Customer)|
             :Bấm nút "Hủy giao dịch";
             |Giao diện Web (Next.js)|
             :Gửi yêu cầu PATCH /orders/:id/status (CANCELLED);
-        else ([Hết hạn 5 phút - Timeout 300s])
+        else ([Hết hạn 15 phút - Timeout 900s])
             |Backend API (NestJS)|
-            :Scheduled Job (quét mỗi 15s) phát hiện đơn quá 5 phút chưa PAID;
+            :ExpireOrdersJob (@Cron '*/1 * * * *') phát hiện đơn quá 15 phút chưa PAID;
         endif
         |Backend API (NestJS)|
         :Bắt đầu Database Transaction hoàn trả kho;

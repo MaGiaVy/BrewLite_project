@@ -31,7 +31,7 @@ start
 :Kích hoạt đếm ngược thời gian ân hạn hủy đơn 5 phút (Grace Period);
 
 |Giao diện Web & KDS (Next.js)|
-:Màn hình KDS (/staff/orders) tự động nạp thẻ đơn hàng mới PAID;
+:Màn hình KDS (/staff) tự động nạp thẻ đơn hàng mới PAID;
 :Hiển thị chi tiết món, size, topping, định mức nguyên liệu (Quick Recipe Popover);
 :Giao diện khách hàng (/orders/:id) hiển thị thanh tiến trình 5 bước;
 

@@ -1,6 +1,6 @@
 # Tài Liệu Biểu Đồ Trình Tự Xác Thực & Quản Lý Hồ Sơ (Auth Sequence Diagram)
 
-Tài liệu này mô tả chi tiết kiến trúc luồng dữ liệu và trình tự xử lý (Sequence Diagram) cho module Xác thực (`backend/src/auth/`) của hệ thống **BrewLite**. Biểu đồ nguồn tương ứng được lưu tại [`sequence-auth.puml`](file:///d:/SWE/BrewLite_SWE/docs/diagrams/sequence-auth.puml).
+Tài liệu này mô tả chi tiết kiến trúc luồng dữ liệu và trình tự xử lý (Sequence Diagram) cho module Xác thực (`apps/api/src/auth/`) của hệ thống **BrewLite**. Biểu đồ nguồn tương ứng được lưu tại [`sequence-auth.puml`](sequence-auth.puml).
 
 ---
 
