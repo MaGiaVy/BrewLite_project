@@ -305,13 +305,51 @@ describe('ProductsController (T4.3 + Ass1 BOM Integration)', () => {
     it('guards mutation endpoints with @Roles(Role.ADMIN)', () => {
       const createRoles = reflector.get(ROLES_KEY, controller.create);
       const updateRoles = reflector.get(ROLES_KEY, controller.update);
-      const toggleRoles = reflector.get(ROLES_KEY, controller.toggleVisibility);
+      const toggleRoles = reflector.get(ROLES_KEY, ProductsController.prototype.toggleVisibility);
       const removeRoles = reflector.get(ROLES_KEY, controller.remove);
 
       expect(createRoles).toEqual([Role.ADMIN]);
       expect(updateRoles).toEqual([Role.ADMIN]);
       expect(toggleRoles).toEqual([Role.ADMIN]);
       expect(removeRoles).toEqual([Role.ADMIN]);
+    });
+
+    it('guards toggleSoldOut with @Roles(Role.STAFF, Role.ADMIN) while keeping toggleVisibility strictly @Roles(Role.ADMIN)', () => {
+      const soldOutRoles = reflector.get(
+        ROLES_KEY,
+        ProductsController.prototype.toggleSoldOut,
+      );
+      const visibilityRoles = reflector.get(
+        ROLES_KEY,
+        ProductsController.prototype.toggleVisibility,
+      );
+
+      expect(soldOutRoles).toEqual([Role.STAFF, Role.ADMIN]);
+      expect(visibilityRoles).toEqual([Role.ADMIN]);
+    });
+
+    it('delegates controller.toggleSoldOut(1, { isSoldOutManual: true }) to productsService.toggleSoldOut without touching isActive', async () => {
+      const dto = { isSoldOutManual: true };
+      const spy = jest.spyOn(service, 'toggleSoldOut');
+      mockPrisma.product.findUnique.mockResolvedValue({ id: 1, name: 'Cà phê Đen', isActive: true });
+      mockPrisma.product.update.mockResolvedValue({
+        id: 1,
+        name: 'Cà phê Đen',
+        isActive: true,
+        isSoldOutManual: true,
+        recipes: [],
+      });
+
+      const res = await controller.toggleSoldOut(1, dto);
+
+      expect(spy).toHaveBeenCalledWith(1, dto);
+      expect(mockPrisma.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 1 },
+          data: { isSoldOutManual: true },
+        }),
+      );
+      expect(res).toMatchObject({ id: 1, isSoldOutManual: true });
     });
 
     it('calls service.create on controller.create', async () => {

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProductDto,
   ToggleProductVisibilityDto,
+  ToggleSoldOutDto,
   UpdateProductDto,
 } from './dto/product.dto';
 
@@ -372,6 +373,27 @@ export class ProductsService {
         ...(dto.isSoldOutManual !== undefined
           ? { isSoldOutManual: dto.isSoldOutManual }
           : {}),
+      },
+      include: {
+        recipes: {
+          include: { ingredient: true },
+        },
+      },
+    });
+
+    return this.enrichProductStock(updated, undefined, true);
+  }
+
+  async toggleSoldOut(id: number, dto: ToggleSoldOutDto) {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Không tìm thấy sản phẩm #${id}`);
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: {
+        isSoldOutManual: dto.isSoldOutManual,
       },
       include: {
         recipes: {
