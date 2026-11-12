@@ -9,19 +9,50 @@ Object.assign(navigator, {
   },
 });
 
-vi.mock('../../../../lib/api-client', () => ({
-  apiClient: vi.fn().mockImplementation(() =>
-    Promise.resolve({
-      ok: false,
-      json: () => Promise.resolve({}),
-    }),
-  ),
-}));
-
 describe('Task T5.1e — Order Confirmation Mobile UI (/orders/[id]/confirmation)', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const match = typeof url === 'string' ? url.match(/\/orders\/([^/?#]+)/) : null;
+      const reqId = match ? match[1] : '9988';
+      const saved = window.localStorage.getItem(`order_details_${reqId}`);
+      if (saved) {
+        return Promise.resolve(new Response(saved, { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: reqId,
+            status: 'PAID',
+            totalAmount: 82000,
+            subtotal: 82000,
+            discountAmount: 0,
+            paymentMethod: 'Ví MoMo Express',
+            createdAt: new Date().toISOString(),
+            items: [
+              {
+                id: 1,
+                productId: 3,
+                productName: 'Cà phê Bạc Xỉu',
+                name: 'Cà phê Bạc Xỉu',
+                size: 'M',
+                toppings: ['Trân châu trắng giòn', 'Thêm Kem Muối Béo', 'Thạch Cà Phê Phin'],
+                quantity: 1,
+                unitPrice: 82000,
+                temperature: 'iced',
+                iceLevel: '50% đá',
+                sugarLevel: '100% đường',
+                notes: 'Cho ít sữa đặc một chút',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   it('renders confirmation page with order ID, status, and headline', async () => {

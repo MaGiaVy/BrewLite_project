@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../stores/auth-store';
 import { useCartStore } from '../../stores/cart-store';
-import { apiClient } from '../../lib/api-client';
+import { apiClient, getAuthToken } from '../../lib/api-client';
 import styles from './orders.module.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -141,97 +141,6 @@ const STATUS_CONFIG: Record<
   },
 };
 
-// ── Default Mock Demo Orders (chuẩn Assignment 1) ────────────────────────────
-const DEMO_ORDERS: Order[] = [
-  {
-    id: 104,
-    status: 'READY',
-    totalAmount: 65000,
-    finalAmount: 65000,
-    createdAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
-    staffName: 'Hoàng Nam',
-    payments: [{ method: 'WALLET', status: 'SUCCESS', amount: 65000 }],
-    items: [
-      {
-        productId: 1,
-        name: 'Cà Phê Muối Đặc Biệt',
-        size: 'L',
-        toppings: ['Kem Muối Biển', 'Trân Châu Hoàng Kim'],
-        quantity: 1,
-        unitPrice: 65000,
-      },
-    ],
-  },
-  {
-    id: 103,
-    status: 'PREPARING',
-    totalAmount: 95000,
-    finalAmount: 85000,
-    discountAmount: 10000,
-    discountCode: 'BREWLITE10',
-    createdAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-    staffName: 'Trần Minh',
-    payments: [{ method: 'CARD', status: 'SUCCESS', amount: 85000 }],
-    items: [
-      {
-        productId: 2,
-        name: 'Cold Brew Cam Vàng',
-        size: 'M',
-        toppings: [],
-        quantity: 1,
-        unitPrice: 50000,
-      },
-      {
-        productId: 3,
-        name: 'Matcha Latte Macchiato',
-        size: 'M',
-        toppings: ['Thạch Matcha'],
-        quantity: 1,
-        unitPrice: 45000,
-      },
-    ],
-  },
-  {
-    id: 102,
-    status: 'PENDING',
-    totalAmount: 45000,
-    finalAmount: 45000,
-    createdAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    items: [
-      {
-        productId: 4,
-        name: 'Cà Phê Sữa Tươi Sương Sáo',
-        size: 'M',
-        toppings: ['Sương Sáo'],
-        quantity: 1,
-        unitPrice: 45000,
-      },
-    ],
-  },
-  {
-    id: 101,
-    status: 'COMPLETED',
-    totalAmount: 78000,
-    finalAmount: 78000,
-    createdAt: new Date(Date.now() - 86400 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 86000 * 1000).toISOString(),
-    staffName: 'Thanh Thảo',
-    payments: [{ method: 'WALLET', status: 'SUCCESS', amount: 78000 }],
-    items: [
-      {
-        productId: 5,
-        name: 'Bạc Xỉu Sài Gòn Ba Tầng',
-        size: 'M',
-        toppings: [],
-        quantity: 2,
-        unitPrice: 39000,
-      },
-    ],
-  },
-];
-
 // ── Pending Countdown Component (5 Phút Tự Hủy) ──────────────────────────────
 function PendingCountdown({
   createdAt,
@@ -328,6 +237,7 @@ export default function OrderListPage() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [selectedHeroOrderId, setSelectedHeroOrderId] = useState<string | number | null>(null);
   const [cancellingPending, setCancellingPending] = useState(false);
@@ -393,16 +303,13 @@ export default function OrderListPage() {
         const res = await apiClient('/orders/me');
         if (res.ok) {
           const json = await res.json();
-          let list: Order[] = Array.isArray(json?.data)
+          const list: Order[] = Array.isArray(json?.data)
             ? json.data
             : Array.isArray(json)
             ? json
             : [];
 
-          // Nếu API trả về rỗng nhưng chưa có đơn (chế độ demo / đồ án)
-          if (list.length === 0) {
-            list = DEMO_ORDERS;
-          }
+          setFetchError(null);
 
           // Kiểm tra thay đổi trạng thái từ Barista KDS
           if (Object.keys(prevStatusMapRef.current).length > 0) {
@@ -451,12 +358,10 @@ export default function OrderListPage() {
 
           setOrders(list);
         } else {
-          // Graceful fallback cho demo offline
-          setOrders(DEMO_ORDERS);
+          setFetchError('Không thể tải danh sách đơn hàng. Vui lòng thử lại.');
         }
       } catch {
-        // Dự phòng danh sách mẫu nếu backend chưa kết nối
-        setOrders(DEMO_ORDERS);
+        setFetchError('Lỗi kết nối máy chủ. Vui lòng thử lại.');
       } finally {
         if (isInitial) setLoading(false);
       }
@@ -465,7 +370,8 @@ export default function OrderListPage() {
   );
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    const token = getAuthToken();
+    if (!isAuthenticated && !token) {
       router.push('/login?redirect=%2Forders');
       return;
     }
@@ -988,6 +894,19 @@ export default function OrderListPage() {
           </div>
         </div>
 
+        {fetchError && (
+          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '12px 16px', margin: '16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#b91c1c', fontSize: 13 }}>
+            <span>{fetchError}</span>
+            <button
+              type="button"
+              onClick={() => void fetchOrders(true)}
+              style={{ padding: '6px 12px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Thử lại
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: '#786c67' }}>
             <span
@@ -1290,7 +1209,7 @@ export default function OrderListPage() {
             <span>Thực đơn</span>
           </Link>
 
-          <Link href="/cart" className={styles.navItem}>
+          <Link href="/cart" className={styles.navItem} data-testid="cart-link">
             <div className={styles.navIconWrap}>
               <span
                 className="material-symbols-outlined"

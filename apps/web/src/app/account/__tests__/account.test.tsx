@@ -16,12 +16,108 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+let mockVouchers = [
+  {
+    id: 1,
+    code: 'BREWCOZY',
+    discountPercent: 15,
+    maxDiscountAmount: 25000,
+    minOrderAmount: 0,
+    quantity: 1,
+  },
+  {
+    id: 2,
+    code: 'BREW10',
+    discountPercent: 10,
+    maxDiscountAmount: 15000,
+    minOrderAmount: 0,
+    quantity: 4,
+  },
+  {
+    id: 3,
+    code: 'BREW20',
+    discountPercent: 20,
+    maxDiscountAmount: 25000,
+    minOrderAmount: 60000,
+    quantity: 1,
+  },
+];
+
 describe('Task T5.1g — Mobile Account Page (/account)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.clear();
     }
+
+    mockVouchers = [
+      {
+        id: 1,
+        code: 'BREWCOZY',
+        discountPercent: 15,
+        maxDiscountAmount: 25000,
+        minOrderAmount: 0,
+        quantity: 1,
+      },
+      {
+        id: 2,
+        code: 'BREW10',
+        discountPercent: 10,
+        maxDiscountAmount: 15000,
+        minOrderAmount: 0,
+        quantity: 4,
+      },
+      {
+        id: 3,
+        code: 'BREW20',
+        discountPercent: 20,
+        maxDiscountAmount: 25000,
+        minOrderAmount: 60000,
+        quantity: 1,
+      },
+    ];
+
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: any) => {
+      const urlStr = typeof url === 'string' ? url : (url as any)?.url || '';
+      if (urlStr.includes('/auth/me')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(useAuthStore.getState().user), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      if (urlStr.includes('/auth/vouchers')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(mockVouchers), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      if (urlStr.includes('/auth/profile')) {
+        const body = init?.body ? JSON.parse(init.body) : {};
+        const current = useAuthStore.getState().user;
+        const updatedUser = { ...current, ...body };
+        useAuthStore.getState().setUser(updatedUser as any);
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: true,
+              user: updatedUser,
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     useAuthStore.setState({
       user: {
@@ -93,8 +189,8 @@ describe('Task T5.1g — Mobile Account Page (/account)', () => {
   it('renders real vouchers with ticket stub format and validates empty cart before applying', async () => {
     render(<AccountPage />);
 
-    expect(screen.getByText('Ưu đãi của bạn')).toBeTruthy();
-    expect(screen.getByText('BREWCOZY')).toBeTruthy();
+    expect(await screen.findByText('Ưu đãi của bạn')).toBeTruthy();
+    expect(await screen.findByText('BREWCOZY')).toBeTruthy();
     expect(screen.getByText('BREW10')).toBeTruthy();
     expect(screen.getByText('BREW20')).toBeTruthy();
 
@@ -128,19 +224,19 @@ describe('Task T5.1g — Mobile Account Page (/account)', () => {
 
     render(<AccountPage />);
 
-    const applyFirstBtn = screen.getByRole('button', { name: /Dùng ngay mã BREWCOZY/i });
+    const applyFirstBtn = await screen.findByRole('button', { name: /Dùng ngay mã BREWCOZY/i });
     fireEvent.click(applyFirstBtn);
 
     expect(useCartStore.getState().appliedPromo).toBe('BREWCOZY');
     expect(mockPush).toHaveBeenCalledWith('/cart');
   });
 
-  it('displays empty state notice and action button when user has no vouchers', () => {
-    localStorage.setItem('brewlite_user_vouchers', JSON.stringify([]));
+  it('displays empty state notice and action button when user has no vouchers', async () => {
+    mockVouchers = [];
 
     render(<AccountPage />);
 
-    expect(screen.getByText('Chưa có voucher khả dụng')).toBeTruthy();
+    expect(await screen.findByText('Chưa có voucher khả dụng')).toBeTruthy();
     expect(
       screen.getByText(/Vui lòng đổi điểm Hạt Vàng để lấy voucher ưu đãi hấp dẫn!/i),
     ).toBeTruthy();

@@ -205,8 +205,8 @@ export default function OrderConfirmationPage({
           setOrder({
             id: mergedData.id || orderId,
             status: mergedData.status || 'PAID',
-            totalAmount: mergedData.totalAmount || localSnapshot?.totalAmount || 0,
-            subtotal: mergedData.subtotal || localSnapshot?.subtotal || mergedData.totalAmount || 0,
+            totalAmount: mergedData.totalAmount ?? localSnapshot?.totalAmount ?? 0,
+            subtotal: mergedData.subtotal ?? localSnapshot?.subtotal ?? mergedData.totalAmount ?? 0,
             discountCode: mergedData.discountCode ?? localSnapshot?.discountCode ?? null,
             discountAmount: mergedData.discountAmount ?? localSnapshot?.discountAmount ?? 0,
             createdAt: mergedData.createdAt || localSnapshot?.createdAt || new Date().toISOString(),
@@ -222,36 +222,9 @@ export default function OrderConfirmationPage({
 
       if (!isMounted) return;
 
-      // Fallback from localStorage snapshot or mock default
+      // Fallback from localStorage snapshot if API temporarily unreachable
       if (localSnapshot) {
         setOrder(localSnapshot);
-      } else {
-        // Fallback default order if opened directly without local state
-        setOrder({
-          id: orderId,
-          status: 'PAID',
-          totalAmount: 82000,
-          subtotal: 82000,
-          discountCode: null,
-          discountAmount: 0,
-          createdAt: new Date().toISOString(),
-          paymentMethod: 'Ví MoMo Express',
-          items: [
-            {
-              productId: 3,
-              productName: 'Cà phê Bạc Xỉu',
-              name: 'Cà phê Bạc Xỉu',
-              size: 'M',
-              toppings: ['Trân châu trắng giòn', 'Thêm Kem Muối Béo', 'Thạch Cà Phê Phin'],
-              quantity: 1,
-              unitPrice: 82000,
-              temperature: 'iced',
-              iceLevel: '50% đá',
-              sugarLevel: '100% đường',
-              notes: 'Cho ít sữa đặc một chút',
-            },
-          ],
-        });
       }
       if (isInitial) setLoading(false);
     };
@@ -324,6 +297,36 @@ export default function OrderConfirmationPage({
           />
           <p style={{ color: '#786c67', fontSize: 13 }}>Đang tải thông tin đơn hàng...</p>
           <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+      </main>
+    );
+  }
+
+  if (!order) {
+    return (
+      <main className={styles.container}>
+        <div style={{ maxWidth: 480, margin: '60px auto', textAlign: 'center', padding: 24, backgroundColor: '#fff', borderRadius: 20, border: '1px solid #e7ded5' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#2c1810', marginBottom: 8 }}>
+            Không tìm thấy thông tin đơn hàng #{orderId}
+          </h2>
+          <p style={{ color: '#786c67', fontSize: 13, marginBottom: 20 }}>
+            Vui lòng kiểm tra lại mã đơn hàng hoặc quay lại danh sách đơn của bạn.
+          </p>
+          <Link
+            href="/orders"
+            style={{
+              display: 'inline-block',
+              padding: '10px 20px',
+              backgroundColor: '#2c1810',
+              color: '#fff',
+              borderRadius: 12,
+              fontWeight: 700,
+              fontSize: 13,
+              textDecoration: 'none',
+            }}
+          >
+            Về lịch sử đơn hàng
+          </Link>
         </div>
       </main>
     );
@@ -463,6 +466,7 @@ export default function OrderConfirmationPage({
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
               <span
+                data-testid="order-status"
                 className={`${styles.statusBadge} ${
                   isReady ? styles.ready : isCancelled ? styles.cancelled : ''
                 }`}
@@ -714,20 +718,8 @@ export default function OrderConfirmationPage({
 
 
             <div className={styles.totalRow}>
-              <span>Thuế VAT (8%)</span>
-              <span className={styles.totalValue}>
-                {formatVND(
-                  Math.floor(
-                    Math.max(
-                      0,
-                      (order?.subtotal ||
-                        order?.items?.reduce((acc, it) => acc + it.unitPrice * it.quantity, 0) ||
-                        order?.totalAmount ||
-                        0) - (order?.discountAmount || 0)
-                    ) * 0.08
-                  )
-                )}
-              </span>
+              <span>Thuế VAT (0%)</span>
+              <span className={styles.totalValue}>0 ₫</span>
             </div>
 
             <div className={styles.finalTotalRow}>

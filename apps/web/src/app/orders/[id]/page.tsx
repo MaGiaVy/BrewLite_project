@@ -2,6 +2,8 @@
 
 import React, { use, useEffect, useRef, useCallback, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { apiClient } from '../../../lib/api-client';
 import { useOrderPolling } from '../../../hooks/use-order-polling';
 import { useAuthStore } from '../../../stores/auth-store';
 import { useCartStore } from '../../../stores/cart-store';
@@ -35,6 +37,7 @@ export default function OrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const orderId = resolvedParams.id;
   const { order, error, isPolling } = useOrderPolling(orderId, 5000);
@@ -88,31 +91,102 @@ export default function OrderDetailPage({
     }
   }, [order?.status, playPickupChime]);
 
-  // Fallback demo order nếu chưa có API backend
-  const displayOrder = order ?? {
-    id: orderId,
-    status: 'READY' as const,
-    totalAmount: 65000,
-    finalAmount: 65000,
-    discountAmount: 0,
-    createdAt: new Date().toISOString(),
-    staffName: 'Hoàng Nam',
-    items: [
-      {
-        productId: 1,
-        name: 'Cà Phê Muối Đặc Biệt',
-        size: 'L',
-        quantity: 1,
-        unitPrice: 65000,
-      },
-    ],
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
+
+  const handleCancelOrder = async () => {
+    if (!confirm('Bạn có chắc chắn muốn hủy đơn hàng này không? Nguyên liệu giữ chỗ sẽ được hoàn trả về kho.')) {
+      return;
+    }
+    setIsCancelling(true);
+    try {
+      const res = await apiClient(`/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'CANCELLED' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || 'Không thể hủy đơn hàng.');
+      }
+      setCancelFeedback('Đã hủy đơn hàng thành công trong thời gian 5 phút cho phép.');
+      setTimeout(() => {
+        router.push('/orders');
+      }, 1500);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Lỗi khi hủy đơn hàng.');
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
+  if (!order && !error) {
+    return (
+      <main
+        style={{
+          maxWidth: 480,
+          margin: '0 auto',
+          padding: '48px 16px',
+          textAlign: 'center',
+          fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+          backgroundColor: '#fef8f4',
+          minHeight: '100vh',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid #845326', borderTopColor: 'transparent', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }} />
+        <p style={{ color: '#786c67', fontSize: 14 }}>Đang tải trạng thái đơn hàng #{orderId}...</p>
+      </main>
+    );
+  }
+
+  if (!order) {
+    return (
+      <main
+        style={{
+          maxWidth: 480,
+          margin: '0 auto',
+          padding: '48px 16px',
+          textAlign: 'center',
+          fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+          backgroundColor: '#fef8f4',
+          minHeight: '100vh',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 16, padding: 24 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#b91c1c', margin: '0 0 8px 0' }}>Không thể tải đơn hàng</h2>
+          <p style={{ color: '#7f1d1d', fontSize: 13, margin: '0 0 16px 0' }}>{error || 'Không tìm thấy thông tin đơn hàng.'}</p>
+          <Link
+            href="/orders"
+            style={{
+              padding: '10px 18px',
+              borderRadius: 12,
+              backgroundColor: '#845326',
+              color: '#ffffff',
+              fontWeight: 700,
+              textDecoration: 'none',
+              fontSize: 13,
+              display: 'inline-block',
+            }}
+          >
+            Quay lại Lịch sử đơn
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  const displayOrder = order;
   const status = displayOrder.status;
   const currentStep = getStepIndex(status);
   const isCancelled = status === 'CANCELLED';
   const isReady = status === 'READY';
   const isPending = status === 'PENDING';
+  const isCancelEligible =
+    order &&
+    (order.status === 'PENDING' || order.status === 'PAID') &&
+    order.createdAt &&
+    Date.now() - new Date(order.createdAt).getTime() <= 5 * 60 * 1000;
 
   return (
     <main
@@ -291,6 +365,7 @@ export default function OrderDetailPage({
           </div>
 
           <span
+            data-testid="order-status"
             style={{
               padding: '4px 10px',
               borderRadius: 9999,
@@ -666,6 +741,50 @@ export default function OrderDetailPage({
           </span>
           <span>Đặt thêm món khác</span>
         </Link>
+
+        {cancelFeedback && (
+          <div
+            style={{
+              padding: '12px 14px',
+              backgroundColor: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              borderRadius: 12,
+              color: '#065f46',
+              fontSize: 13,
+              fontWeight: 600,
+              textAlign: 'center',
+            }}
+          >
+            {cancelFeedback}
+          </div>
+        )}
+
+        {isCancelEligible && (
+          <button
+            type="button"
+            onClick={handleCancelOrder}
+            disabled={isCancelling}
+            style={{
+              minHeight: 46,
+              borderRadius: 12,
+              backgroundColor: '#fff',
+              border: '1.5px solid #fca5a5',
+              color: '#dc2626',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: isCancelling ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+              cancel
+            </span>
+            <span>{isCancelling ? 'Đang hủy đơn...' : 'Hủy đơn hàng (5 phút cho phép)'}</span>
+          </button>
+        )}
       </div>
 
       {/* ── FIXED MOBILE BOTTOM NAVIGATION BAR ── */}

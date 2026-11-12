@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth-store';
 import { useCartStore } from '../../stores/cart-store';
+import { apiClient, getAuthToken } from '../../lib/api-client';
 import styles from './promotions.module.css';
 
 export interface PromotionVoucher {
@@ -98,56 +99,56 @@ const REDEEM_REWARDS: RedeemReward[] = [
     id: 'r_brew10',
     code: 'BREW10',
     title: 'Voucher Giảm 10% Toàn Đơn',
-    description: 'Đổi 50 Hạt Vàng để nhận voucher giảm 10% tối đa 15.000đ',
-    pointCost: 50,
+    description: 'Đổi 10 Hạt Vàng để nhận voucher giảm 10% tối đa 15.000đ',
+    pointCost: 10,
     discountPercent: 10,
     maxDiscountAmount: 15000,
     minOrderAmount: 0,
     badge: '10% OFF',
   },
   {
+    id: 'r_brewcozy',
+    code: 'BREWCOZY',
+    title: 'Ưu đãi Giờ Vàng Giảm 15%',
+    description: 'Đổi 15 Hạt Vàng để nhận voucher giảm 15% tối đa 25.000đ',
+    pointCost: 15,
+    discountPercent: 15,
+    maxDiscountAmount: 25000,
+    minOrderAmount: 0,
+    badge: '15% OFF',
+  },
+  {
     id: 'r_brew20',
     code: 'BREW20',
     title: 'Voucher Giảm 20% Đơn Từ 60k',
-    description: 'Đổi 100 Hạt Vàng để nhận voucher giảm 20% tối đa 25.000đ',
-    pointCost: 100,
+    description: 'Đổi 20 Hạt Vàng để nhận voucher giảm 20% tối đa 25.000đ đơn từ 60k',
+    pointCost: 20,
     discountPercent: 20,
     maxDiscountAmount: 25000,
     minOrderAmount: 60000,
     badge: '20% OFF',
   },
   {
+    id: 'r_welcome20',
+    code: 'WELCOME20',
+    title: 'Ưu đãi Thành Viên Mới 20%',
+    description: 'Đổi 20 Hạt Vàng để nhận voucher chào mừng 20% tối đa 20.000đ',
+    pointCost: 20,
+    discountPercent: 20,
+    maxDiscountAmount: 20000,
+    minOrderAmount: 0,
+    badge: '20% OFF',
+  },
+  {
     id: 'r_brew50',
     code: 'BREW50',
     title: 'Siêu Voucher VIP Giảm 50%',
-    description: 'Đặc quyền siêu cấp giảm 50% tối đa 60.000đ đơn từ 120k',
-    pointCost: 250,
+    description: 'Đổi 50 Hạt Vàng để nhận voucher VIP giảm 50% tối đa 60.000đ đơn từ 120k',
+    pointCost: 50,
     discountPercent: 50,
     maxDiscountAmount: 60000,
     minOrderAmount: 120000,
     badge: '50% VIP',
-  },
-  {
-    id: 'r_foam',
-    code: 'FREEFOAM',
-    title: 'Miễn Phí Foam Muối Biển 0đ',
-    description: 'Thêm 1 lớp kem bọt muối béo mịn thơm ngon cho đồ uống',
-    pointCost: 30,
-    discountPercent: 100,
-    maxDiscountAmount: 10000,
-    minOrderAmount: 30000,
-    badge: 'Topping 0đ',
-  },
-  {
-    id: 'r_bakery',
-    code: 'FREEBAKERY',
-    title: 'Tặng 1 Bánh Pain au Chocolat',
-    description: 'Thưởng thức bánh sừng bò socola nướng giòn nóng hổi trị giá 39k',
-    pointCost: 80,
-    discountPercent: 100,
-    maxDiscountAmount: 39000,
-    minOrderAmount: 50000,
-    badge: 'Bánh 0đ',
   },
 ];
 
@@ -156,30 +157,79 @@ const vnd = (n: number) => `${(n || 0).toLocaleString('vi-VN')} ₫`;
 export default function PromotionsPage() {
   const router = useRouter();
   const { items, appliedPromo, setAppliedPromo, getTotalCount } = useCartStore();
-  const { user, deductLoyaltyPoints } = useAuthStore();
+  const { user, deductLoyaltyPoints, updateLoyaltyPoints } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'available' | 'redeem'>('available');
   const [manualCode, setManualCode] = useState('');
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [vouchers, setVouchers] = useState<PromotionVoucher[]>(INITIAL_VOUCHERS);
 
+  const mapApiVoucher = (v: any): PromotionVoucher => ({
+    code: v.code,
+    title:
+      v.code === 'BREW10'
+        ? 'Voucher Giảm 10% Toàn Đơn'
+        : v.code === 'BREWCOZY'
+        ? 'Ưu đãi Giờ Vàng giảm 15% toàn menu'
+        : v.code === 'BREW20'
+        ? 'Voucher Giảm 20% Đơn Từ 60k'
+        : v.code === 'WELCOME20'
+        ? 'Ưu đãi Thành Viên Mới 20%'
+        : v.code === 'BREW50'
+        ? 'Siêu Voucher VIP Giảm 50%'
+        : `Voucher ${v.code}`,
+    description: `Giảm ${v.discountPercent}% tối đa ${(v.maxDiscountAmount || 0).toLocaleString('vi-VN')}đ`,
+    discountPercent: v.discountPercent,
+    maxDiscountAmount: v.maxDiscountAmount,
+    minOrderAmount: v.minOrderAmount,
+    badge: v.code === 'BREW50' ? '⭐ VIP' : 'Ưu đãi',
+    expiresIn: 'Còn 30 ngày',
+    quantity: v.quantity ?? 1,
+  });
+
+  const fetchUserVouchers = async () => {
+    try {
+      const token = getAuthToken();
+      let mappedUser: PromotionVoucher[] = [];
+      if (token) {
+        const res = await apiClient('/auth/vouchers');
+        if (res.ok) {
+          const data = await res.json();
+          const vList = Array.isArray(data) ? data : (data?.data ?? []);
+          mappedUser = vList.map(mapApiVoucher);
+        }
+      }
+      if (mappedUser.length > 0) {
+        setVouchers(mappedUser);
+        return;
+      }
+
+      const cfgRes = await apiClient('/inventory/pricing-config');
+      if (cfgRes.ok) {
+        const cfgData = await cfgRes.json();
+        const rawList = Array.isArray(cfgData?.vouchers) ? cfgData.vouchers : [];
+        const activeList = rawList.filter((v: any) => v?.isActive !== false);
+        if (activeList.length > 0) {
+          setVouchers(activeList.map(mapApiVoucher));
+        }
+      }
+    } catch {
+      // keep initial vouchers if API unreachable
+    }
+  };
+
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
-    // Tải danh sách voucher cá nhân từ localStorage nếu có
-    try {
-      const saved = localStorage.getItem('brewlite_user_vouchers');
-      if (saved) {
-        setVouchers(JSON.parse(saved));
-      }
-    } catch {
-      // ignore
+    if (getAuthToken()) {
+      void useAuthStore.getState().refreshProfile();
     }
+    void fetchUserVouchers();
   }, []);
 
   const totalCartCount = mounted ? getTotalCount() : 0;
-  const points = user?.loyaltyPoints ?? 120;
-  const displayName = user?.fullName || 'Huỳnh Tuấn Kiệt';
+  const points = user?.loyaltyPoints ?? 0;
+  const displayName = user?.fullName || 'Khách hàng BrewLite';
 
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMsg({ type, text });
@@ -228,7 +278,7 @@ export default function PromotionsPage() {
     }
 
     // Các mã hợp lệ đặc biệt
-    if (['BREW10', 'BREW20', 'BREW50', 'BREWCOZY', 'WELCOME20', 'FREEFOAM', 'FREEBAKERY'].includes(cleanCode)) {
+    if (['BREW10', 'BREW20', 'BREW50', 'BREWCOZY', 'WELCOME20'].includes(cleanCode)) {
       handleApplyVoucher(cleanCode);
       setManualCode('');
       return;
@@ -238,10 +288,39 @@ export default function PromotionsPage() {
   };
 
   // Đổi Hạt Vàng
-  const handleRedeem = (reward: RedeemReward) => {
+  const handleRedeem = async (reward: RedeemReward) => {
     if (points < reward.pointCost) {
       showToast('error', `Bạn còn thiếu ${reward.pointCost - points} Hạt Vàng để đổi ưu đãi này.`);
       return;
+    }
+
+    const token = getAuthToken();
+    if (token) {
+      try {
+        const res = await apiClient('/auth/redeem-points', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            points: reward.pointCost,
+            description: reward.title,
+            voucherCode: reward.code,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const remaining = data.remainingPoints ?? (points - reward.pointCost);
+          updateLoyaltyPoints(remaining);
+          await fetchUserVouchers();
+          showToast('success', `Đã đổi mã "${reward.code}" (-${reward.pointCost} Hạt Vàng)!`);
+          return;
+        }
+        const errData = await res.json().catch(() => null);
+        showToast('error', errData?.message || 'Không thể đổi điểm lúc này.');
+        return;
+      } catch {
+        showToast('error', 'Không thể kết nối máy chủ để đổi điểm. Vui lòng thử lại.');
+        return;
+      }
     }
 
     const success = deductLoyaltyPoints(reward.pointCost);
@@ -269,11 +348,6 @@ export default function PromotionsPage() {
           quantity: 1,
         };
         updated = [newVoucher, ...prev];
-      }
-      try {
-        localStorage.setItem('brewlite_user_vouchers', JSON.stringify(updated));
-      } catch {
-        // ignore
       }
       return updated;
     });
@@ -572,7 +646,7 @@ export default function PromotionsPage() {
             <span>Thực đơn</span>
           </Link>
 
-          <Link href="/cart" className={styles.navItem}>
+          <Link href="/cart" className={styles.navItem} data-testid="cart-link">
             <div className={styles.navIconWrap}>
               <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
                 shopping_cart

@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { useCartStore, CartItem } from '../../stores/cart-store';
 import { useAuthStore } from '../../stores/auth-store';
-import { apiClient } from '../../lib/api-client';
+import { apiClient, getAuthToken } from '../../lib/api-client';
 import styles from './checkout.module.css';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -165,9 +165,9 @@ function CheckoutContent() {
   const [voucherCode, setVoucherCode] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
   const [voucherApplied, setVoucherApplied] = useState(false);
+  const [pricingVouchers, setPricingVouchers] = useState<any[]>([]);
 
-  // Failure simulation & execution state
-  const [simulateFailure, setSimulateFailure] = useState(false);
+  // Execution state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(orderIdParam || null);
@@ -213,37 +213,45 @@ function CheckoutContent() {
     return idempotencyKeyRef.current;
   };
 
-  // Khởi tạo & Auth Check
+  // Tải cấu hình voucher đang hoạt động từ GET /inventory/pricing-config
   useEffect(() => {
-    setMounted(true);
-    getOrCreateIdempotencyKey();
-
-    if (!isAuthenticated) {
-      router.push('/login?redirect=%2Fcheckout');
-      return;
-    }
-
-    if (appliedPromo) {
-      const code = appliedPromo.trim().toUpperCase();
-      setVoucherCode(code);
-      calculateDiscount(code, selectTotal());
-    } else {
-      setVoucherCode('');
-      setDiscountAmount(0);
-      setVoucherApplied(false);
-    }
-  }, [isAuthenticated, router, appliedPromo, selectTotal]);
-
-  // Đếm ngược 5 phút
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
+    let isCancelled = false;
+    const fetchPricing = async () => {
+      try {
+        const res = await apiClient('/inventory/pricing-config');
+        if (res.ok) {
+          const data = await res.json();
+          if (!isCancelled && Array.isArray(data?.vouchers)) {
+            setPricingVouchers(data.vouchers);
+          }
+        }
+      } catch {
+        // Fallback offline
+      }
+    };
+    void fetchPricing();
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const calculateDiscount = (code: string, currentSubtotal: number) => {
     const upper = code.trim().toUpperCase();
+    const found = pricingVouchers.find((v) => (v.code || '').toUpperCase() === upper);
+    if (found) {
+      const discountPercent = Number(found.discountPercent || 0);
+      const maxDiscount = Number(found.maxDiscountAmount || Infinity);
+      const minOrder = Number(found.minOrderAmount || 0);
+      if (currentSubtotal >= minOrder) {
+        const rawDiscount = Math.floor(currentSubtotal * (discountPercent / 100));
+        const finalDiscount = Math.min(rawDiscount, maxDiscount);
+        setDiscountAmount(finalDiscount);
+        setVoucherApplied(true);
+        return;
+      }
+    }
+
+    // Fallback standard rules
     if (upper === 'BREWLITE10' || upper === 'GIAM10' || upper === 'BREW10') {
       const discount = Math.floor(currentSubtotal * 0.1);
       setDiscountAmount(discount);
@@ -262,11 +270,48 @@ function CheckoutContent() {
     }
   };
 
-  // Tính toán biểu phí
+  // Khởi tạo & Auth Check
+  useEffect(() => {
+    setMounted(true);
+    getOrCreateIdempotencyKey();
+
+    const token = getAuthToken();
+    const hasAuth = isAuthenticated || Boolean(token);
+    if (!hasAuth) {
+      router.push('/auth/login?redirect=%2Fcheckout');
+      return;
+    }
+
+    if (appliedPromo) {
+      const code = appliedPromo.trim().toUpperCase();
+      setVoucherCode(code);
+      calculateDiscount(code, selectTotal());
+    } else {
+      setVoucherCode('');
+      setDiscountAmount(0);
+      setVoucherApplied(false);
+    }
+  }, [isAuthenticated, router, appliedPromo, selectTotal]);
+
+  useEffect(() => {
+    if (voucherCode) {
+      calculateDiscount(voucherCode, selectTotal());
+    }
+  }, [pricingVouchers]);
+
+  // Đếm ngược 5 phút
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Tính toán biểu phí chuẩn 0% VAT per SRS v4.3 AC-03.3
   const subtotal = selectTotal();
   const afterDiscount = Math.max(0, subtotal - discountAmount);
-  const vat = Math.floor(afterDiscount * 0.08); // VAT 8%
-  const totalAmount = Math.floor((afterDiscount + vat) / 1000) * 1000; // Làm tròn nghìn đồng
+  const vat = 0; // 0% VAT per SRS v4.3 AC-03.3
+  const totalAmount = afterDiscount; // 0% VAT, NO 1000 rounding!
   const loyaltyPoints = Math.floor(totalAmount / 1000);
   const totalItemCount = items.reduce((sum, it) => sum + it.quantity, 0);
 
@@ -286,24 +331,16 @@ function CheckoutContent() {
     setBiometricState('SCANNING');
 
     setTimeout(async () => {
-      if (simulateFailure) {
-        setBiometricState('FAILED');
-        setTimeout(() => {
-          setShowBiometricModal(false);
-          setCheckoutError('Xác thực Face ID / Sinh trắc học bị từ chối (Demo Mode).');
-        }, 1200);
-      } else {
-        setBiometricState('SUCCESS');
-        setTimeout(async () => {
-          setShowBiometricModal(false);
-          await processPaymentBackend('APPLE_PAY');
-        }, 700);
-      }
-    }, 1500);
+      setBiometricState('SUCCESS');
+      setTimeout(async () => {
+        setShowBiometricModal(false);
+        await processPaymentBackend('APPLE_PAY');
+      }, 700);
+    }, 1200);
   };
 
-  // Gửi lệnh thanh toán POST /payments
-  const processPaymentBackend = async (overrideMethod?: SelectedPaymentType) => {
+  // Mở Cổng Sandbox ZaloPay Web
+  const handleOpenZaloPaySandbox = async () => {
     if (items.length === 0 && !pendingOrderId) {
       setCheckoutError('Giỏ hàng trống. Vui lòng chọn món trước khi thanh toán.');
       return;
@@ -318,9 +355,6 @@ function CheckoutContent() {
     setIsSubmitting(true);
     setCheckoutError(null);
 
-    const effectiveMethod = overrideMethod || selectedMethod;
-    const backendMethod = effectiveMethod === 'BANK_CARD' || effectiveMethod === 'APPLE_PAY' ? 'BANK_CARD' : 'WALLET';
-
     try {
       let orderId = pendingOrderId;
 
@@ -328,16 +362,18 @@ function CheckoutContent() {
       if (!orderId) {
         const orderPayload = {
           items: items.map((it) => ({
-            productId: it.productId,
-            name: it.name,
+            productId: Number(it.productId),
+            productName: it.name,
             size: it.size,
-            toppingIds: it.toppingIds,
+            sugarLevel: it.sugarLevel,
+            iceLevel: it.iceLevel,
+            temperature: it.temperature,
+            notes: it.notes,
+            toppings: (it.toppingNames && it.toppingNames.length > 0) ? it.toppingNames : (it.toppingIds ?? []),
             quantity: it.quantity,
             unitPrice: it.unitPrice,
           })),
-          discountCode: voucherApplied ? voucherCode.trim() : undefined,
-          totalAmount: subtotal,
-          finalAmount: totalAmount,
+          ...(voucherApplied && voucherCode.trim() ? { discountCode: voucherCode.trim() } : {}),
         };
 
         const orderRes = await apiClient('/orders', {
@@ -358,9 +394,124 @@ function CheckoutContent() {
         setPendingOrderId(orderId);
       }
 
-      // Giả lập lỗi Demo Mode nếu được bật
-      if (simulateFailure) {
-        throw new Error('Giao dịch bị từ chối bởi Ngân hàng/Ví điện tử (🧪 Demo Mode: Giả lập lỗi thanh toán).');
+      // 2. Gọi POST /payments/zalopay/create
+      const zpRes = await apiClient('/payments/zalopay/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          orderId: Number(orderId),
+          amount: totalAmount,
+        }),
+      });
+
+      if (!zpRes.ok) {
+        const errData = await zpRes.json().catch(() => ({}));
+        throw new Error(errData?.message ?? 'Không thể khởi tạo phiên thanh toán ZaloPay Sandbox.');
+      }
+
+      const zpData = await zpRes.json();
+      const appTransId = zpData?.appTransId ?? zpData?.app_trans_id ?? '';
+
+      // 3. Lưu snapshot sang localStorage cho confirmation mà KHÔNG xóa giỏ hàng
+      if (typeof window !== 'undefined') {
+        try {
+          const snapshot = {
+            id: orderId,
+            items: items.map((it, idx) => ({
+              id: idx + 1,
+              productId: it.productId,
+              productName: it.name,
+              name: it.name,
+              size: it.size,
+              toppings: it.toppingNames || [],
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              imageUrl: it.imageUrl,
+              temperature: it.temperature,
+              servingStyle: it.servingStyle,
+              iceLevel: it.iceLevel,
+              sugarLevel: it.sugarLevel,
+              notes: it.notes,
+              isBakery: it.isBakery,
+            })),
+            discountCode: voucherApplied ? voucherCode.trim() : null,
+            discountAmount,
+            subtotal,
+            totalAmount,
+            finalAmount: totalAmount,
+            paymentMethod: 'Ví ZaloPay',
+            createdAt: new Date().toISOString(),
+            status: 'PENDING',
+          };
+          localStorage.setItem(`order_details_${orderId}`, JSON.stringify(snapshot));
+        } catch {
+          // ignore
+        }
+      }
+
+      router.push(`/gateway/zalopay?orderId=${orderId}&appTransId=${encodeURIComponent(appTransId)}&amount=${zpData?.amount ?? totalAmount}`);
+    } catch (err: unknown) {
+      setCheckoutError(err instanceof Error ? err.message : 'Lỗi kết nối cổng thanh toán ZaloPay.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Gửi lệnh thanh toán POST /payments
+  const processPaymentBackend = async (overrideMethod?: SelectedPaymentType) => {
+    if (items.length === 0 && !pendingOrderId) {
+      setCheckoutError('Giỏ hàng trống. Vui lòng chọn món trước khi thanh toán.');
+      return;
+    }
+
+    if (countdownSeconds <= 0) {
+      setCheckoutError('Đơn hàng đã hết hạn thanh toán (quá 5 phút). Vui lòng quay lại tạo đơn mới.');
+      return;
+    }
+
+    const currentKey = getOrCreateIdempotencyKey();
+    setIsSubmitting(true);
+    setCheckoutError(null);
+
+    const effectiveMethod = overrideMethod || selectedMethod;
+    const backendMethod = effectiveMethod === 'BANK_CARD' || effectiveMethod === 'APPLE_PAY' ? 'BANK_CARD' : 'EWALLET';
+
+    try {
+      let orderId = pendingOrderId;
+
+      // 1. Tạo đơn hàng nếu chưa có
+      if (!orderId) {
+        const orderPayload = {
+          items: items.map((it) => ({
+            productId: Number(it.productId),
+            productName: it.name,
+            size: it.size,
+            sugarLevel: it.sugarLevel,
+            iceLevel: it.iceLevel,
+            temperature: it.temperature,
+            notes: it.notes,
+            toppings: (it.toppingNames && it.toppingNames.length > 0) ? it.toppingNames : (it.toppingIds ?? []),
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+          })),
+          ...(voucherApplied && voucherCode.trim() ? { discountCode: voucherCode.trim() } : {}),
+        };
+
+        const orderRes = await apiClient('/orders', {
+          method: 'POST',
+          body: JSON.stringify(orderPayload),
+          headers: {
+            'Idempotency-Key': currentKey,
+          },
+        });
+
+        if (!orderRes.ok) {
+          const errData = await orderRes.json().catch(() => ({}));
+          throw new Error(errData?.message ?? 'Tạo đơn hàng không thành công.');
+        }
+
+        const orderData = await orderRes.json();
+        orderId = String(orderData?.id ?? orderData?.orderId ?? `ord-${Date.now()}`);
+        setPendingOrderId(orderId);
       }
 
       // 2. Thực hiện thanh toán với Idempotency Key
@@ -370,9 +521,8 @@ function CheckoutContent() {
           'Idempotency-Key': currentKey,
         },
         body: JSON.stringify({
-          orderId,
+          orderId: Number(orderId),
           method: backendMethod,
-          amount: totalAmount,
         }),
       });
 
@@ -385,7 +535,7 @@ function CheckoutContent() {
 
       const payResult = await paymentRes.json();
       if (payResult?.status === 'PAYMENT_FAILED') {
-        throw new Error('Cổng thanh toán phản hồi: Giao dịch thất bại.');
+        throw new Error(payResult?.message ?? 'Cổng thanh toán phản hồi: Giao dịch thất bại.');
       }
 
       // 3. Thanh toán thành công -> Lưu snapshot và customizations vào localStorage cho Confirmation
@@ -447,9 +597,9 @@ function CheckoutContent() {
         }
       }
 
-      // XÓA GIỎ HÀNG và chuyển sang xác nhận đơn
+      // XÓA GIỎ HÀNG và chuyển sang trang đơn hàng
       clear();
-      router.push(`/orders/${orderId}/confirmation`);
+      router.push(`/orders/${orderId}`);
     } catch (err: unknown) {
       setCheckoutError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra khi thanh toán.');
     } finally {
@@ -481,13 +631,16 @@ function CheckoutContent() {
     setCheckoutError(null);
   };
 
-  if (!mounted || !isAuthenticated) {
+  const token = typeof window !== 'undefined' ? getAuthToken() : null;
+  const hasAuth = isAuthenticated || Boolean(token);
+
+  if (!mounted || !hasAuth) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#faf6f0' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid #2c1810', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
           <p style={{ color: '#78716c', fontSize: 14 }}>
-            {!isAuthenticated && mounted ? 'Đang chuyển hướng tới trang Đăng nhập / Đăng ký...' : 'Đang tải trang thanh toán...'}
+            {!hasAuth && mounted ? 'Đang chuyển hướng tới trang Đăng nhập / Đăng ký...' : 'Đang tải trang thanh toán...'}
           </p>
         </div>
       </div>
@@ -539,7 +692,7 @@ function CheckoutContent() {
       <main className={styles.mainContainer}>
         {/* ── Sub-header: Breadcrumb & Stepper Capsule ── */}
         <div className={styles.subHeader}>
-          <Link href="/cart" className={styles.backBtn}>
+          <Link href="/cart" className={styles.backBtn} data-testid="cart-link">
             <ArrowLeft size={16} strokeWidth={2.2} />
             <span>Quay lại Giỏ hàng</span>
           </Link>
@@ -796,8 +949,8 @@ function CheckoutContent() {
               )}
 
               <div className={styles.pricingRow}>
-                <span>Thuế VAT (8%)</span>
-                <span className={styles.pricingValue}>{vnd(vat)}</span>
+                <span>Thuế VAT (0%)</span>
+                <span className={styles.pricingValue}>0 ₫</span>
               </div>
 
               <div className={styles.loyaltyRow}>
@@ -814,7 +967,6 @@ function CheckoutContent() {
               <div className={styles.grandTotalRow}>
                 <div>
                   <span className={styles.grandTotalLabel}>Tổng thanh toán:</span>
-                  <span style={{ fontSize: 11, color: '#78716c', marginLeft: 6 }}>(đã làm tròn)</span>
                 </div>
                 <span className={styles.grandTotalAmount}>{vnd(totalAmount)}</span>
               </div>
@@ -848,7 +1000,7 @@ function CheckoutContent() {
 
             {/* Thông báo lỗi thanh toán nếu có */}
             {checkoutError && (
-              <div className={styles.errorBox} role="alert">
+              <div className={styles.errorBox} role="alert" data-testid="payment-error">
                 <div className={styles.errorIcon}>
                   <AlertCircle size={18} strokeWidth={2.5} />
                 </div>
@@ -885,6 +1037,7 @@ function CheckoutContent() {
               <div
                 onClick={() => setSelectedMethod('EWALLET')}
                 className={`${styles.methodCard} ${selectedMethod === 'EWALLET' ? styles.methodCardActive : ''}`}
+                data-testid="payment-method-wallet"
               >
                 <div className={styles.methodHeader}>
                   <div className={styles.methodHeaderLeft}>
@@ -947,7 +1100,7 @@ function CheckoutContent() {
                           <div className={styles.zalopayQrBox}>
                             <Image
                               src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                                `https://zalopay.vn/pay?amount=${totalAmount}&orderId=${pendingOrderId || 'NEW'}&app_trans_id=${pendingOrderId ? 'zp_' + pendingOrderId : 'zp_sandbox_live'}`
+                                `/gateway/zalopay?orderId=${pendingOrderId || 'NEW'}&amount=${totalAmount}`
                               )}`}
                               alt="ZaloPay Sandbox QR Code"
                               fill
@@ -994,9 +1147,8 @@ function CheckoutContent() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <button
                               type="button"
-                              onClick={() => {
-                                window.open('https://zalopay.vn', '_blank');
-                              }}
+                              onClick={handleOpenZaloPaySandbox}
+                              disabled={isSubmitting}
                               className={styles.zalopayOpenBtn}
                             >
                               <ExternalLink size={13} />
@@ -1389,32 +1541,17 @@ function CheckoutContent() {
               </div>
             </div>
 
-            {/* Toggle Switch Demo Mode Giả lập lỗi */}
-            <div className={styles.demoSwitchRow}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>🧪</span>
-                <span style={{ fontWeight: 600 }}>Demo Mode: Giả lập lỗi thanh toán</span>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={simulateFailure}
-                onClick={() => setSimulateFailure(!simulateFailure)}
-                className={`${styles.toggleSwitch} ${simulateFailure ? styles.toggleSwitchActive : ''}`}
-              >
-                <span className={`${styles.toggleThumb} ${simulateFailure ? styles.toggleThumbActive : ''}`} />
-              </button>
-            </div>
-
             {/* Nút Thanh toán Chính */}
             <div>
               <button
                 type="button"
                 id="confirmPaymentBtn"
+                data-testid="confirm-payment-button"
                 onClick={handlePay}
                 disabled={isSubmitting || countdownSeconds <= 0}
-                className={`${styles.mainPayBtn} ${simulateFailure ? styles.mainPayBtnFailureMode : ''
-                  } ${isSubmitting || countdownSeconds <= 0 ? styles.mainPayBtnDisabled : ''}`}
+                className={`${styles.mainPayBtn} ${
+                  isSubmitting || countdownSeconds <= 0 ? styles.mainPayBtnDisabled : ''
+                }`}
               >
                 {isSubmitting ? (
                   <>
@@ -1430,13 +1567,11 @@ function CheckoutContent() {
                   <>
                     <Lock size={16} />
                     <span>
-                      {simulateFailure
-                        ? 'Thử nghiệm Lỗi Thanh toán (Demo)'
-                        : selectedMethod === 'EWALLET'
-                          ? `Xác nhận đã chuyển khoản • ${vnd(totalAmount)} →`
-                          : selectedMethod === 'BANK_CARD'
-                            ? `Thanh toán qua Thẻ • ${vnd(totalAmount)} →`
-                            : `Xác thực 1-Chạm • ${vnd(totalAmount)} →`}
+                      {selectedMethod === 'EWALLET'
+                        ? `Xác nhận đã chuyển khoản • ${vnd(totalAmount)} →`
+                        : selectedMethod === 'BANK_CARD'
+                          ? `Thanh toán qua Thẻ • ${vnd(totalAmount)} →`
+                          : `Xác thực 1-Chạm • ${vnd(totalAmount)} →`}
                     </span>
                   </>
                 )}

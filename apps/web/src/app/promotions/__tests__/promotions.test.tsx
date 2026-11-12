@@ -29,6 +29,41 @@ describe('Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)',
     window.localStorage.clear();
     mockPush.mockClear();
     vi.clearAllMocks();
+
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: any) => {
+      const urlStr = typeof url === 'string' ? url : (url as any).url || '';
+      if (urlStr.includes('/auth/vouchers')) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      if (urlStr.includes('/auth/redeem-points')) {
+        const body = init?.body ? JSON.parse(init.body) : {};
+        const cost = body.points || 10;
+        const current = useAuthStore.getState().user?.loyaltyPoints || 120;
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: true,
+              message: 'Đổi điểm thành công',
+              remainingPoints: current - cost,
+              voucher: { code: body.voucherCode },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   it('renders mobile layout with header, member VIP card, and points pill', async () => {
@@ -125,15 +160,15 @@ describe('Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)',
     fireEvent.click(redeemTabBtn);
 
     expect(await screen.findByText(/1.000₫ thanh toán = 1 Hạt Vàng/i)).toBeTruthy();
-    expect(screen.getByText(/Miễn Phí Foam Muối Biển 0đ/i)).toBeTruthy();
+    expect(screen.getByText(/Voucher Giảm 10% Toàn Đơn/i)).toBeTruthy();
 
-    // Redeem Foam Muối Biển (costs 30 points)
-    const redeemFoamBtn = screen.getByRole('button', { name: /Đổi \(-30đ\)/i });
-    fireEvent.click(redeemFoamBtn);
+    // Redeem BREW10 (costs 10 points)
+    const redeemBrew10Btn = screen.getByRole('button', { name: /Đổi \(-10đ\)/i });
+    fireEvent.click(redeemBrew10Btn);
 
-    // Points deducted: 120 - 30 = 90
-    expect(useAuthStore.getState().user?.loyaltyPoints).toBe(90);
-    expect(await screen.findByText(/Đã đổi mã "FREEFOAM" \(-30 Hạt Vàng\)!/i)).toBeTruthy();
+    expect(await screen.findByText(/Đã đổi mã "BREW10" \(-10 Hạt Vàng\)!/i)).toBeTruthy();
+    // Points deducted: 120 - 10 = 110
+    expect(useAuthStore.getState().user?.loyaltyPoints).toBe(110);
   });
 
   it('shows error toast when attempting to redeem an item without enough points', async () => {
@@ -143,7 +178,7 @@ describe('Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)',
         id: 1,
         email: 'khachhang@brewlite.vn',
         fullName: 'Huỳnh Tuấn Kiệt',
-        loyaltyPoints: 10, // Not enough for anything
+        loyaltyPoints: 0, // Not enough for anything
       },
     });
 
@@ -153,6 +188,6 @@ describe('Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)',
     fireEvent.click(redeemTabBtn);
 
     // Button should be disabled with missing points text
-    expect(await screen.findByText(/Thiếu 20đ/i)).toBeTruthy();
+    expect((await screen.findAllByText(/Thiếu 20đ/i)).length).toBeGreaterThanOrEqual(1);
   });
 });
