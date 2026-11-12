@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent, act } from '@testing-library/react';
 import CartPage from '../page';
 import { useCartStore } from '../../../stores/cart-store';
 import { useAuthStore } from '../../../stores/auth-store';
@@ -17,6 +17,11 @@ describe('Mobile Cart Page UI (/cart)', () => {
     useAuthStore.getState().logout();
     window.localStorage.clear();
     mockPush.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
   });
 
   it('renders empty cart state when cart has no items', async () => {
@@ -116,7 +121,7 @@ describe('Mobile Cart Page UI (/cart)', () => {
     expect(screen.getByText(/Ưu đãi giảm giá \(BREW10\)/i)).toBeTruthy();
   });
 
-  it('redirects unauthenticated user to login when clicking checkout', async () => {
+  it('redirects unauthenticated user to /auth/login when clicking checkout while preserving cart', async () => {
     useCartStore.getState().addItem({
       productId: 'p-1',
       name: 'Cà phê Đen',
@@ -127,10 +132,57 @@ describe('Mobile Cart Page UI (/cart)', () => {
 
     render(<CartPage />);
 
-    const checkoutBtn = await screen.findByRole('button', { name: /Tiến hành Thanh toán/i });
+    const checkoutBtn = await screen.findByTestId('checkout-button');
     fireEvent.click(checkoutBtn);
 
-    expect(mockPush).toHaveBeenCalledWith('/login?redirect=%2Fcheckout');
+    expect(mockPush).toHaveBeenCalledWith('/auth/login?redirect=%2Fcheckout');
+    expect(useCartStore.getState().items).toHaveLength(1);
+  });
+
+  it('uses 0% VAT without artificial 1000 rounding and loads active vouchers from pricing-config', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            vouchers: [
+              {
+                code: 'DYNAMIC10',
+                description: 'Dynamic 10%',
+                discountPercent: 10,
+                minOrderAmount: 0,
+                maxDiscountAmount: 15000,
+                isActive: true,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+
+    useCartStore.getState().addItem({
+      productId: 'p-1',
+      name: 'Cà phê Muối',
+      size: 'M',
+      unitPrice: 29500,
+      quantity: 1,
+    });
+
+    render(<CartPage />);
+
+    expect(await screen.findByTestId('cart-item')).toBeTruthy();
+    expect(screen.getByText(/Miễn thuế VAT \(0%\)/i)).toBeTruthy();
+    expect(screen.queryByText(/Thuế VAT \(8%\)/i)).toBeNull();
+    expect(screen.getAllByText('29.500 ₫').length).toBeGreaterThanOrEqual(2);
+
+    expect(await screen.findByText(/1 mã khả dụng/i)).toBeTruthy();
+
+    act(() => {
+      useAuthStore.getState().login('jwt-cart-test', { id: 5, email: 'user@brewlite.vn' });
+    });
+    fireEvent.click(screen.getByTestId('checkout-button'));
+    expect(mockPush).toHaveBeenCalledWith('/checkout');
   });
 
   it('opens detailed ProductEditModal when clicking edit pencil and updates item attributes', async () => {

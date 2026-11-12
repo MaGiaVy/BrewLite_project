@@ -25,8 +25,11 @@ import {
 } from 'lucide-react';
 import { useCartStore, CartItem } from '../../stores/cart-store';
 import { useAuthStore } from '../../stores/auth-store';
+import { getAuthToken } from '../../lib/api-client';
 import { ProductEditModal } from './ProductEditModal';
 import styles from './cart.module.css';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function vnd(n: number): string {
@@ -70,7 +73,7 @@ export interface VoucherItem {
   maxDiscountAmount: number;
 }
 
-const AVAILABLE_VOUCHERS: VoucherItem[] = [
+const FALLBACK_VOUCHERS: VoucherItem[] = [
   {
     code: 'BREWCOZY',
     title: 'Giờ vàng ưu đãi 15%',
@@ -167,10 +170,12 @@ export default function CartPage() {
   } = useCartStore();
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
 
   const [mounted, setMounted] = useState(false);
   const [promoInput, setPromoInput] = useState('');
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [remoteVouchers, setRemoteVouchers] = useState<VoucherItem[] | null>(null);
 
   // Modals
   const [itemToDelete, setItemToDelete] = useState<CartItem | null>(null);
@@ -182,7 +187,55 @@ export default function CartPage() {
 
   useEffect(() => {
     setMounted(true);
+    let active = true;
+    const loadPricingConfig = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/inventory/pricing-config`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!active || !Array.isArray(data?.vouchers)) return;
+        const mapped: VoucherItem[] = data.vouchers
+          .filter((v: Record<string, unknown>) => v && v.code && v.isActive !== false)
+          .map((v: Record<string, unknown>) => ({
+            code: String(v.code).trim().toUpperCase(),
+            title: String(v.title ?? v.description ?? `Giảm ${v.discountPercent ?? 0}%`),
+            desc: String(v.description ?? v.desc ?? ''),
+            discountPercent: Number(v.discountPercent ?? 0),
+            minOrderAmount: Number(v.minOrderAmount ?? 0),
+            maxDiscountAmount: Number(v.maxDiscountAmount ?? 0),
+          }));
+        setRemoteVouchers(mapped);
+      } catch {
+        // Keep fallback vouchers when offline or unmocked in unit tests
+      }
+    };
+    void loadPricingConfig();
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const availableVouchers = useMemo(() => {
+    const base = remoteVouchers ?? FALLBACK_VOUCHERS;
+    const byCode = new Map<string, VoucherItem>(base.map((v) => [v.code, v]));
+    for (const uv of user?.vouchers ?? []) {
+      if ((uv.quantity ?? 0) <= 0 || !uv.code) continue;
+      const code = String(uv.code).trim().toUpperCase();
+      if (!byCode.has(code)) {
+        byCode.set(code, {
+          code,
+          title: uv.title ?? `Voucher ${code} (-${uv.discountPercent}%)`,
+          desc: uv.description ?? '',
+          discountPercent: Number(uv.discountPercent ?? 0),
+          minOrderAmount: Number(uv.minOrderAmount ?? 0),
+          maxDiscountAmount: Number(uv.maxDiscountAmount ?? 0),
+        });
+      }
+    }
+    return Array.from(byCode.values());
+  }, [remoteVouchers, user?.vouchers]);
+
+  const canCheckout = mounted && isAuthenticated && Boolean(getAuthToken());
 
   const totalCount = mounted ? getTotalCount() : 0;
   const subtotal = mounted ? selectTotal() : 0;
@@ -191,8 +244,8 @@ export default function CartPage() {
   // Tính voucher
   const matchedVoucher = useMemo(() => {
     if (!appliedPromo) return null;
-    return AVAILABLE_VOUCHERS.find((v) => v.code === appliedPromo) || null;
-  }, [appliedPromo]);
+    return availableVouchers.find((v) => v.code === appliedPromo) || null;
+  }, [appliedPromo, availableVouchers]);
 
   const isUnderMin = Boolean(
     matchedVoucher && matchedVoucher.minOrderAmount > 0 && subtotal < matchedVoucher.minOrderAmount,
@@ -202,14 +255,12 @@ export default function CartPage() {
   let discountAmount = 0;
   if (matchedVoucher && !isUnderMin) {
     const rawDiscount = Math.round(subtotal * (matchedVoucher.discountPercent / 100));
-    discountAmount = Math.min(rawDiscount, matchedVoucher.maxDiscountAmount);
+    discountAmount = Math.min(rawDiscount, matchedVoucher.maxDiscountAmount, subtotal);
   }
 
-  // Thuế VAT 8% sau giảm giá
-  const afterDiscount = Math.max(0, subtotal - discountAmount);
-  const vat = Math.floor(afterDiscount * 0.08);
-  // Làm tròn xuống nghìn đồng (chuẩn Đồ án 1)
-  const finalTotal = Math.floor((afterDiscount + vat) / 1000) * 1000;
+  // SRS v4.3 AC-03.3: Miễn thuế VAT 0% và không làm tròn nhân tạo
+  const vat = 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount);
   const loyaltyPoints = Math.floor(finalTotal / 1000);
 
   // Xử lý áp dụng mã giảm giá
@@ -217,7 +268,7 @@ export default function CartPage() {
     const rawCode = (codeToApply || promoInput).trim().toUpperCase();
     if (!rawCode) return;
 
-    const found = AVAILABLE_VOUCHERS.find((v) => v.code === rawCode);
+    const found = availableVouchers.find((v) => v.code === rawCode);
     if (!found) {
       setPromoError(`Mã ưu đãi "${rawCode}" không tồn tại hoặc đã hết hạn.`);
       return;
@@ -268,8 +319,9 @@ export default function CartPage() {
 
   // Tiến hành thanh toán
   const handleCheckout = () => {
-    if (!isAuthenticated) {
-      router.push('/login?redirect=%2Fcheckout');
+    const authed = useAuthStore.getState().isAuthenticated && Boolean(getAuthToken());
+    if (!authed) {
+      router.push('/auth/login?redirect=%2Fcheckout');
     } else {
       router.push('/checkout');
     }
@@ -373,7 +425,7 @@ export default function CartPage() {
               const lineTotal = item.unitPrice * item.quantity;
 
               return (
-                <article key={item.lineId} className={styles.cartItemCard}>
+                <article key={item.lineId} data-testid="cart-item" className={styles.cartItemCard}>
                   {/* Thumbnail */}
                   <div className={styles.itemThumbWrap}>
                     <img
@@ -573,7 +625,7 @@ export default function CartPage() {
                 onClick={() => setIsVoucherModalOpen(true)}
                 className={styles.voucherCountBtn}
               >
-                <span>{AVAILABLE_VOUCHERS.length} mã khả dụng</span>
+                <span>{availableVouchers.length} mã khả dụng</span>
                 <ChevronRight size={13} />
               </button>
             </div>
@@ -691,7 +743,7 @@ export default function CartPage() {
               )}
 
               <div className={styles.summaryRow}>
-                <span>Thuế VAT (8%)</span>
+                <span>Miễn thuế VAT (0%)</span>
                 <span className={styles.summaryValue}>{vnd(vat)}</span>
               </div>
 
@@ -710,13 +762,12 @@ export default function CartPage() {
               <div>
                 <div className={styles.totalLabelGroup}>
                   <span className={styles.totalLabel}>Tổng cộng</span>
-                  <span className={styles.totalSub}>(đã làm tròn)</span>
                 </div>
               </div>
               <span className={styles.totalAmount}>{vnd(finalTotal)}</span>
             </div>
 
-            {!isAuthenticated && (
+            {!canCheckout && (
               <div className={styles.authNoticeBanner}>
                 <div className={styles.authNoticeIconWrap}>
                   <Lock size={15} />
@@ -725,11 +776,11 @@ export default function CartPage() {
                   <p className={styles.authNoticeTitle}>Yêu cầu đăng nhập để thanh toán</p>
                   <p className={styles.authNoticeText}>
                     Vui lòng{' '}
-                    <Link href="/login?redirect=%2Fcheckout" className={styles.authNoticeLink}>
+                    <Link href="/auth/login?redirect=%2Fcheckout" className={styles.authNoticeLink}>
                       Đăng nhập
                     </Link>{' '}
                     hoặc{' '}
-                    <Link href="/register?redirect=%2Fcheckout" className={styles.authNoticeLink}>
+                    <Link href="/auth/register?redirect=%2Fcheckout" className={styles.authNoticeLink}>
                       Đăng ký
                     </Link>{' '}
                     để bảo vệ quyền lợi thành viên và tiếp tục thanh toán đơn hàng.
@@ -754,6 +805,7 @@ export default function CartPage() {
                 onClick={handleCheckout}
                 className={styles.checkoutCta}
                 id="proceedToCheckoutBtn"
+                data-testid="checkout-button"
               >
                 <span>Tiến hành Thanh toán</span>
                 <ArrowRight size={18} strokeWidth={2.5} />
@@ -868,7 +920,7 @@ export default function CartPage() {
             </div>
 
             <div className={styles.voucherModalList}>
-              {AVAILABLE_VOUCHERS.map((v) => {
+              {availableVouchers.map((v) => {
                 const isSelected = appliedPromo === v.code;
                 const canUse = subtotal >= v.minOrderAmount;
                 return (

@@ -3,10 +3,16 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import React from 'react';
 import LoginPage from '../login/page';
 import RegisterPage from '../register/page';
-import { useAuthStore } from '../../../stores/auth-store';
+import AuthLoginPage from '../../auth/login/page';
+import AuthRegisterPage from '../../auth/register/page';
+import AuthLayout from '../layout';
+import AuthPrefixLayout from '../../auth/layout';
+import { AUTH_STORAGE_KEY, useAuthStore } from '../../../stores/auth-store';
+import { getAuthToken } from '../../../lib/api-client';
 
 const mockPush = vi.fn();
 let mockSearchParams: Record<string, string> = {};
+let mockPathname = '/login';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -18,6 +24,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => ({
     get: (key: string) => mockSearchParams[key] ?? null,
   }),
+  usePathname: () => mockPathname,
 }));
 
 describe('Task T5.1b-UI — Mobile Login & Register UI Integration Tests', () => {
@@ -25,6 +32,7 @@ describe('Task T5.1b-UI — Mobile Login & Register UI Integration Tests', () =>
     vi.restoreAllMocks();
     mockPush.mockReset();
     mockSearchParams = {};
+    mockPathname = '/login';
     window.localStorage.clear();
     useAuthStore.getState().logout();
   });
@@ -234,6 +242,147 @@ describe('Task T5.1b-UI — Mobile Login & Register UI Integration Tests', () =>
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
       expect(useAuthStore.getState().token).toBe('registered_jwt_token');
       expect(useAuthStore.getState().user?.email).toBe('newbie@brewlite.vn');
+    });
+  });
+
+  describe('3. Unified Auth Storage, /auth/* Routes & Playwright data-testids', () => {
+    it('syncs login() and logout() across Zustand store and AUTH_STORAGE_KEY without fake 120 fallback in refreshProfile()', async () => {
+      const store = useAuthStore.getState();
+      store.login('unified-jwt-token', {
+        id: 77,
+        email: 'unified@brewlite.vn',
+        fullName: 'Unified Customer',
+      });
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(getAuthToken()).toBe('unified-jwt-token');
+      const storedRaw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+      expect(storedRaw).toBeTruthy();
+      expect(JSON.parse(storedRaw as string)?.state?.token).toBe('unified-jwt-token');
+
+      // refreshProfile fetches /auth/me with Bearer token and updates user + vouchers
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 77,
+            email: 'unified@brewlite.vn',
+            loyaltyPoints: 45,
+            vouchers: [
+              {
+                code: 'BREW10',
+                discountPercent: 10,
+                maxDiscountAmount: 15000,
+                minOrderAmount: 0,
+                quantity: 2,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await useAuthStore.getState().refreshProfile();
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/me'),
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer unified-jwt-token' },
+        }),
+      );
+      expect(useAuthStore.getState().user?.loyaltyPoints).toBe(45);
+      expect(useAuthStore.getState().user?.vouchers).toHaveLength(1);
+
+      // logout clears both Zustand and localStorage; refreshProfile when unauthenticated does not fabricate 120 points
+      useAuthStore.getState().logout();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(getAuthToken()).toBeNull();
+      expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull();
+
+      useAuthStore.setState({ user: { id: 1, email: 'anon@brewlite.vn' }, token: null, accessToken: null, isAuthenticated: false });
+      await useAuthStore.getState().refreshProfile();
+      expect(useAuthStore.getState().user?.loyaltyPoints).toBeUndefined();
+    });
+
+    it('renders /auth/login and /auth/register with exact data-testids and allows Playwright register without confirmPassword', async () => {
+      mockPathname = '/auth/register';
+      mockSearchParams = { redirect: '/checkout' };
+
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            accessToken: 'pw_jwt_token',
+            user: { id: 88, email: 'pw@brewlite.vn', fullName: 'Playwright User' },
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(
+        <AuthPrefixLayout>
+          <AuthRegisterPage />
+        </AuthPrefixLayout>,
+      );
+
+      const switchRegister = screen.getByTestId('auth-switch-register') as HTMLAnchorElement;
+      expect(switchRegister.getAttribute('href')).toBe('/auth/register?redirect=%2Fcheckout');
+
+      fireEvent.change(screen.getByTestId('auth-name'), { target: { value: 'Playwright User' } });
+      fireEvent.change(screen.getByTestId('auth-email'), { target: { value: 'pw@brewlite.vn' } });
+      fireEvent.change(screen.getByTestId('auth-password'), { target: { value: 'secret123' } });
+      fireEvent.click(screen.getByTestId('auth-submit'));
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/checkout');
+      });
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(getAuthToken()).toBe('pw_jwt_token');
+
+      cleanup();
+      mockPush.mockReset();
+      mockPathname = '/auth/login';
+
+      const loginFetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            accessToken: 'pw_login_token',
+            user: { id: 88, email: 'pw@brewlite.vn', fullName: 'Playwright User' },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      vi.stubGlobal('fetch', loginFetchMock);
+
+      render(
+        <AuthLayout>
+          <AuthLoginPage />
+        </AuthLayout>,
+      );
+
+      expect((screen.getByTestId('auth-switch-register') as HTMLAnchorElement).getAttribute('href')).toBe(
+        '/auth/register?redirect=%2Fcheckout',
+      );
+      fireEvent.change(screen.getByTestId('auth-email'), { target: { value: 'pw@brewlite.vn' } });
+      fireEvent.change(screen.getByTestId('auth-password'), { target: { value: 'secret123' } });
+      fireEvent.click(screen.getByTestId('auth-submit'));
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/checkout');
+      });
+    });
+
+    it('keeps /login and /register switcher links when pathname does not start with /auth/', () => {
+      mockPathname = '/login';
+      mockSearchParams = { redirect: '/orders' };
+      render(
+        <AuthLayout>
+          <LoginPage />
+        </AuthLayout>,
+      );
+
+      expect((screen.getByTestId('auth-switch-register') as HTMLAnchorElement).getAttribute('href')).toBe(
+        '/register?redirect=%2Forders',
+      );
     });
   });
 });

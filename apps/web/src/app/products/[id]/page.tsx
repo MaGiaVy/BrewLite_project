@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '../../../stores/cart-store';
-import { MOCK_PRODUCTS } from '../../../data/mock-products';
+import { isProductOutOfStock, normalizeProduct } from '../../../lib/product-normalize';
 import { BrewLiteLogo } from '../../../components/BrewLiteLogo';
 import styles from '../product-detail.module.css';
 
@@ -12,9 +12,15 @@ export interface ProductDetail {
   id: number | string;
   name: string;
   price: number;
+  basePrice?: number;
   originalPrice?: number;
   imageUrl: string | null;
   stock: number;
+  availableServings?: number;
+  isOutOfStock?: boolean;
+  outOfStockSizes?: string[];
+  sizeUpchargeM?: number | null;
+  sizeUpchargeL?: number | null;
   description?: string | null;
   category?: string | null;
   badge?: string | null;
@@ -26,6 +32,27 @@ export interface ToppingItem {
   name: string;
   subtext: string;
   price: number;
+  isOutOfStock?: boolean;
+}
+
+const DEFAULT_SIZE_PRICING = { sizeS: 0, sizeM: 5000, sizeL: 10000 };
+
+function mapPricingToppings(list: unknown): ToppingItem[] | null {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  const mapped: ToppingItem[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const t = item as Record<string, unknown>;
+    if (t.isActive === false || !t.id || !t.name) continue;
+    mapped.push({
+      id: String(t.id),
+      name: String(t.name),
+      subtext: String(t.subtext ?? 'Topping thơm ngon chuẩn vị'),
+      price: Number(t.price ?? 0),
+      isOutOfStock: Boolean(t.isOutOfStock),
+    });
+  }
+  return mapped.length > 0 ? mapped : null;
 }
 
 const DRINK_TOPPINGS: ToppingItem[] = [
@@ -67,11 +94,29 @@ export default function ProductDetailPage({
 }) {
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
+  const rawCartCount = useCartStore((state) => state.getTotalCount());
 
+  const [mounted, setMounted] = useState(false);
   const [resolvedId, setResolvedId] = useState<string>('');
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [sizePricing, setSizePricing] = useState(DEFAULT_SIZE_PRICING);
+  const [drinkToppings, setDrinkToppings] = useState<ToppingItem[]>(DRINK_TOPPINGS);
+  const [bakeryToppings, setBakeryToppings] = useState<ToppingItem[]>(BAKERY_TOPPINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      if (navTimerRef.current) {
+        clearTimeout(navTimerRef.current);
+        navTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const cartCount = mounted ? rawCartCount : 0;
 
   // Customization States
   const isBakery = useMemo(() => {
@@ -112,65 +157,109 @@ export default function ProductDetailPage({
     };
   }, [params]);
 
-  // Load product data
+  // Load product data + pricing config
   useEffect(() => {
     if (!resolvedId) return;
     let active = true;
     const fetchDetail = async () => {
       try {
         setLoading(true);
+        setError(null);
         const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-        const res = await fetch(`${baseUrl}/products/${resolvedId}`);
-        if (!res.ok) {
+        const [productRes, pricingRes] = await Promise.allSettled([
+          fetch(`${baseUrl}/products/${resolvedId}`),
+          fetch(`${baseUrl}/inventory/pricing-config`),
+        ]);
+
+        if (
+          active &&
+          pricingRes.status === 'fulfilled' &&
+          pricingRes.value.ok
+        ) {
+          try {
+            const cfg = await pricingRes.value.json();
+            if (cfg?.sizePricing && typeof cfg.sizePricing === 'object') {
+              setSizePricing({
+                sizeS: Number(cfg.sizePricing.sizeS ?? DEFAULT_SIZE_PRICING.sizeS),
+                sizeM: Number(cfg.sizePricing.sizeM ?? DEFAULT_SIZE_PRICING.sizeM),
+                sizeL: Number(cfg.sizePricing.sizeL ?? DEFAULT_SIZE_PRICING.sizeL),
+              });
+            }
+            const nextDrinks = mapPricingToppings(cfg?.toppings ?? cfg?.drinkToppings);
+            if (nextDrinks) setDrinkToppings(nextDrinks);
+            const nextBakery = mapPricingToppings(cfg?.bakeryToppings);
+            if (nextBakery) setBakeryToppings(nextBakery);
+          } catch {
+            // Keep default pricing/toppings if pricing-config JSON is malformed
+          }
+        }
+
+        if (productRes.status === 'rejected' || !productRes.value.ok) {
           throw new Error('Không thể tải thông tin sản phẩm.');
         }
-        const json = await res.json();
-        const data = json?.data ?? json;
+
+        const json = await productRes.value.json();
+        const raw = json?.data ?? json;
+        if (!raw || typeof raw !== 'object' || !raw.name) {
+          throw new Error('Không thể tải thông tin sản phẩm.');
+        }
+
         if (active) {
+          const normalized = normalizeProduct(raw as Record<string, unknown>);
+          const cat = String(raw.category ?? '').toLowerCase();
+          const lowerName = String(raw.name ?? '').toLowerCase();
           const isBakeryItem =
-            data.category === 'bakery' ||
-            data.name.toLowerCase().includes('bánh') ||
-            data.name.toLowerCase().includes('cheesecake') ||
-            data.name.toLowerCase().includes('tiramisu');
+            Boolean(raw.isBakery) ||
+            cat === 'bakery' ||
+            lowerName.includes('bánh') ||
+            lowerName.includes('croissant') ||
+            lowerName.includes('pain') ||
+            lowerName.includes('cheesecake') ||
+            lowerName.includes('tiramisu');
+          const outOfStockSizes = Array.isArray(normalized.outOfStockSizes)
+            ? normalized.outOfStockSizes
+            : [];
 
           setProduct({
-            id: data.id,
-            name: data.name,
-            price: Number(data.price),
-            originalPrice: data.originalPrice ? Number(data.originalPrice) : undefined,
-            imageUrl: data.imageUrl ?? null,
-            stock: Number(data.stock ?? 10),
-            description: data.description ?? null,
-            category: data.category ?? null,
-            badge: data.badge ?? null,
+            id: normalized.id,
+            name: normalized.name,
+            price: normalized.price,
+            basePrice: normalized.basePrice,
+            originalPrice: normalized.originalPrice,
+            imageUrl: normalized.imageUrl,
+            stock: normalized.stock,
+            availableServings: normalized.availableServings,
+            isOutOfStock: normalized.isOutOfStock,
+            outOfStockSizes,
+            sizeUpchargeM:
+              raw.sizeUpchargeM !== undefined && raw.sizeUpchargeM !== null
+                ? Number(raw.sizeUpchargeM)
+                : null,
+            sizeUpchargeL:
+              raw.sizeUpchargeL !== undefined && raw.sizeUpchargeL !== null
+                ? Number(raw.sizeUpchargeL)
+                : null,
+            description: raw.description ?? null,
+            category: raw.category ?? null,
+            badge: normalized.badge ?? null,
             isBakery: isBakeryItem,
           });
           setTemperature(isBakeryItem ? 'hot' : 'iced');
+          if (!isBakeryItem && outOfStockSizes.includes('M')) {
+            const firstAvailable = (['S', 'M', 'L'] as const).find(
+              (s) => !outOfStockSizes.includes(s),
+            );
+            setSelectedSize(firstAvailable ?? 'M');
+          } else {
+            setSelectedSize('M');
+          }
         }
       } catch (err: unknown) {
         if (active) {
-          // Fallback dữ liệu chuẩn từ Assignment 1
-          const fallback =
-            MOCK_PRODUCTS.find((p) => String(p.id) === String(resolvedId)) ||
-            MOCK_PRODUCTS[0];
-          if (fallback) {
-            setProduct({
-              id: fallback.id,
-              name: fallback.name,
-              price: fallback.price,
-              originalPrice: fallback.originalPrice,
-              imageUrl: fallback.imageUrl,
-              stock: fallback.stock,
-              description: fallback.description,
-              category: fallback.category,
-              badge: fallback.badge,
-              isBakery: fallback.isBakery,
-            });
-            setTemperature(fallback.isBakery ? 'hot' : 'iced');
-            setError(null);
-          } else {
-            setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra');
-          }
+          setProduct(null);
+          setError(
+            err instanceof Error ? err.message : 'Không thể tải thông tin sản phẩm.',
+          );
         }
       } finally {
         if (active) setLoading(false);
@@ -184,12 +273,19 @@ export default function ProductDetailPage({
   }, [resolvedId]);
 
   // Pricing calculations
+  const sizeUpcharges = useMemo(
+    () => ({
+      S: sizePricing.sizeS,
+      M: product?.sizeUpchargeM ?? sizePricing.sizeM,
+      L: product?.sizeUpchargeL ?? sizePricing.sizeL,
+    }),
+    [sizePricing, product?.sizeUpchargeM, product?.sizeUpchargeL],
+  );
+
   const sizeUpcharge = useMemo(() => {
     if (isBakery) return 0;
-    if (selectedSize === 'M') return 5000;
-    if (selectedSize === 'L') return 10000;
-    return 0; // Size S
-  }, [isBakery, selectedSize]);
+    return sizeUpcharges[selectedSize];
+  }, [isBakery, selectedSize, sizeUpcharges]);
 
   const iceExtraCost = useMemo(() => {
     if (isBakery || temperature === 'hot') return 0;
@@ -197,7 +293,7 @@ export default function ProductDetailPage({
     return item?.extra ?? 0;
   }, [isBakery, temperature, iceLevel]);
 
-  const activeToppingList = isBakery ? BAKERY_TOPPINGS : DRINK_TOPPINGS;
+  const activeToppingList = isBakery ? bakeryToppings : drinkToppings;
 
   const toppingsExtraPrice = useMemo(() => {
     return activeToppingList
@@ -207,7 +303,9 @@ export default function ProductDetailPage({
 
   const unitPrice = (product?.price ?? 0) + sizeUpcharge + toppingsExtraPrice + iceExtraCost;
   const totalPrice = unitPrice * quantity;
-  const isSoldOut = (product?.stock ?? 0) <= 0;
+  const outOfStockSizes = product?.outOfStockSizes ?? [];
+  const isSoldOut = product ? isProductOutOfStock(product) : true;
+  const isSelectedSizeOut = !isBakery && outOfStockSizes.includes(selectedSize);
 
   const toggleTopping = (toppingId: string) => {
     setSelectedToppingIds((prev) =>
@@ -232,8 +330,15 @@ export default function ProductDetailPage({
     }
   };
 
+  const cancelPendingNav = () => {
+    if (navTimerRef.current) {
+      clearTimeout(navTimerRef.current);
+      navTimerRef.current = null;
+    }
+  };
+
   const handleAddToCart = () => {
-    if (!product || isSoldOut) return;
+    if (!product || isSoldOut || isSelectedSizeOut) return;
 
     const toppingNames = activeToppingList
       .filter((t) => selectedToppingIds.includes(t.id))
@@ -256,8 +361,10 @@ export default function ProductDetailPage({
       isBakery,
     });
 
+    cancelPendingNav();
     setShowToast(true);
-    setTimeout(() => {
+    navTimerRef.current = setTimeout(() => {
+      navTimerRef.current = null;
       setShowToast(false);
       router.push('/menu');
     }, 600);
@@ -315,19 +422,56 @@ export default function ProductDetailPage({
           <BrewLiteLogo height={28} />
         </Link>
 
-        <button
-          type="button"
-          aria-label="Lưu món yêu thích"
-          className={`${styles.favoriteBtn} ${isFavorite ? styles.favoriteBtnActive : ''}`}
-          onClick={() => setIsFavorite(!isFavorite)}
-        >
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 20, fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Link
+            href="/cart"
+            data-testid="cart-link"
+            aria-label="Xem giỏ hàng"
+            onClick={cancelPendingNav}
+            className={styles.favoriteBtn}
+            style={{ textDecoration: 'none', position: 'relative' }}
           >
-            favorite
-          </span>
-        </button>
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+              shopping_cart
+            </span>
+            {cartCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  minWidth: 18,
+                  height: 18,
+                  padding: '0 4px',
+                  borderRadius: 9999,
+                  background: '#845326',
+                  color: '#fef8f4',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {cartCount}
+              </span>
+            )}
+          </Link>
+
+          <button
+            type="button"
+            aria-label="Lưu món yêu thích"
+            className={`${styles.favoriteBtn} ${isFavorite ? styles.favoriteBtnActive : ''}`}
+            onClick={() => setIsFavorite(!isFavorite)}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: 20, fontVariationSettings: isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+            >
+              favorite
+            </span>
+          </button>
+        </div>
       </header>
 
       {/* 2. Hero Showcase Image */}
@@ -506,48 +650,42 @@ export default function ProductDetailPage({
           </div>
 
           <div className={styles.sizeGrid} role="radiogroup" aria-label="Chọn kích cỡ">
-            {/* Size S */}
-            <button
-              type="button"
-              role="radio"
-              aria-label="Kích cỡ S"
-              aria-checked={selectedSize === 'S'}
-              className={`${styles.sizeCard} ${selectedSize === 'S' ? styles.sizeCardActive : ''}`}
-              onClick={() => setSelectedSize('S')}
-            >
-              <span className={styles.sizeLetter}>S</span>
-              <span className={styles.sizeDetail}>Nhỏ • 250ml</span>
-              <span className={styles.sizePrice}>+0đ</span>
-            </button>
-
-            {/* Size M */}
-            <button
-              type="button"
-              role="radio"
-              aria-label="Kích cỡ M"
-              aria-checked={selectedSize === 'M'}
-              className={`${styles.sizeCard} ${selectedSize === 'M' ? styles.sizeCardActive : ''}`}
-              onClick={() => setSelectedSize('M')}
-            >
-              <span className={styles.popularPill}>Phổ biến</span>
-              <span className={styles.sizeLetter}>M</span>
-              <span className={styles.sizeDetail}>Vừa • 350ml</span>
-              <span className={styles.sizePrice}>+5.000đ</span>
-            </button>
-
-            {/* Size L */}
-            <button
-              type="button"
-              role="radio"
-              aria-label="Kích cỡ L"
-              aria-checked={selectedSize === 'L'}
-              className={`${styles.sizeCard} ${selectedSize === 'L' ? styles.sizeCardActive : ''}`}
-              onClick={() => setSelectedSize('L')}
-            >
-              <span className={styles.sizeLetter}>L</span>
-              <span className={styles.sizeDetail}>Lớn • 500ml</span>
-              <span className={styles.sizePrice}>+10.000đ</span>
-            </button>
+            {([
+              { id: 'S' as const, detail: 'Nhỏ • 250ml' },
+              { id: 'M' as const, detail: 'Vừa • 350ml', popular: true },
+              { id: 'L' as const, detail: 'Lớn • 500ml' },
+            ]).map((sz) => {
+              const isSizeOut = outOfStockSizes.includes(sz.id);
+              const isSelected = selectedSize === sz.id;
+              const upcharge = sizeUpcharges[sz.id];
+              return (
+                <button
+                  key={sz.id}
+                  type="button"
+                  role="radio"
+                  data-testid={`size-option-${sz.id}`}
+                  aria-label={`Kích cỡ ${sz.id}`}
+                  aria-checked={isSelected}
+                  disabled={isSizeOut}
+                  className={`${styles.sizeCard} ${isSelected ? styles.sizeCardActive : ''}`}
+                  style={isSizeOut ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+                  onClick={() => {
+                    if (!isSizeOut) setSelectedSize(sz.id);
+                  }}
+                >
+                  {sz.popular && !isSizeOut && (
+                    <span className={styles.popularPill}>Phổ biến</span>
+                  )}
+                  <span className={styles.sizeLetter}>{sz.id}</span>
+                  <span className={styles.sizeDetail}>
+                    {isSizeOut ? `${sz.detail} (Hết)` : sz.detail}
+                  </span>
+                  <span className={styles.sizePrice}>
+                    +{upcharge.toLocaleString('vi-VN')}đ
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
@@ -631,20 +769,28 @@ export default function ProductDetailPage({
         <div className={styles.toppingList}>
           {activeToppingList.map((top) => {
             const isChecked = selectedToppingIds.includes(top.id);
+            const topDisabled = Boolean(top.isOutOfStock);
             return (
               <label
                 key={top.id}
+                data-testid="topping-option"
                 className={`${styles.toppingRow} ${isChecked ? styles.toppingRowActive : ''}`}
+                style={topDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
                 <div className={styles.toppingLeft}>
                   <input
                     type="checkbox"
                     className={styles.toppingCheckbox}
                     checked={isChecked}
-                    onChange={() => toggleTopping(top.id)}
+                    disabled={topDisabled}
+                    onChange={() => {
+                      if (!topDisabled) toggleTopping(top.id);
+                    }}
                   />
                   <div className={styles.toppingInfo}>
-                    <span className={styles.toppingName}>{top.name}</span>
+                    <span className={styles.toppingName}>
+                      {top.name}{topDisabled ? ' (Hết)' : ''}
+                    </span>
                     <span className={styles.toppingDesc}>{top.subtext}</span>
                   </div>
                 </div>
@@ -763,18 +909,19 @@ export default function ProductDetailPage({
             {/* CTA Nút Thêm Vào Giỏ */}
             <button
               type="button"
-              className={`${styles.ctaButton} ${isSoldOut ? styles.ctaDisabled : ''}`}
+              data-testid="add-to-cart-button"
+              className={`${styles.ctaButton} ${isSoldOut || isSelectedSizeOut ? styles.ctaDisabled : ''}`}
               onClick={handleAddToCart}
-              disabled={isSoldOut}
+              disabled={isSoldOut || isSelectedSizeOut}
             >
               <div className={styles.ctaLeft}>
                 <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#fab983', fontVariationSettings: "'FILL' 1" }}>
                   shopping_bag
                 </span>
-                <span>{isSoldOut ? 'Món Tạm Hết Hàng' : 'Thêm vào giỏ hàng'}</span>
+                <span>{isSoldOut || isSelectedSizeOut ? 'Món Tạm Hết Hàng' : 'Thêm vào giỏ hàng'}</span>
               </div>
 
-              {!isSoldOut && (
+              {!isSoldOut && !isSelectedSizeOut && (
                 <span className={styles.ctaPrice}>
                   {totalPrice.toLocaleString('vi-VN')} ₫
                 </span>

@@ -3,18 +3,24 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useCartStore } from '../stores/cart-store';
+import { isProductOutOfStock } from '../lib/product-normalize';
 import styles from './ProductCard.module.css';
 
 export type ProductSummary = {
   id: number | string;
   name: string;
   price: number;
+  basePrice?: number;
   originalPrice?: number;
   imageUrl: string | null;
   stock: number;
-  description?: string;
+  availableServings?: number;
+  isOutOfStock?: boolean;
+  outOfStockSizes?: string[];
+  description?: string | null;
   category?: string;
   badge?: string;
+  tag?: string | null;
   isHero?: boolean;
 };
 
@@ -27,17 +33,23 @@ export function ProductCard({
 }) {
   const addItem = useCartStore((s) => s.addItem);
   const [isJustAdded, setIsJustAdded] = useState(false);
+  const isSoldOut = isProductOutOfStock(product);
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (product.stock <= 0) return;
+    if (isSoldOut) return;
+
+    const preferredSize =
+      (['M', 'S', 'L'] as const).find(
+        (s) => !product.outOfStockSizes?.includes(s),
+      ) ?? 'M';
 
     addItem({
       productId: product.id,
       name: product.name,
-      size: 'M',
-      unitPrice: product.price,
+      size: preferredSize,
+      unitPrice: Number(product.price ?? product.basePrice ?? 0),
       quantity: 1,
       imageUrl: product.imageUrl ?? undefined,
     });
@@ -46,12 +58,12 @@ export function ProductCard({
     setTimeout(() => setIsJustAdded(false), 500);
   };
 
-  const isSoldOut = product.stock <= 0;
   const showAsHero = isHero || product.isHero;
 
   return (
     <Link
       href={`/products/${product.id}`}
+      data-testid="product-card"
       className={`${showAsHero ? styles.cardHero : styles.card} ${isSoldOut ? styles.unavailable : ''}`}
       style={{ textDecoration: 'none', color: 'inherit' }}
     >

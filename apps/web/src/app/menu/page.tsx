@@ -8,6 +8,7 @@ import type { MenuState } from '../../components/MenuContent';
 import { BrewLiteLogo } from '../../components/BrewLiteLogo';
 import { useCartStore } from '../../stores/cart-store';
 import { MOCK_PRODUCTS } from '../../data/mock-products';
+import { matchesCategory, unwrapProductList } from '../../lib/product-normalize';
 import styles from './menu.module.css';
 
 const CATEGORIES = [
@@ -63,27 +64,21 @@ export default function Menu() {
         const response = await fetch(`${baseUrl}/products`, { signal: controller.signal });
         if (!response.ok) throw new Error('API lỗi');
         const json: unknown = await response.json();
-        if (
-          !json ||
-          typeof json !== 'object' ||
-          !('data' in json) ||
-          !Array.isArray(json.data)
-        ) {
+        const isEnvelope =
+          Boolean(json) &&
+          typeof json === 'object' &&
+          'data' in (json as object) &&
+          Array.isArray((json as { data: unknown }).data);
+        if (!Array.isArray(json) && !isEnvelope) {
           throw new Error('Sai định dạng API');
         }
         if (controller.signal.aborted) return;
-        const data = json.data as ProductSummary[];
+        const data = unwrapProductList(json);
         setRawProducts(data);
         setState(data.length > 0 ? 'ready' : 'empty');
-      } catch (err: unknown) {
+      } catch {
         if (!controller.signal.aborted) {
-          if (err instanceof Error && (err.message === 'API lỗi' || err.message === 'Sai định dạng API')) {
-            setState('error');
-          } else {
-            // Khi API backend NestJS chưa chạy: nạp danh sách món mẫu chuẩn Stitch
-            setRawProducts(MOCK_PRODUCTS);
-            setState('ready');
-          }
+          setState('error');
         }
       }
     };
@@ -94,16 +89,13 @@ export default function Menu() {
   // Lọc sản phẩm theo Category và Từ khóa tìm kiếm
   const filteredProducts = useMemo(() => {
     return rawProducts.filter((p) => {
-      const matchCategory =
-        selectedCategory === 'all' ||
-        !p.category ||
-        p.category === selectedCategory;
+      const matchCategory = matchesCategory(p.category, selectedCategory);
 
       const q = searchQuery.trim().toLowerCase();
       const matchSearch =
         q === '' ||
         p.name.toLowerCase().includes(q) ||
-        (p.description && p.description.toLowerCase().includes(q));
+        Boolean(p.description && p.description.toLowerCase().includes(q));
 
       return matchCategory && matchSearch;
     });
@@ -225,7 +217,7 @@ export default function Menu() {
             const count =
               cat.id === 'all'
                 ? rawProducts.length
-                : rawProducts.filter((p) => p.category === cat.id).length;
+                : rawProducts.filter((p) => matchesCategory(p.category, cat.id)).length;
             const label = cat.id === 'all' ? `Tất cả (${count || rawProducts.length})` : cat.label;
             const isActive = selectedCategory === cat.id;
 
@@ -301,7 +293,7 @@ export default function Menu() {
             <span>Thực đơn</span>
           </Link>
 
-          <Link href="/cart" className={styles.navItem}>
+          <Link href="/cart" className={styles.navItem} data-testid="cart-link">
             <div className={styles.navIconWrap}>
               <span className={`material-symbols-outlined ${styles.navIcon}`} style={{ fontSize: 22 }}>
                 shopping_cart

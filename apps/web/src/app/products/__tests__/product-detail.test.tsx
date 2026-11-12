@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import ProductDetailPage from '../[id]/page';
 import { useCartStore } from '../../../stores/cart-store';
+import { MOCK_PRODUCTS } from '../../../data/mock-products';
 
 // Mock Next.js navigation
 const mockPush = vi.fn();
@@ -13,11 +14,59 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+function stubProductApi(overrides: Record<string, unknown> = {}, pricingConfig?: unknown) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/inventory/pricing-config')) {
+        if (!pricingConfig) {
+          return Promise.resolve(new Response(JSON.stringify({ message: 'Not mocked' }), { status: 404 }));
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify(pricingConfig), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      const match = url.match(/\/products\/([^/?]+)/);
+      const id = match?.[1] ?? '1';
+      const base = MOCK_PRODUCTS.find((p) => String(p.id) === id);
+      if (!base) {
+        return Promise.resolve(new Response(JSON.stringify({ message: 'Not found' }), { status: 404 }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              ...base,
+              basePrice: base.price,
+              availableServings: base.stock,
+              isOutOfStock: base.stock <= 0,
+              outOfStockSizes: [],
+              ...overrides,
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+    }),
+  );
+}
+
 describe('Task T5.1c — Product Detail Page (/products/[id])', () => {
   beforeEach(() => {
     useCartStore.getState().clear();
     mockPush.mockClear();
     mockBack.mockClear();
+    stubProductApi();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('renders product details and initial pricing correctly', async () => {
@@ -144,5 +193,48 @@ describe('Task T5.1c — Product Detail Page (/products/[id])', () => {
     expect(await screen.findByText('Classic Tiramisu')).toBeTruthy();
     const soldOutBtn = screen.getByRole('button', { name: /Món Tạm Hết Hàng/i });
     expect(soldOutBtn.hasAttribute('disabled')).toBe(true);
+  });
+
+  it('shows real error UI instead of falling back to MOCK_PRODUCTS when API fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+
+    render(<ProductDetailPage params={Promise.resolve({ id: '1' })} />);
+
+    expect(await screen.findByText(/Không thể tải thông tin sản phẩm/i)).toBeTruthy();
+    expect(screen.queryByText('Cà phê Đen')).toBeNull();
+  });
+
+  it('uses pricing-config sizes/toppings, disables outOfStockSizes, auto-picks available size, and cancels 600ms redirect on unmount', async () => {
+    stubProductApi(
+      { outOfStockSizes: ['M'], availableServings: 10, stock: 10 },
+      {
+        sizePricing: { sizeS: 0, sizeM: 7000, sizeL: 15000 },
+        toppings: [
+          { id: 'boba', name: 'Trân châu trắng giòn', subtext: 'Crystal boba', price: 9000, isActive: true, isOutOfStock: false },
+        ],
+        bakeryToppings: [],
+      },
+    );
+
+    const { unmount } = render(<ProductDetailPage params={Promise.resolve({ id: '1' })} />);
+    expect(await screen.findByText('Cà phê Đen')).toBeTruthy();
+
+    const sizeS = screen.getByTestId('size-option-S');
+    const sizeM = screen.getByTestId('size-option-M');
+    const sizeL = screen.getByTestId('size-option-L');
+
+    expect(sizeM.hasAttribute('disabled')).toBe(true);
+    expect(sizeS.getAttribute('aria-checked')).toBe('true');
+    expect(sizeL.textContent).toContain('+15.000đ');
+    expect(screen.getByTestId('cart-link').getAttribute('href')).toBe('/cart');
+
+    fireEvent.click(screen.getAllByTestId('topping-option')[0]);
+    expect(screen.getAllByText(/38\.000/).length).toBeGreaterThanOrEqual(1);
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByTestId('add-to-cart-button'));
+    unmount();
+    vi.advanceTimersByTime(700);
+    expect(mockPush).not.toHaveBeenCalledWith('/menu');
   });
 });
