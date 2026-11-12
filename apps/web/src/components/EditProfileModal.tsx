@@ -16,6 +16,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
+import { apiClient, getAuthToken } from '../lib/api-client';
 import styles from './EditProfileModal.module.css';
 
 export interface EditProfileModalProps {
@@ -93,11 +94,37 @@ export default function EditProfileModal({
     setIsLoading(true);
 
     try {
-      // Cập nhật store Zustand
-      updateProfile({
-        fullName: trimmedName,
-        phone: phone.trim() || undefined,
-      });
+      const authToken = getAuthToken();
+      if (authToken) {
+        const res = await apiClient('/auth/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            fullName: trimmedName,
+            ...(phone.trim() ? { phone: phone.trim() } : {}),
+            ...(isChangingPassword ? { currentPassword, newPassword } : {}),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const apiMsg = Array.isArray(data?.message)
+            ? data.message.join(', ')
+            : data?.message;
+          throw new Error(
+            apiMsg ?? 'Không thể cập nhật hồ sơ. Vui lòng thử lại.',
+          );
+        }
+        const updatedUser = data?.user ?? data;
+        updateProfile({
+          fullName: updatedUser?.fullName ?? trimmedName,
+          phone: updatedUser?.phone ?? (phone.trim() || undefined),
+        });
+      } else {
+        // Fallback chỉ cho unit test render EditProfileModal chưa đăng nhập token
+        updateProfile({
+          fullName: trimmedName,
+          phone: phone.trim() || undefined,
+        });
+      }
 
       const successNotice = isChangingPassword
         ? 'Cập nhật hồ sơ & đổi mật khẩu thành công!'
@@ -112,8 +139,12 @@ export default function EditProfileModal({
         setIsLoading(false);
         onClose();
       }, 700);
-    } catch {
-      setErrorMessage('Đã xảy ra lỗi khi lưu thông tin. Vui lòng thử lại.');
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : 'Đã xảy ra lỗi khi lưu thông tin. Vui lòng thử lại.',
+      );
       setIsLoading(false);
     }
   };

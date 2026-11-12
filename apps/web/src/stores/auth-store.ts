@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { clearAuthSession, getAuthToken, setAuthSession } from '../lib/api-client';
 
 export interface UserVoucherItem {
   code: string;
@@ -40,6 +41,9 @@ export interface AuthState {
 
 export const AUTH_STORAGE_KEY = 'brewlite-auth';
 
+// Prevent infinite recursion when api-client's setAuthSession/clearAuthSession calls back into useAuthStore
+let isSyncingSession = false;
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -55,6 +59,14 @@ export const useAuthStore = create<AuthState>()(
           user,
           isAuthenticated: true,
         });
+        if (!isSyncingSession) {
+          isSyncingSession = true;
+          try {
+            setAuthSession({ token, user });
+          } finally {
+            isSyncingSession = false;
+          }
+        }
       },
 
       logout: () => {
@@ -64,6 +76,14 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           isAuthenticated: false,
         });
+        if (!isSyncingSession) {
+          isSyncingSession = true;
+          try {
+            clearAuthSession();
+          } finally {
+            isSyncingSession = false;
+          }
+        }
       },
 
       setUser: (user: User | null) => {
@@ -90,28 +110,32 @@ export const useAuthStore = create<AuthState>()(
       },
 
       refreshProfile: async () => {
-        const token = get().token;
-        if (!token) {
-          const u = get().user;
-          if (u) {
-            set({ user: { ...u, loyaltyPoints: u.loyaltyPoints ?? 120 } });
-          }
-          return;
-        }
+        const token = get().token ?? getAuthToken();
+        if (!token) return;
         try {
           const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
           const res = await fetch(`${apiBase}/auth/me`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
-            const data = await res.json();
-            if (data && typeof data === 'object') {
+            const json = await res.json();
+            const profile = json?.user ?? json?.data ?? json;
+            if (profile && typeof profile === 'object') {
               const u = get().user;
-              set({ user: { ...u, ...data } });
+              const vouchers = Array.isArray(profile.vouchers)
+                ? profile.vouchers
+                : u?.vouchers;
+              set({
+                user: {
+                  ...u,
+                  ...profile,
+                  ...(vouchers !== undefined ? { vouchers } : {}),
+                },
+              });
             }
           }
         } catch {
-          // ignore network failure in dev/mock
+          // ignore network failure
         }
       },
 
@@ -135,7 +159,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       isLoggedIn: () => {
-        return Boolean(get().token || (typeof window !== 'undefined' && localStorage.getItem('accessToken')));
+        return Boolean(
+          get().token ||
+            getAuthToken() ||
+            (typeof window !== 'undefined' && localStorage.getItem('accessToken')),
+        );
       },
     }),
     {

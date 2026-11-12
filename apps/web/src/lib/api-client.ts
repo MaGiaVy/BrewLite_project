@@ -64,6 +64,7 @@ export function clearAuthSession(): void {
   useAuthStore.getState().logout();
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.localStorage.removeItem('brewlite-auth');
     window.localStorage.removeItem('accessToken');
   }
 }
@@ -130,7 +131,8 @@ export async function apiClient(
       onUnauthorizedRedirect(loginUrl);
     } else if (
       typeof window !== 'undefined' &&
-      !window.location.pathname.startsWith('/login')
+      !window.location.pathname.startsWith('/login') &&
+      !window.location.pathname.startsWith('/auth/login')
     ) {
       try {
         window.location.href = loginUrl;
