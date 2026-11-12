@@ -2897,36 +2897,80 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('[BE-M1] getBaristaQueue bounds COMPLETED orders to 24h and strips email PII while keeping fullName/phone', async () => {
-      prisma.order.findMany.mockResolvedValueOnce([]);
+    it('[BE-M1] getBaristaQueue splits active (uncapped) and COMPLETED (24h, take 50) queries while stripping email PII', async () => {
+      prisma.order.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
       (prisma as any).recipe = { findMany: jest.fn().mockResolvedValue([]) };
       (prisma as any).toppingRecipe = { findMany: jest.fn().mockResolvedValue([]) };
 
       await service.getBaristaQueue();
 
-      expect(prisma.order.findMany).toHaveBeenCalledWith(
+      expect(prisma.order.findMany).toHaveBeenCalledTimes(2);
+      const activeCall = prisma.order.findMany.mock.calls[0][0];
+      const completedCall = prisma.order.findMany.mock.calls[1][0];
+
+      expect(activeCall).toEqual(
         expect.objectContaining({
           where: {
-            OR: [
-              {
-                status: {
-                  in: [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.READY],
-                },
-              },
-              {
-                status: OrderStatus.COMPLETED,
-                updatedAt: { gte: expect.any(Date) },
-              },
-            ],
+            status: {
+              in: [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.READY],
+            },
           },
           include: expect.objectContaining({
             user: {
               select: { id: true, fullName: true, phone: true },
             },
           }),
-          take: 200,
+          orderBy: { createdAt: 'asc' },
         }),
       );
+      expect(activeCall.take).toBeUndefined();
+
+      expect(completedCall).toEqual(
+        expect.objectContaining({
+          where: {
+            status: OrderStatus.COMPLETED,
+            updatedAt: { gte: expect.any(Date) },
+          },
+          include: expect.objectContaining({
+            user: {
+              select: { id: true, fullName: true, phone: true },
+            },
+          }),
+          orderBy: { updatedAt: 'desc' },
+          take: 50,
+        }),
+      );
+    });
+
+    it('getBaristaQueue still returns active PAID orders even when 200+ COMPLETED orders exist', async () => {
+      const activePaidOrder = {
+        id: 9999,
+        status: OrderStatus.PAID,
+        createdAt: new Date('2026-11-12T10:00:00Z'),
+        items: [{ id: 1, productId: 1, size: 'M', toppings: [], quantity: 1 }],
+        user: { id: 1, fullName: 'Khách A', phone: '0900000001' },
+      };
+      const completedBatch = Array.from({ length: 50 }, (_, idx) => ({
+        id: 8000 + idx,
+        status: OrderStatus.COMPLETED,
+        updatedAt: new Date(),
+        items: [{ id: idx + 10, productId: 1, size: 'M', toppings: [], quantity: 1 }],
+        user: { id: 2, fullName: 'Khách B', phone: '0900000002' },
+      }));
+
+      prisma.order.findMany
+        .mockResolvedValueOnce([activePaidOrder])
+        .mockResolvedValueOnce(completedBatch);
+      (prisma as any).recipe = { findMany: jest.fn().mockResolvedValue([]) };
+      (prisma as any).toppingRecipe = { findMany: jest.fn().mockResolvedValue([]) };
+
+      const queue = await service.getBaristaQueue();
+
+      expect(queue).toHaveLength(51);
+      expect(queue[0].id).toBe(9999);
+      expect(queue[0].status).toBe(OrderStatus.PAID);
     });
 
     it('[BE-M2] getOrderById and getMyOrders scope expired-order sweep instead of global sweep', async () => {
