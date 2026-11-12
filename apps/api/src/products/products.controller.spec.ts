@@ -1,10 +1,22 @@
 import { NotFoundException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@prisma/client';
-import { ProductsController } from './products.controller';
+import * as crypto from 'node:crypto';
+import { getJwtSecret } from '../auth/jwt-secret.helper';
+import {
+  extractUserFromRequest,
+  ProductsController,
+} from './products.controller';
 import { ProductsService } from './products.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROLES_KEY } from '../auth/roles.decorator';
+
+const signTestJwt = (payload: Record<string, unknown>) => {
+  const h = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const b = Buffer.from(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
+  const sig = crypto.createHmac('sha256', getJwtSecret()).update(`${h}.${b}`).digest('base64url');
+  return `${h}.${b}.${sig}`;
+};
 
 describe('ProductsController (T4.3 + Ass1 BOM Integration)', () => {
   let controller: ProductsController;
@@ -349,6 +361,24 @@ describe('ProductsController (T4.3 + Ass1 BOM Integration)', () => {
 
       const res = await controller.remove(1);
       expect(res).toEqual({ deleted: true, id: 1, name: 'Cà phê Đen', removedRecipesCount: 0 });
+    });
+  });
+
+  describe('BE-C01: Raw Authorization header fallback removal', () => {
+    it('extractUserFromRequest returns null when req.user is absent even with valid signed ADMIN Bearer token', () => {
+      const token = signTestJwt({ userId: 99, email: 'locked@brewlite.vn', role: Role.ADMIN });
+      expect(extractUserFromRequest({ headers: { authorization: `Bearer ${token}` } })).toBeNull();
+    });
+
+    it('GET /products?includeInactive=true and GET /products/:id hide inactive items and COGS when req.user is null despite raw ADMIN header', async () => {
+      const token = signTestJwt({ userId: 99, email: 'locked@brewlite.vn', role: Role.ADMIN });
+      const req = { user: null, headers: { authorization: `Bearer ${token}` } };
+      mockPrisma.product.findMany.mockResolvedValue([]);
+      mockPrisma.product.findUnique.mockResolvedValue({ id: 5, name: 'Hidden', isActive: false, recipes: [] });
+
+      await controller.findAll('true', req);
+      expect(mockPrisma.product.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true } }));
+      await expect(controller.findOne(5, req)).rejects.toThrow(NotFoundException);
     });
   });
 });

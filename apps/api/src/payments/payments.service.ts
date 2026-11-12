@@ -67,8 +67,18 @@ export class PaymentsService {
   private assertCanAccessOrder(
     order: { userId?: number | null },
     userId: number | undefined,
-    userRole?: Role,
     message = 'Bạn không có quyền thao tác trên đơn hàng này',
+  ): void {
+    if (order.userId === null || order.userId === undefined || order.userId !== userId) {
+      throw new ForbiddenException(message);
+    }
+  }
+
+  private assertCanReadPaymentStatus(
+    order: { userId?: number | null },
+    userId: number | undefined,
+    userRole?: Role,
+    message = 'Bạn không có quyền xem thông tin thanh toán của đơn hàng này',
   ): void {
     const isStaffOrAdmin = userRole === Role.ADMIN || userRole === Role.STAFF;
     if (
@@ -355,21 +365,41 @@ export class PaymentsService {
           },
         });
         if (userVoucher) {
-          if (userVoucher.quantity > 1) {
-            await (tx as any).userVoucher.update({
-              where: { id: userVoucher.id },
+          if (typeof (tx as any).userVoucher.updateMany === 'function') {
+            const decRes = await (tx as any).userVoucher.updateMany({
+              where: { id: userVoucher.id, quantity: { gte: 1 } },
               data: { quantity: { decrement: 1 } },
             });
+            if ((decRes?.count ?? 0) > 0) {
+              if (typeof (tx as any).userVoucher.deleteMany === 'function') {
+                await (tx as any).userVoucher.deleteMany({
+                  where: { id: userVoucher.id, quantity: { lte: 0 } },
+                });
+              }
+              if (tx.order?.updateMany) {
+                await tx.order.updateMany({
+                  where: { id: order.id },
+                  data: { voucherDeducted: true },
+                });
+              }
+            }
           } else {
-            await (tx as any).userVoucher.delete({
-              where: { id: userVoucher.id },
-            });
-          }
-          if (tx.order?.updateMany) {
-            await tx.order.updateMany({
-              where: { id: order.id },
-              data: { voucherDeducted: true },
-            });
+            if (userVoucher.quantity > 1) {
+              await (tx as any).userVoucher.update({
+                where: { id: userVoucher.id },
+                data: { quantity: { decrement: 1 } },
+              });
+            } else {
+              await (tx as any).userVoucher.delete({
+                where: { id: userVoucher.id },
+              });
+            }
+            if (tx.order?.updateMany) {
+              await tx.order.updateMany({
+                where: { id: order.id },
+                data: { voucherDeducted: true },
+              });
+            }
           }
         }
       });
@@ -382,7 +412,7 @@ export class PaymentsService {
     dto: CreatePaymentDto,
     userId: number,
     idempotencyKey?: string,
-    userRole?: Role,
+    _userRole?: Role,
   ): Promise<PaymentResponse> {
     this.assertValidOrderId(dto?.orderId);
 
@@ -398,7 +428,6 @@ export class PaymentsService {
     this.assertCanAccessOrder(
       order,
       userId,
-      userRole,
       'Ban khong co quyen thanh toan cho don hang nay',
     );
 
@@ -702,7 +731,7 @@ export class PaymentsService {
   async createZaloPayOrder(
     orderId: number,
     userId: number,
-    userRole?: Role,
+    _userRole?: Role,
   ): Promise<ZaloPayCreateOrderResult> {
     this.assertValidOrderId(orderId);
     if (!this.zaloPayService) {
@@ -721,7 +750,6 @@ export class PaymentsService {
     this.assertCanAccessOrder(
       order,
       userId,
-      userRole,
       'Bạn không có quyền thực hiện thanh toán cho đơn hàng này',
     );
 
@@ -957,7 +985,7 @@ export class PaymentsService {
       throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
     }
 
-    this.assertCanAccessOrder(
+    this.assertCanReadPaymentStatus(
       order,
       userId,
       userRole,
@@ -1097,7 +1125,6 @@ export class PaymentsService {
     this.assertCanAccessOrder(
       order,
       userId,
-      userRole,
       'Bạn không có quyền xác nhận hoặc hủy thanh toán đơn hàng này',
     );
 
@@ -1173,7 +1200,6 @@ export class PaymentsService {
     this.assertCanAccessOrder(
       order,
       userId,
-      userRole,
       'Bạn không có quyền xác nhận hoặc hủy thanh toán đơn hàng này',
     );
 
