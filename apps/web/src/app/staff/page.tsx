@@ -194,15 +194,16 @@ export default function StaffBaristaKdsPage() {
       if (!Array.isArray(rawList)) return;
       setProducts(
         rawList.map((p: any) => {
-          const outOfStockSizes = Array.isArray(p.outOfStockSizes)
-            ? p.outOfStockSizes
-            : [];
           const isOutOfStock = Boolean(p.isOutOfStock);
-          // Backend omits isSoldOutManual for STAFF on GET /products; infer manual 86 when out of stock without shortage sizes
+          // Fallback only for partial test fixtures omitting isSoldOutManual; real GET /products always includes it
           const isSoldOutManual =
             typeof p.isSoldOutManual === 'boolean'
               ? p.isSoldOutManual
-              : isOutOfStock && outOfStockSizes.length === 0;
+              : Boolean(
+                  p.isOutOfStock &&
+                    (!Array.isArray(p.outOfStockSizes) ||
+                      p.outOfStockSizes.length === 0),
+                );
           return {
             id: Number(p.id),
             name: String(p.name || `Món #${p.id}`),
@@ -330,6 +331,11 @@ export default function StaffBaristaKdsPage() {
     return sortOldestFirst(list);
   }, [grouped, activeTab]);
 
+  const soldOutCount = useMemo(
+    () => products.filter((p) => p.isSoldOutManual).length,
+    [products],
+  );
+
   // 5. Actions
   const handleAction = (
     order: StaffOrder,
@@ -381,11 +387,6 @@ export default function StaffBaristaKdsPage() {
     READY: grouped.READY.length,
     COMPLETED: grouped.COMPLETED.length,
   };
-
-  const soldOutCount = useMemo(
-    () => products.filter((p) => p.isSoldOutManual).length,
-    [products],
-  );
 
   const displayError = error || inventoryError;
 

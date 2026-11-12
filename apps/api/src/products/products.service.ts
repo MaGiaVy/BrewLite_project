@@ -152,6 +152,7 @@ export class ProductsService {
         description: product.description ?? null,
         stock,
         isOutOfStock,
+        isSoldOutManual: manualSoldOut,
         outOfStockSizes,
         availableServings,
         category: product.category,
