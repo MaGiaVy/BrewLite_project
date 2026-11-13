@@ -1,0 +1,404 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  CreateProductDto,
+  ToggleProductVisibilityDto,
+  UpdateProductDto,
+} from './dto/product.dto';
+
+@Injectable()
+export class ProductsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private enrichProductStock(
+    product: any,
+    orderCountMap?: Record<number, number>,
+    isAdmin = false,
+  ) {
+    if (!product) return product;
+
+    const manualSoldOut = Boolean(product.isSoldOutManual);
+    const basePrice = Number(product.basePrice || 0);
+
+    if (!Array.isArray(product.recipes) || product.recipes.length === 0) {
+      if (!isAdmin) {
+        return {
+          id: product.id,
+          name: product.name,
+          price: basePrice,
+          basePrice,
+          sizeUpchargeM: product.sizeUpchargeM ?? null,
+          sizeUpchargeL: product.sizeUpchargeL ?? null,
+          imageUrl: product.imageUrl ?? null,
+          description: product.description ?? null,
+          stock: 0,
+          isOutOfStock: true,
+          outOfStockSizes: ['S', 'M', 'L'],
+          availableServings: 0,
+          category: product.category,
+          tag: product.tag ?? null,
+        };
+      }
+      return {
+        ...product,
+        price: basePrice,
+        stock: 0,
+        isOutOfStock: true, // Tự động khóa đặt món nếu chưa có công thức BOM
+        ingredientOutOfStock: true,
+        availableServings: 0,
+        recipesCount: 0,
+        orderItemsCount: orderCountMap
+          ? (orderCountMap[product.id] ?? 0)
+          : undefined,
+        cogsSizeS: 0,
+        cogsSizeM: 0,
+        cogsSizeL: 0,
+        grossProfitS: basePrice,
+        marginPercentS: 100,
+      };
+    }
+
+    const sizes = ['S', 'M', 'L'];
+    const outOfStockSizes: string[] = [];
+    const hasBeverageSizes = product.recipes.some((r: any) =>
+      ['S', 'M', 'L'].includes(r.size),
+    );
+
+    if (hasBeverageSizes) {
+      for (const size of sizes) {
+        const sizeRecipes = product.recipes.filter(
+          (r: any) => (r.size === size || r.size === 'ALL') && r.amount > 0,
+        );
+        if (sizeRecipes.length === 0) continue;
+
+        const isSizeOut = sizeRecipes.some((r: any) => {
+          const isRequired = r.ingredient?.isRequiredForSale ?? true;
+          if (!isRequired) return false;
+          return (r.ingredient?.stock ?? 0) < r.amount;
+        });
+
+        if (isSizeOut) {
+          outOfStockSizes.push(size);
+        }
+      }
+    }
+
+    let minServings = Infinity;
+    let ingredientOutOfStock = false;
+
+    if (hasBeverageSizes) {
+      const activeSizes = sizes.filter((s) =>
+        product.recipes.some((r: any) => r.size === s),
+      );
+      // Món chỉ coi là hết hàng hoàn toàn khi TẤT CẢ các size đều đã hết hàng
+      ingredientOutOfStock =
+        activeSizes.length > 0 &&
+        activeSizes.every((s) => outOfStockSizes.includes(s));
+
+      if (ingredientOutOfStock) {
+        minServings = 0;
+      } else {
+        for (const r of product.recipes) {
+          if (r.ingredient && r.amount > 0) {
+            const isRequired = r.ingredient.isRequiredForSale ?? true;
+            if (!isRequired) continue;
+            // Bỏ qua nguyên liệu/bao bì thuộc size đã hết hàng, tránh kéo minServings của cả món về 0
+            if (r.size && r.size !== 'ALL' && outOfStockSizes.includes(r.size)) {
+              continue;
+            }
+            const possible = Math.floor(r.ingredient.stock / r.amount);
+            if (possible < minServings) {
+              minServings = possible;
+            }
+          }
+        }
+      }
+    } else {
+      // Món không có size (bánh ngọt)
+      for (const r of product.recipes) {
+        if (r.ingredient && r.amount > 0) {
+          const isRequired = r.ingredient.isRequiredForSale ?? true;
+          if (!isRequired) continue;
+          const possible = Math.floor(r.ingredient.stock / r.amount);
+          if (possible < minServings) {
+            minServings = possible;
+          }
+          if (r.ingredient.stock < r.amount) {
+            ingredientOutOfStock = true;
+          }
+        }
+      }
+      if (ingredientOutOfStock) {
+        outOfStockSizes.push('ALL');
+      }
+    }
+
+    const computedServings =
+      minServings === Infinity ? 99 : Math.max(0, minServings);
+    const isOutOfStock = manualSoldOut || ingredientOutOfStock;
+    const availableServings = manualSoldOut ? 0 : computedServings;
+    const stock = isOutOfStock ? 0 : availableServings;
+
+    if (!isAdmin) {
+      return {
+        id: product.id,
+        name: product.name,
+        price: basePrice,
+        basePrice,
+        sizeUpchargeM: product.sizeUpchargeM ?? null,
+        sizeUpchargeL: product.sizeUpchargeL ?? null,
+        imageUrl: product.imageUrl ?? null,
+        description: product.description ?? null,
+        stock,
+        isOutOfStock,
+        outOfStockSizes,
+        availableServings,
+        category: product.category,
+        tag: product.tag ?? null,
+      };
+    }
+
+    // Tính Giá vốn (COGS) theo từng Size (S, M, L) dựa trên Recipe.amount * Ingredient.costPerUnit
+    const calcCogsForSize = (targetSize: string) => {
+      const sizeRecs = product.recipes.filter(
+        (r: any) => r.size === targetSize || r.size === 'ALL',
+      );
+      return Math.round(
+        sizeRecs.reduce((sum: number, r: any) => {
+          const unitCost = Number(r.ingredient?.costPerUnit || 0);
+          return sum + Number(r.amount || 0) * unitCost;
+        }, 0),
+      );
+    };
+
+    const cogsSizeS = calcCogsForSize('S');
+    const cogsSizeM = calcCogsForSize('M') || cogsSizeS;
+    const cogsSizeL = calcCogsForSize('L') || cogsSizeM;
+    const grossProfitS = Math.round(basePrice - cogsSizeS);
+    const marginPercentS =
+      basePrice > 0
+        ? Math.max(0, Math.round((grossProfitS / basePrice) * 100))
+        : 0;
+
+    return {
+      ...product,
+      price: basePrice,
+      stock,
+      isOutOfStock,
+      ingredientOutOfStock,
+      outOfStockSizes,
+      availableServings,
+      recipesCount: product.recipes.length,
+      orderItemsCount: orderCountMap
+        ? (orderCountMap[product.id] ?? 0)
+        : undefined,
+      cogsSizeS,
+      cogsSizeM,
+      cogsSizeL,
+      grossProfitS,
+      marginPercentS,
+    };
+  }
+
+  async findAll(includeInactive = false, isAdmin = false) {
+    const products = await this.prisma.product.findMany({
+      ...(includeInactive ? {} : { where: { isActive: true } }),
+      include: {
+        recipes: {
+          include: {
+            ingredient: true,
+          },
+          orderBy: { id: 'asc' },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    if (!Array.isArray(products)) {
+      return { data: [] };
+    }
+
+    let orderCountMap: Record<number, number> | undefined;
+    if (includeInactive && (this.prisma as any).orderItem?.findMany) {
+      try {
+        const orderItems = await (this.prisma as any).orderItem.findMany({
+          select: { productId: true, quantity: true },
+        });
+        orderCountMap = {};
+        for (const item of orderItems) {
+          orderCountMap[item.productId] =
+            (orderCountMap[item.productId] ?? 0) + (item.quantity ?? 1);
+        }
+      } catch {
+        // Ignore if orderItem mock/table is not available
+      }
+    }
+
+    return {
+      data: products.map((p) => this.enrichProductStock(p, orderCountMap, isAdmin)),
+    };
+  }
+
+  async findOne(id: number, isAdmin = false) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        recipes: {
+          include: {
+            ingredient: true,
+          },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+
+    if (!product || (!isAdmin && !product.isActive)) {
+      throw new NotFoundException(`Product #${id} not found`);
+    }
+
+    const toppingRecipes = await this.prisma.toppingRecipe.findMany({
+      where: { isActive: true },
+      orderBy: { id: 'asc' },
+    });
+
+    const seen = new Set<string>();
+    const toppings: Array<{
+      id: string;
+      toppingId: string;
+      name: string;
+      toppingName: string;
+      price: number;
+      subtext: string | null;
+    }> = [];
+
+    for (const t of toppingRecipes) {
+      if (!seen.has(t.toppingId)) {
+        seen.add(t.toppingId);
+        toppings.push({
+          id: t.toppingId,
+          toppingId: t.toppingId,
+          name: t.toppingName,
+          toppingName: t.toppingName,
+          price: t.price,
+          subtext: t.subtext ?? null,
+        });
+      }
+    }
+
+    const enriched = this.enrichProductStock(product, undefined, isAdmin);
+    return {
+      data: {
+        ...enriched,
+        toppings,
+      },
+    };
+  }
+
+  async create(dto: CreateProductDto) {
+    const created = await this.prisma.product.create({
+      data: {
+        name: dto.name.trim(),
+        description: dto.description?.trim() || null,
+        imageUrl: dto.imageUrl?.trim() || '/images/products/ca-phe-sua.png',
+        basePrice: dto.basePrice,
+        sizeUpchargeM:
+          dto.sizeUpchargeM !== undefined ? dto.sizeUpchargeM : null,
+        sizeUpchargeL:
+          dto.sizeUpchargeL !== undefined ? dto.sizeUpchargeL : null,
+        category: dto.category || 'vietnamese',
+        tag: dto.tag?.trim() || 'Phổ biến',
+        isActive: dto.isActive ?? true,
+        isSoldOutManual: dto.isSoldOutManual ?? false,
+      },
+      include: {
+        recipes: {
+          include: { ingredient: true },
+        },
+      },
+    });
+    return this.enrichProductStock(created, undefined, true);
+  }
+
+  async update(id: number, dto: UpdateProductDto) {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Không tìm thấy sản phẩm #${id}`);
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description.trim() || null }
+          : {}),
+        ...(dto.imageUrl !== undefined
+          ? { imageUrl: dto.imageUrl.trim() || null }
+          : {}),
+        ...(dto.basePrice !== undefined ? { basePrice: dto.basePrice } : {}),
+        ...(dto.sizeUpchargeM !== undefined
+          ? { sizeUpchargeM: dto.sizeUpchargeM }
+          : {}),
+        ...(dto.sizeUpchargeL !== undefined
+          ? { sizeUpchargeL: dto.sizeUpchargeL }
+          : {}),
+        ...(dto.category !== undefined ? { category: dto.category } : {}),
+        ...(dto.tag !== undefined ? { tag: dto.tag.trim() || null } : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.isSoldOutManual !== undefined
+          ? { isSoldOutManual: dto.isSoldOutManual }
+          : {}),
+      },
+      include: {
+        recipes: {
+          include: { ingredient: true },
+        },
+      },
+    });
+
+    return this.enrichProductStock(updated, undefined, true);
+  }
+
+  async toggleVisibility(id: number, dto: ToggleProductVisibilityDto) {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Không tìm thấy sản phẩm #${id}`);
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: {
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.isSoldOutManual !== undefined
+          ? { isSoldOutManual: dto.isSoldOutManual }
+          : {}),
+      },
+      include: {
+        recipes: {
+          include: { ingredient: true },
+        },
+      },
+    });
+
+    return this.enrichProductStock(updated, undefined, true);
+  }
+
+  async remove(id: number) {
+    const existing = await this.prisma.product.findUnique({
+      where: { id },
+      include: { recipes: true },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Không tìm thấy sản phẩm #${id}`);
+    }
+
+    await this.prisma.product.delete({ where: { id } });
+
+    return {
+      deleted: true,
+      id,
+      name: existing.name,
+      removedRecipesCount: existing.recipes?.length ?? 0,
+    };
+  }
+}

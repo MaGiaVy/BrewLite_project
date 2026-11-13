@@ -1,10 +1,10 @@
 @startuml
 left to right direction
-skinparam defaultFontName "Segoe UI, Arial, sans-serif"
+skinparam defaultFontName "Arial"
 skinparam defaultFontSize 12
 skinparam roundcorner 10
 
-' Chuẩn UML tối giản đen trắng, không màu mè
+' Chuẩn UML tối giản đen trắng, sắc nét, không màu mè
 skinparam packageStyle rectangle
 skinparam shadowing false
 skinparam actor {
@@ -21,7 +21,8 @@ skinparam rectangle {
     BackgroundColor white
 }
 
-title SƠ ĐỒ USE CASE PHÂN HỆ ĐẶT HÀNG & THANH TOÁN (CHECKOUT & PAYMENT)\n(Hệ thống BrewLite 100% Cashless Coffee Roastery)
+' Thành viên thực hiện: Nguyễn Thị Ý (Task 1.3 - Use Case Checkout)
+title SƠ ĐỒ USE CASE PHÂN HỆ ĐẶT HÀNG & THANH TOÁN (CHECKOUT & PAYMENT)\n(Tách biệt rõ ràng 2 nghiệp vụ Tạo đơn hàng & Thanh toán trong cùng phân hệ)
 
 ' ==========================================
 ' ACTOR BÊN TRÁI (Khách hàng)
@@ -29,34 +30,48 @@ title SƠ ĐỒ USE CASE PHÂN HỆ ĐẶT HÀNG & THANH TOÁN (CHECKOUT & PAYME
 actor "Khách hàng" as Customer
 
 ' ==========================================
-' SYSTEM BOUNDARY (Phân hệ Checkout)
+' SYSTEM BOUNDARY (Phân hệ Đặt hàng & Thanh toán)
 ' ==========================================
-rectangle "Phân hệ Đặt hàng & Thanh toán (Checkout & Payment)" {
+rectangle "Phân hệ Đặt hàng & Thanh toán (Checkout & Payment Subsystem)" {
 
-    ' Use-case trung tâm
-    usecase "Đặt hàng & Thanh toán" as UC_Checkout
+    ' ------------------------------------------
+    ' NHÓM 1: TẠO ĐƠN HÀNG (ORDER CREATION)
+    ' ------------------------------------------
+    usecase "Tạo đơn hàng\n(Đặt hàng)" as UC_CreateOrder
+    
+    usecase "Xác thực đăng nhập\n(JWT)" as UC_Auth
+    usecase "Kiểm tra tồn kho BOM\n& Khóa Optimistic" as UC_Stock
+    usecase "Áp dụng mã giảm giá\n(Voucher)" as UC_Voucher
 
-    ' Các Use-case phụ thuộc bắt buộc (<<include>>)
-    usecase "Xác thực đăng nhập (JWT)" as UC_Auth
-    usecase "Kiểm tra tồn kho BOM & Khóa Optimistic" as UC_Stock
-    usecase "Xử lý thanh toán trực tuyến" as UC_ProcessPay
-    usecase "Tích lũy điểm Loyalty (1.000đ = 1đ)" as UC_Loyalty
+    ' ------------------------------------------
+    ' NHÓM 2: THANH TOÁN ĐƠN HÀNG (PAYMENT PROCESSING)
+    ' ------------------------------------------
+    usecase "Thanh toán đơn hàng\n(Checkout)" as UC_Payment
 
-    ' Các Use-case mở rộng tùy chọn (<<extend>>)
-    usecase "Áp dụng mã giảm giá (Voucher)" as UC_Voucher
-    usecase "Hủy đơn hàng (Grace Period / Hết hạn)" as UC_Cancel
-    usecase "Thanh toán lại khi lỗi (Retry Payment)" as UC_Retry
+    usecase "Xử lý thanh toán trực tuyến\n(ZaloPay / Mock)" as UC_ProcessPay
+    usecase "Tích lũy điểm Loyalty\n(1.000đ = 1đ Hạt Vàng)" as UC_Loyalty
+    usecase "Thanh toán lại khi lỗi\n(Retry Payment)" as UC_Retry
+    usecase "Hủy đơn hàng\n(Grace Period 5p / Hết hạn 15p)" as UC_Cancel
 
-    ' Quan hệ Include (bắt buộc thực hiện khi Checkout)
-    UC_Checkout ..> UC_Auth : <<include>>
-    UC_Checkout ..> UC_Stock : <<include>>
-    UC_Checkout ..> UC_ProcessPay : <<include>>
-    UC_Checkout ..> UC_Loyalty : <<include>>
+    ' ==========================================
+    ' CÁC MỐI QUAN HỆ TRONG NHÓM TẠO ĐƠN HÀNG
+    ' ==========================================
+    UC_CreateOrder ..> UC_Auth : <<include>>
+    UC_CreateOrder ..> UC_Stock : <<include>>
+    UC_Voucher ..> UC_CreateOrder : <<extend>>
 
-    ' Quan hệ Extend (kích hoạt trong điều kiện mở rộng hoặc ngoại lệ)
-    UC_Voucher ..> UC_Checkout : <<extend>>
-    UC_Cancel ..> UC_Checkout : <<extend>>
-    UC_Retry ..> UC_Checkout : <<extend>>
+    ' ==========================================
+    ' LIÊN KẾT GIỮA 2 USE CASE CHÍNH
+    ' ==========================================
+    UC_CreateOrder ..> UC_Payment : <<include>>
+
+    ' ==========================================
+    ' CÁC MỐI QUAN HỆ TRONG NHÓM THANH TOÁN
+    ' ==========================================
+    UC_Payment ..> UC_ProcessPay : <<include>>
+    UC_Payment ..> UC_Loyalty : <<include>>
+    UC_Retry ..> UC_Payment : <<extend>>
+    UC_Cancel ..> UC_Payment : <<extend>>
 }
 
 ' ==========================================
@@ -65,11 +80,11 @@ rectangle "Phân hệ Đặt hàng & Thanh toán (Checkout & Payment)" {
 actor "Cổng thanh toán điện tử\n(ZaloPay Sandbox / Mock Gateway)" as PaymentGateway
 
 ' ==========================================
-' LIÊN KẾT TÁC NHÂN
+' LIÊN KẾT TÁC NHÂN (ACTOR ASSOCIATIONS)
 ' ==========================================
-Customer --> UC_Checkout
-Customer --> UC_Cancel
+Customer --> UC_CreateOrder
 Customer --> UC_Retry
+Customer --> UC_Cancel
 
 UC_ProcessPay --> PaymentGateway
 

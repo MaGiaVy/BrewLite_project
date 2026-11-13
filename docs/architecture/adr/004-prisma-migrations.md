@@ -8,13 +8,13 @@
 ---
 
 ## 1. Bối cảnh (Context)
-Dự án BrewLite yêu cầu một cơ sở dữ liệu quan hệ (PostgreSQL) để lưu trữ các bảng có tính liên kết chặt chẽ (`User`, `Product`, `Order`, `OrderItem`, `Payment`, `Promotion`, `LoyaltyTransaction`). Đội ngũ phát triển cần một công cụ ORM đảm bảo an toàn kiểu dữ liệu (type-safety), hỗ trợ database transaction đáng tin cậy cho nghiệp vụ đặt hàng và cung cấp cơ chế theo dõi lịch sử thay đổi cấu trúc bảng (schema migrations) giữa các môi trường Local, CI và Production.
+Dự án BrewLite yêu cầu một cơ sở dữ liệu quan hệ (PostgreSQL) để lưu trữ các bảng có tính liên kết chặt chẽ gồm 12 model phục vụ cả thương mại điện tử lẫn định mức nguyên vật liệu BOM (`User`, `UserVoucher`, `Product`, `Ingredient`, `InventoryLog`, `Recipe`, `ToppingRecipe`, `StoreSetting`, `DiscountCode`, `Order`, `OrderItem`, `Payment`). Đội ngũ phát triển cần một công cụ ORM đảm bảo an toàn kiểu dữ liệu (type-safety), hỗ trợ database transaction đáng tin cậy cho nghiệp vụ đặt hàng và cung cấp cơ chế theo dõi lịch sử thay đổi cấu trúc bảng (schema migrations) giữa các môi trường Local, CI và Production.
 
 ## 2. Quyết định (Decision)
 Nhóm quyết định chọn **Prisma ORM** (`prisma`, `@prisma/client`) làm giải pháp quản lý cơ sở dữ liệu cho NestJS:
 1. **Khai báo Schema tập trung:** Toàn bộ thực thể, kiểu dữ liệu, quan hệ và chỉ mục được mô tả tại `apps/api/prisma/schema.prisma`.
 2. **Quản lý phiên bản bảng bằng Migrations:** Mọi thay đổi schema đều tạo ra tệp SQL tương ứng trong thư mục `apps/api/prisma/migrations/` và được đưa vào Git.
-3. **Cơ chế Khởi tạo dữ liệu mẫu (Seed):** Tệp `apps/api/prisma/seed.ts` được thiết kế có tính idempotent (`upsert`) để nạp ít nhất 8 món nước (có món hết hàng), size, topping và tài khoản mẫu phục vụ kiểm thử.
+3. **Cơ chế Khởi tạo dữ liệu mẫu (Seed):** Tệp `apps/api/prisma/seed.ts` được thiết kế có tính idempotent (`upsert`) để nạp 10 sản phẩm (cà phê, trà, bánh), danh mục `Ingredient`, công thức `Recipe` & `ToppingRecipe`, cấu hình size `StoreSetting`, mã giảm giá `DiscountCode` và tài khoản mẫu theo 3 vai trò (`ADMIN`, `STAFF`, `CUSTOMER`).
 
 ## 3. Hệ quả (Consequences)
 
