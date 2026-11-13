@@ -2,7 +2,7 @@
 ## HỆ THỐNG BREWLITE SPECIALTY COFFEE PLATFORM — ASSIGNMENT 2
 
 > **Học phần:** Công nghệ Phần mềm — Giảng viên: **ThS. Từ Lãng Phiêu**  
-> **Sinh viên thực hiện:** Mã Gia Vỹ — MSSV: **3124410414**  
+> **Sinh viên thực hiện:** Quách Kỳ Minh (Task 3.2 — UML Deployment Diagram)  
 > **Mã nhiệm vụ:** `TASK-03` / Phân nhiệm: **`Task 3.2 — UML Deployment Diagram (Đợt A)`**  
 > **Tạo phẩm liên kết:** [`deployment.puml`](deployment.puml) | [`deployment.svg`](deployment.svg) | [`deployment.png`](deployment.png)  
 > **Đồng bộ Kiến trúc:** Bám sát 100% tài liệu kiến trúc Task 3.1 ([`architecture.md`](../architecture/architecture.md)), [`ADR-001`](../architecture/adr/001-monorepo.md) (Monorepo), [`ADR-003`](../architecture/adr/003-render-ghcr-deployment.md) (Render & GHCR) và [`ADR-005`](../architecture/adr/005-mock-payment-service.md) (Thanh toán).

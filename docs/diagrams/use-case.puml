@@ -30,6 +30,7 @@ skinparam rectangle {
     FontStyle bold
 }
 
+' Thành viên thực hiện: Mã Gia Vỹ (Task 1.2 - Use Case Tổng Quát)
 title SƠ ĐỒ USE CASE TỔNG QUÁT HỆ THỐNG BREWLITE\n(Nền tảng Đặt đồ uống & Thanh toán không tiền mặt)
 
 ' ==========================================
