@@ -36,13 +36,13 @@
 **BrewLite** là nền tảng thương mại điện tử chuyên biệt cho chuỗi cửa hàng cà phê chất lượng cao hoạt động theo mô hình **100% không dùng tiền mặt (100% Cashless Specialty Coffee Roastery)**. Hệ thống giải quyết triệt để vấn đề nghẽn cổ chai tại quầy gọi món giờ cao điểm bằng cách trao quyền cho khách hàng tự đặt món, tùy chỉnh hương vị, thanh toán trực tuyến qua thẻ/ví điện tử và theo dõi tiến độ chuẩn bị qua thiết bị cá nhân (PWA/Web).
 
 ### 1.2 Ma trận phân quyền 3 Role (Role-Based Access Control)
-Hệ thống quản lý định danh người dùng qua cơ chế **Stateless JWT Authentication** với 3 vai trò độc lập:
+Hệ thống quản lý định danh người dùng qua cơ chế **Stateless JWT Authentication** với 3 vai trò độc lập, tuân thủ nguyên tắc đặc quyền tối thiểu (Least Privilege) và **Mô hình Single Root Admin**:
 
 | Vai trò (Role) | Ký hiệu Enum | Phạm vi quyền hạn & Giao diện tương ứng |
 | :--- | :---: | :--- |
-| **Khách hàng** | `CUSTOMER` | - Xem Menu, duyệt danh mục, cấu hình Size/Topping/Đá/Đường, quản lý Giỏ hàng.<br>- Đăng ký/Đăng nhập tài khoản, tích lũy điểm Loyalty (1.000đ = 1 điểm), áp mã giảm giá (Voucher).<br>- Tạo đơn hàng, thanh toán qua Cổng giả lập Mock / Cổng ZaloPay Sandbox, theo dõi tiến trình và lịch sử đơn hàng tại `/orders`. |
-| **Nhân viên quầy pha chế** | `STAFF` | - Truy cập giao diện màn hình bếp/quầy pha chế (**Staff KDS** tại `/staff`).<br>- Tiếp nhận đơn hàng mới (`PAID`), chuyển trạng thái pha chế `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`. |
-| **Quản trị viên / Chủ quán** | `ADMIN` | - Truy cập bảng điều khiển quản trị (**Admin Portal** tại `/admin`).<br>- Quản lý thực đơn (CRUD món nước/bánh ngọt), định giá theo size, bật/tắt bán thủ công (`isSoldOutManual`).<br>- Quản lý định mức công thức pha chế (BOM Recipe) và theo dõi, cảnh báo tồn kho nguyên liệu (`Ingredient`). |
+| **Khách hàng** | `CUSTOMER` | - Xem Menu, duyệt danh mục, cấu hình Size/Topping/Đá/Đường, quản lý Giỏ hàng.<br>- Đăng ký/Đăng nhập tài khoản, tích lũy điểm Loyalty (1.000đ = 1 điểm), áp mã giảm giá (Voucher).<br>- Tạo đơn hàng (giới hạn tối đa 5 đơn chờ PENDING/PAYMENT_FAILED đồng thời), thanh toán qua Cổng giả lập Mock / Cổng ZaloPay Sandbox, theo dõi tiến trình và lịch sử đơn hàng tại `/orders`. |
+| **Nhân viên quầy pha chế** | `STAFF` | - Truy cập giao diện màn hình bếp/quầy pha chế (**Staff KDS** tại `/staff`).<br>- Tiếp nhận đơn hàng mới (`PAID`), chuyển trạng thái pha chế `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`.<br>- Thao tác Báo hết món tạm thời (86 / `isSoldOutManual`) qua endpoint chuyên biệt mà không được xem công thức (Recipe) và giá vốn (COGS). |
+| **Quản trị viên / Chủ quán** | `ADMIN` | - Truy cập bảng điều khiển quản trị (**Admin Portal** tại `/admin`).<br>- Quản lý thực đơn (CRUD món nước/bánh ngọt), định giá theo size, bật/tắt bán thủ công (`isSoldOutManual`), quản lý giá vốn và công thức định mức (BOM).<br>- Quản lý định mức công thức pha chế (BOM Recipe), theo dõi nhập/xuất kho và cảnh báo tồn kho nguyên liệu (`Ingredient`).<br>- **Mô hình 1 Root Admin duy nhất:** Khóa cứng định danh Root Admin `admin@brewlite.vn`. Hệ thống cấm tạo mới hoặc thăng cấp bất kỳ tài khoản nào khác lên quyền ADMIN. |
 
 ---
 
@@ -163,14 +163,18 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
   - [x] **AC-04.2:** Mật khẩu dưới 6 ký tự bị chặn ngay tại Client form validation và Backend DTO validation với mã lỗi `400 Bad Request`.
   - [x] **AC-04.3:** Đăng nhập thất bại (sai email hoặc mật khẩu) trả về mã lỗi `401 Unauthorized` kèm thông điệp chung chống rò rỉ dữ liệu.
   - [x] **AC-04.4:** Bảo vệ các endpoint nhạy cảm (`/payments`, `/orders/me`, `/staff/*`, `/admin/*`) bằng `JwtAuthGuard` và `RolesGuard`. Truy cập không quyền bị từ chối với mã lỗi `403 Forbidden`.
+  - [x] **AC-04.5:** Mô hình Single Root Admin (`admin@brewlite.vn`): Hệ thống nghiêm cấm tạo mới hoặc thăng cấp bất kỳ tài khoản nào khác lên role ADMIN từ cả giao diện Staff Management lẫn API (`403 Forbidden` / `400 Bad Request`).
+  - [x] **AC-04.6:** Bảo vệ tầng biên (Edge Middleware Guard): Đồng bộ cookie phiên `brewlite_session_role` song song với JWT để chặn chuyển hướng truy cập trái phép vào `/admin/*` và `/staff/*` ngay từ máy chủ Next.js Edge.
 
 ---
 
-### `FR-05`: Đặt Đơn Hàng & Giữ Tồn Kho Đồng Thời (Optimistic Locking)
+### `FR-05`: Đặt Đơn Hàng & Giữ Tồn Kho Đồng Thời (Optimistic Locking & Anti-Spam)
 * **Độ ưu tiên:** `MUST HAVE`
 * **Tác nhân:** Khách hàng, Hệ thống
 * **Mô tả chi tiết:**
   * Cung cấp API `POST /orders` tiếp nhận danh sách món trong giỏ, tạo đơn hàng ở trạng thái ban đầu `PENDING`.
+  * Khóa hàng User (`SELECT ... FOR UPDATE`) trong database transaction để đảm bảo tính atomic khi kiểm tra giới hạn đơn và trừ điểm voucher.
+  * Cơ chế **Chống spam đơn hàng (Anti-Spam Rate Limit)**: Một tài khoản khách hàng chỉ được phép duy trì tối đa **5 đơn hàng** ở trạng thái chờ xử lý (`PENDING` hoặc `PAYMENT_FAILED`) cùng lúc. Khi vượt quá 5 đơn, server từ chối nhận đơn mới với mã lỗi `400 Bad Request`.
   * Cơ chế **Kiểm tra tồn kho theo công thức (BOM Recipe)**: Mỗi ly cà phê yêu cầu định mức nguyên liệu cụ thể (VD: 1 ly Cà phê sữa đá cần 20g cà phê hạt phin + 30ml sữa đặc). Hệ thống kiểm tra số dư nguyên liệu trong bảng `Ingredient` trước khi tạo đơn.
   * Áp dụng **Khóa lạc quan (Optimistic Locking)** qua trường `version` trên bảng `Order`: Mọi cập nhật trạng thái đơn phải có điều kiện `where: { id, version }` và tăng `version` lên 1 đơn vị nhằm loại bỏ triệt để hiện tượng tranh chấp ghi đè (Race Condition).
 * **Tiêu chí chấp nhận (Acceptance Criteria):**
@@ -178,6 +182,7 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
   - [x] **AC-05.2:** Nếu nguyên liệu không đủ pha chế, API ném `BadRequestException` thông báo rõ nguyên liệu hết hàng, không tạo đơn rác.
   - [x] **AC-05.3:** Nếu có 2 tiến trình đồng thời thay đổi trạng thái cùng một đơn hàng, tiến trình đến sau bị từ chối với mã lỗi `409 Conflict` (Zero Overselling).
   - [x] **AC-05.4:** Đơn hàng ở trạng thái `PENDING` quá **15 phút** mà không thanh toán sẽ bị từ chối xử lý khi gửi lệnh thanh toán hoặc tự động bị hủy bởi Scheduled Job.
+  - [x] **AC-05.5:** Giới hạn chống spam đơn: Khách hàng có $\ge 5$ đơn chờ xử lý (`PENDING` hoặc `PAYMENT_FAILED`) bị từ chối tạo thêm đơn mới cho đến khi hoàn tất thanh toán hoặc hủy đơn cũ.
 
 ---
 
@@ -195,7 +200,8 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
   - [x] **AC-06.2:** Gửi lại cùng `Idempotency-Key` trả về ngay kết quả giao dịch cũ với cờ `isIdempotent: true`, không tạo bản ghi thanh toán mới.
   - [x] **AC-06.3:** Nhận tín hiệu thanh toán thành công (Webhook hoặc Polling): Đơn hàng đổi sang `PAID`, giao diện tự động nhảy tick xanh và điều hướng sang trang xác nhận đơn.
   - [x] **AC-06.4:** Khi chọn kịch bản lỗi (`simulateFailure = true`), đơn hàng chuyển sang `PAYMENT_FAILED` với thông báo lỗi lịch sự, cho phép khách hàng thử lại hoặc đổi phương thức thanh toán.
-  - [x] **AC-06.5:** Phòng chống tấn công IDOR: Khách hàng không thể thanh toán đơn hàng thuộc về người dùng khác (`403 Forbidden`).
+  - [x] **AC-06.5:** Phòng chống tấn công IDOR & Kiểm tra quyền sở hữu đơn hàng (Order Ownership): Khách hàng tuyệt đối không thể tạo giao dịch hoặc hủy đơn thanh toán thuộc về người dùng khác (`403 Forbidden`).
+  - [x] **AC-06.6:** Bảo mật môi trường Sandbox (Default-Deny): Các endpoint giả lập xác nhận `/payments/zalopay/confirm` và hủy `/payments/zalopay/cancel` bị chặn mặc định với mã `403 Forbidden` trên môi trường production, chỉ cho phép kích hoạt khi cờ `ALLOW_SANDBOX_CONFIRM=true`.
 
 ---
 
@@ -205,11 +211,13 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
 * **Mô tả chi tiết:**
   * Seed sẵn các mã voucher khuyến mãi: `BREWLITE10` (giảm 10%), `WELCOME20` (giảm 20.000đ cho đơn từ 50.000đ).
   * API `GET /inventory/pricing-config`, `GET /auth/vouchers`, `POST /auth/redeem-points` và cơ chế thẩm định mã `DiscountCode` / `UserVoucher` phía server trong `POST /orders` kiểm tra điều kiện giá trị đơn tối thiểu, trạng thái `isActive` và trần chiết khấu.
-  * Cơ chế **Hạt Vàng BrewLite Club (Loyalty)**: Tích lũy tự động 1 điểm cho mỗi 1.000 VNĐ chi tiêu (`points = Math.floor(totalAmount / 1000)`). Khách hàng có thể quy đổi điểm thành chiết khấu trực tiếp vào đơn hàng.
+  * Cơ chế **Hạt Vàng BrewLite Club (Loyalty)**: Tích lũy tự động 1 điểm cho mỗi 1.000 VNĐ chi tiêu (`points = Math.floor(totalAmount / 1000)`). Khách hàng có thể quy đổi điểm thành voucher chiết khấu.
+  * Cơ chế **Đổi điểm Voucher do Server kiểm soát (Server-Enforced Loyalty Redemption)**: Tỷ lệ đổi điểm được server khóa cứng: **10 điểm = voucher 10.000đ**, **20 điểm = voucher 20.000đ**, **50 điểm = voucher 50.000đ** (`requiredPoints`). Server tự động thẩm định và trừ chính xác số điểm quy định theo mã voucher, không phụ thuộc vào giá trị điểm client gửi lên, triệt tiêu hoàn toàn rủi ro trừ sai/trừ thừa điểm.
 * **Tiêu chí chấp nhận (Acceptance Criteria):**
   - [x] **AC-07.1:** Nhập mã giảm giá hợp lệ: Tổng tiền thanh toán giảm chính xác theo tỷ lệ hoặc số tiền cố định.
   - [x] **AC-07.2:** Nhập mã sai, hết hạn hoặc không đủ giá trị đơn tối thiểu: Hiển thị thông báo lỗi cụ thể, không áp dụng chiết khấu.
   - [x] **AC-07.3:** Sau khi thanh toán đơn hàng thành công, số dư điểm thưởng trong bảng `User.loyaltyPoints` được cộng dồn chính xác theo tỷ lệ 1.000đ = 1 điểm.
+  - [x] **AC-07.4:** Đổi điểm lấy voucher: Server tự áp đặt `requiredPoints` (10/20/50), trừ điểm atomic trong transaction; từ chối giao dịch nếu mã voucher không tồn tại hoặc đã bị tắt kích hoạt (`isActive = false`).
 
 ---
 
@@ -234,10 +242,13 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
   * Màn hình chuyên dụng cho Barista tại đường dẫn `/staff`.
   * Tự động lọc và hiển thị danh sách các đơn hàng đã thanh toán thành công (`PAID`) hoặc đang chế biến (`PREPARING`).
   * Cung cấp nút thao tác nhanh 1 chạm: **"Bắt đầu pha chế"** (`PAID` $\rightarrow$ `PREPARING`) và **"Pha chế xong"** (`PREPARING` $\rightarrow$ `READY`).
+  * **Chức năng Báo hết món (86 Out-of-Stock):** Cho phép Barista chủ động bật/tắt cờ `isSoldOutManual` của từng món ngay trên quầy qua API `PATCH /products/:id/sold-out`.
+  * **Bảo vệ dữ liệu nhạy cảm (Role-Based Projection):** Khi nhân viên `STAFF` gọi API món hoặc thao tác báo hết hàng, hệ thống tuyệt đối không trả về thông tin công thức pha chế (`recipes`) và các kích thước giá vốn (`cogsSizeS`, `cogsSizeM`, `cogsSizeL`).
 * **Tiêu chí chấp nhận (Acceptance Criteria):**
   - [x] **AC-09.1:** Chỉ tài khoản có `role = STAFF` hoặc `ADMIN` mới được truy cập giao diện KDS; tài khoản `CUSTOMER` bị chặn truy cập.
   - [x] **AC-09.2:** Chi tiết từng ly nước hiển thị rõ ràng: Tên món, Size, Chi tiết Topping, Mức đường, Mức đá để Barista pha chế chuẩn xác 100%.
   - [x] **AC-09.3:** Chuyển trạng thái đơn được bảo vệ bởi máy trạng thái (State Machine Guard), không thể bấm nhảy cóc trạng thái sai quy trình.
+  - [x] **AC-09.4:** Nhân viên Barista thao tác bật/tắt hết hàng tạm thời (`isSoldOutManual`) thành công mà không có quyền truy cập vào dữ liệu giá vốn và công thức định mức món.
 
 ---
 
@@ -249,10 +260,12 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
   * **Quản lý Thực đơn (Menu CRUD):** Thêm món mới, chỉnh sửa tên món, giá cơ sở, ảnh đại diện, danh mục, phụ thu size S/M/L, bật/tắt trạng thái kinh doanh (`isActive`).
   * **Báo hết hàng thủ công (`isSoldOutManual`):** Cho phép bật công tắc "Tạm hết hàng" cho món bất kỳ khi quầy gặp sự cố đột xuất.
   * **Quản lý Kho & Định mức công thức (BOM Recipe Editor):** Xem danh sách tồn kho nguyên liệu (`Ingredient`), định mức công thức pha chế (`RecipeItem`) và nhận cảnh báo khi tồn kho chạm ngưỡng an toàn.
+  * **Bảo toàn tính toàn vẹn dữ liệu kho (Integrity Constraint):** Nghiêm cấm xóa nguyên liệu (`DELETE /inventory/ingredients/:id`) nếu nguyên liệu đó đã phát sinh lịch sử xuất/nhập kho (`InventoryLog`) hoặc đang được liên kết trong công thức món (`onDelete: Restrict`).
 * **Tiêu chí chấp nhận (Acceptance Criteria):**
   - [x] **AC-10.1:** Chỉ tài khoản có `role = ADMIN` mới có quyền truy cập; người dùng khác bị điều hướng về trang chủ.
   - [x] **AC-10.2:** Thêm/sửa/xóa sản phẩm cập nhật ngay lập tức vào cơ sở dữ liệu PostgreSQL.
   - [x] **AC-10.3:** Bật `isSoldOutManual = true` lập tức phản ánh ra giao diện Menu của khách hàng, khóa nút đặt món.
+  - [x] **AC-10.4:** Thao tác xóa nguyên liệu đã có lịch sử kho bị từ chối với mã lỗi `409 Conflict`, bảo vệ lịch sử kiểm toán kho.
 
 ---
 

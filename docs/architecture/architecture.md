@@ -90,13 +90,19 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
    * Xử lý đăng ký (`POST /auth/register`) và đăng nhập (`POST /auth/login`).
    * Băm mật khẩu bằng `bcrypt`, cấp phát token JWT có thời hạn $7\text{ ngày}$.
    * Cung cấp `JwtAuthGuard` và `RolesGuard` để bảo vệ các route đặt đơn, thanh toán và cập nhật trạng thái đơn.
+   * **Mô hình Single Root Admin (`admin@brewlite.vn`):** Khóa cứng định danh Root Admin duy nhất, cấm tạo mới hoặc thăng cấp bất kỳ tài khoản nào khác lên role ADMIN (`403 Forbidden`).
+   * **Đồng bộ Session Role Cookie:** Đồng bộ cookie phiên `brewlite_session_role` song song với JWT để Next.js Edge Middleware bảo vệ các route `/admin/*` và `/staff/*` ngay từ tầng Edge.
 2. **Products Module (`apps/api/src/products`):**
    * Cung cấp danh sách thực đơn (`GET /products`) và chi tiết sản phẩm kèm danh sách topping (`GET /products/:id`), trả về `404 Not Found` nếu sản phẩm không tồn tại.
+   * **Báo hết món tạm thời (`PATCH /products/:id/sold-out`):** Cho phép Barista (`STAFF`) và Quản trị viên (`ADMIN`) bật/tắt cờ `isSoldOutManual`.
+   * **Role-Based Data Projection:** Áp dụng nguyên tắc đặc quyền tối thiểu: Khi người gọi là `STAFF`, API tự động lược bỏ hoàn toàn thông tin công thức (`recipes`) và các kích thước giá vốn (`cogsSizeS`, `cogsSizeM`, `cogsSizeL`) nhằm bảo vệ bí mật kinh doanh.
 3. **Orders Module (`apps/api/src/orders`):**
-   * **Tạo đơn hàng (`POST /orders`):** Thực thi trong một database transaction của Prisma. Hệ thống kiểm tra `Idempotency-Key` theo từng người dùng, tự tính lại toàn bộ giá trị đơn hàng ở phía server theo công thức:
+   * **Tạo đơn hàng (`POST /orders`):** Thực thi trong một database transaction của Prisma. Hệ thống áp dụng **Khóa hàng User (`SELECT ... FOR UPDATE`)** để đảm bảo tính atomic khi kiểm tra đơn và trừ voucher.
+   * **Giới hạn chống spam đơn (Anti-Spam Rate Limit):** Mỗi khách hàng chỉ được phép có tối đa **5 đơn hàng** ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` cùng lúc; vượt quá sẽ bị từ chối với mã lỗi `400 Bad Request`.
+   * **Tự động tính toán giá trị đơn:** Tự tính lại toàn bộ giá trị đơn hàng ở phía server theo công thức:
      $$\text{LineTotal} = (\text{Giá gốc} + \text{Phụ thu Size} + \sum \text{Giá Topping}) \times \text{Số lượng}$$
      (Phụ thu Size: $S = +0\text{đ}$, $M = +5.000\text{đ}$, $L = +10.000\text{đ}$; không tính VAT).
-   * **Kiểm soát đồng thời (Optimistic Locking & BOM Stock Reservation):** Trừ và kiểm soát tồn kho `Ingredient` (BOM) lẫn `Order` bằng điều kiện `version = :version` đồng thời tăng `version + 1` (xem [ADR-006](./adr/006-optimistic-locking-idempotency.md) và [ADR-008](./adr/008-bom-schema-compatibility.md)).
+   * **Kiểm soát đồng thời (Optimistic Locking & BOM Stock Reservation):** Trừ và kiểm soát tồn kho `Ingredient` (BOM) lẫn `Order` bằng điều kiện `version = :version` đồng thời tăng `version + 1` (xem [ADR-006](./adr/006-optimistic-locking-idempotency.md) và [ADR-008](./adr/008-bom-schema-compatibility.md)). Ràng buộc `@@unique([userId, idempotencyKey])` chống trùng lặp đơn hàng từ client.
    * **Máy trạng thái đơn hàng (`apps/api/src/payments/state-machine.helper.ts`):** Hàm `assertTransition(from, to)` kiểm soát chặt chẽ các chuyển tiếp hợp lệ:
      * Luồng chính: `PENDING` $\rightarrow$ `PAID` $\rightarrow$ `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`.
      * Luồng thanh toán lỗi & thử lại: `PENDING` $\rightleftarrows$ `PAYMENT_FAILED`.
@@ -104,10 +110,14 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
    * **Tác vụ tự động hủy đơn quá hạn (`apps/api/src/jobs/expire-orders.job.ts`):** Sử dụng `@nestjs/schedule` quét mỗi phút để tự động chuyển các đơn `PENDING` hoặc `PAYMENT_FAILED` quá $15\text{ phút}$ sang `CANCELLED`, đồng thời hoàn trả tồn kho và lượt sử dụng voucher.
 4. **Payments Module (`apps/api/src/payments`):**
    * Xử lý thanh toán mô phỏng (`POST /payments`) cho phương thức `EWALLET` hoặc `BANK_CARD` (bị chặn `403` trên Production khi `ALLOW_MOCK_PAYMENT=false`) và luồng ZaloPay Sandbox (`/payments/zalopay/{create,callback,status/:orderId,confirm,cancel}`).
+   * **Kiểm tra quyền sở hữu đơn hàng (Order Ownership Guard):** Chỉ chủ đơn (`order.userId === currentUser.id`) mới có quyền tạo giao dịch thanh toán hoặc thao tác hủy trên cổng thanh toán (`403 Forbidden`).
+   * **Default-Deny cho Sandbox Confirm:** Các endpoint `/payments/zalopay/confirm` và `/cancel` bị từ chối `403 Forbidden` mặc định trên production trừ khi bật cờ `ALLOW_SANDBOX_CONFIRM=true`.
    * Đảm bảo tính **Idempotency** thông qua header `Idempotency-Key` (nếu giao dịch đã `SUCCESS` với cùng khóa, trả về ngay kết quả cũ mà không trừ tiền hay cộng điểm lần hai — xem [ADR-006](./adr/006-optimistic-locking-idempotency.md)).
    * Khi thanh toán thất bại (`PAYMENT_FAILED`), đơn hàng vẫn giữ tồn kho BOM đã đặt trong giới hạn 15 phút để khách hàng có thể bấm thử lại ngay.
 5. **Inventory, Vouchers & Loyalty (`apps/api/src/inventory` & `apps/api/src/auth`, tích hợp trong `orders` & `payments`):**
    * Quản lý nguyên liệu (`Ingredient`), công thức BOM (`Recipe`, `ToppingRecipe`), cấu hình size (`GET /inventory/pricing-config`, `PATCH /inventory/size-pricing`), nhật ký kho (`InventoryLog`), mã giảm giá (`DiscountCode`) và đổi điểm lấy voucher (`POST /auth/redeem-points`, `GET /auth/vouchers`).
+   * **Server-Enforced Loyalty Redemption:** Điểm đổi voucher được server khóa cứng: 10 điểm = voucher 10.000đ, 20 điểm = voucher 20.000đ, 50 điểm = voucher 50.000đ (`requiredPoints`). Server tự áp đặt và trừ chính xác số điểm quy định, không phụ thuộc client.
+   * **Bảo vệ toàn vẹn lịch sử kho (Integrity Constraint):** Nghiêm cấm xóa nguyên liệu (`DELETE /inventory/ingredients/:id`) khi đã phát sinh `InventoryLog` hoặc công thức món liên quan, trả về mã lỗi `409 Conflict`.
    * Khi đơn hàng chuyển sang `PAID`, tự động cộng điểm tích lũy $\lfloor \text{totalAmount} / 1000 \rfloor$ vào `User.loyaltyPoints` trong cùng một transaction. Nếu đơn `PAID` bị hủy, hệ thống hoàn kho BOM và thu hồi lại số điểm đã cộng.
 6. **Admin Users & Customers (`apps/api/src/users` & `apps/api/src/customers`):**
    * Quản trị tài khoản nhân viên (`GET/POST/PATCH/DELETE /staff`) và khách hàng (`GET/POST/PATCH/DELETE /admin/customers`), bật/tắt khóa tài khoản.
