@@ -6,6 +6,12 @@
     "apps/*"
   ],
   "scripts": {
-    "test": "npm test -w apps/api"
+    "test": "npm test -w apps/api",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
   }
 }
