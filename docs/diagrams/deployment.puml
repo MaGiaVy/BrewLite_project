@@ -45,8 +45,8 @@ skinparam note {
 ' 1. THIẾT BỊ NGƯỜI DÙNG (CLIENT DEVICES)
 ' ==============================================================================
 node "Thiết Bị Người Dùng\n<<device>>" as client_device {
-    node "Trình Duyệt Web / PWA Mobile\n<<executionEnvironment>>" as client_browser {
-        artifact "BrewLite Web App (React 19 / Next.js Client SPA)\n[HTML5, CSS3, Zustand Store, Service Worker]" as spa_client
+    node "Trình Duyệt Web / PWA Mobile\n<<executionEnvironment: Chrome, Safari, Edge>>" as client_browser {
+        artifact "BrewLite Web App (React 19 / Next.js Client SPA)\n[HTML5, CSS3 Tailwind, Zustand Store, Service Worker]" as spa_client
     }
 }
 
@@ -58,7 +58,7 @@ node "Môi Trường Local (Developer Workstation)\n<<device: Windows / macOS / 
         node "Mạng Cục Bộ (Docker Bridge Network: brewlite_network)\n<<network>>" as local_net {
             artifact "brewlite_frontend:latest\n<<container: Node 22 Alpine>>\nNext.js Dev / SSR Server\nPort: 3000:3000" as local_web
             artifact "brewlite_backend:latest\n<<container: Node 22 Alpine>>\nNestJS REST API Engine\nPort: 3001:3001" as local_api
-            database "brewlite_db:postgres:16-alpine\n<<container: PostgreSQL 16>>\nPort: 5433:5432" as local_db {
+            database "brewlite_db:postgres:16-alpine\n<<container: PostgreSQL 16>>\nPort: 5432:5432" as local_db {
                 storage "postgres_data\n<<volume>>" as local_vol
             }
         }
@@ -72,89 +72,106 @@ node "Môi Trường Local (Developer Workstation)\n<<device: Windows / macOS / 
 }
 
 ' ==============================================================================
-' 3. MÔI TRƯỜNG CI/CD (GITHUB INFRASTRUCTURE)
+' 3. HẠ TẦNG CI/CD (GITHUB CLOUD)
 ' ==============================================================================
 node "Hạ Tầng CI/CD (GitHub Cloud)\n<<cloud>>" as ci_env {
-    node "GitHub Repository\n<<vcs>>" as gh_repo {
-        artifact "Git Branch: main / Pull Requests\n[Source Code, Dockerfiles, Migrations]" as git_source
+    node "GitHub Repository\n<<vcs: MaGiaVy/BrewLite_project>>" as gh_repo {
+        artifact "Git Branch: main / Pull Requests\n[Source Code, Dockerfile API, Migrations]" as git_source
     }
     
     node "GitHub Actions Runner\n<<executionEnvironment: ubuntu-latest>>" as gh_runner {
         component "CI Pipeline Workflow (.github/workflows/ci.yml)\n[1. npm ci & Lint -> 2. Unit/Integration Tests -> 3. Build Docker Image]" as ci_pipeline
-        component "CD Pipeline Workflow (.github/workflows/cd.yml)\n[Build Image -> Tag Commit SHA -> Push Registry -> Trigger Deploy]" as cd_pipeline
+        component "CD Pipeline Workflow (.github/workflows/cd.yml)\n[Build API Image -> Tag Commit SHA -> Push GHCR -> Trigger Render]" as cd_pipeline
     }
     
     node "GitHub Container Registry (GHCR)\n<<registry: ghcr.io>>" as ghcr_registry {
-        artifact "ghcr.io/brewlite-web:latest" as ghcr_web
-        artifact "ghcr.io/brewlite-api:latest" as ghcr_api
+        artifact "ghcr.io/brewlite-api:latest\n[Docker Multi-stage Node 22-alpine]" as ghcr_api
     }
 
     note right of ci_env
         <b>GitHub Repository Secrets:</b>
         • GHCR_TOKEN / GITHUB_TOKEN
-        • RENDER_DEPLOY_HOOK_WEB
         • RENDER_DEPLOY_HOOK_API
+        • VERCEL_TOKEN / VERCEL_ORG_ID
     end note
 }
 
 ' ==============================================================================
-' 4. MÔI TRƯỜNG PRODUCTION (RENDER CLOUD PLATFORM)
+' 4. MÔI TRƯỜNG PRODUCTION (HYBRID CLOUD ARCHITECTURE)
 ' ==============================================================================
-node "Môi Trường Production (Render Cloud PaaS - Singapore Region)\n<<cloud>>" as prod_env {
-    node "Render Edge Gateway & CDN\n<<loadBalancer / reverseProxy>>" as render_edge {
-        component "TLS 1.3 Termination, DDoS Shield, Brotli/Gzip Compression\n[Domain: *.onrender.com / brewlite.vn]" as edge_proxy
+
+' 4.1. FRONTEND: VERCEL CLOUD EDGE NETWORK
+node "Môi Trường Frontend (Vercel Cloud Platform)\n<<cloud: Global Edge Network>>" as vercel_env {
+    node "Vercel Edge Gateway & Anycast CDN\n<<loadBalancer / edgeProxy>>" as vercel_edge {
+        component "TLS 1.3 Termination, Edge Caching, Smart Routing, DDoS Mitigation\n[Domain: brewlite.vercel.app / brewlite.vn]" as vercel_proxy
     }
 
-    node "Render Private Network (VPC Nội Bộ)\n<<network: 10.0.0.0/8>>" as prod_private_net {
-        node "Web Service: Frontend Web\n<<service: Render Container Engine>>" as prod_web_node {
-            artifact "brewlite-frontend\n<<container: Node 22-alpine>>" as prod_web_app {
-                component "Next.js 16 (App Router)\nStandalone Output" as nextjs_engine
-            }
-        }
-
-        node "Web Service: Backend API\n<<service: Render Container Engine>>" as prod_api_node {
-            artifact "brewlite-backend\n<<container: Node 22-alpine>>" as prod_api_app {
-                component "NestJS 11 REST API\nPrisma ORM 6 Engine" as nestjs_engine
-            }
-        }
-
-        database "Managed PostgreSQL 16\n<<database: Render Managed PostgreSQL>>" as prod_db_node {
-            storage "Render Persistent SSD Disk (10 GB - Auto-backup)\n<<persistentStorage>>" as prod_disk
+    node "Vercel Serverless Compute (Node.js 22 Runtime)\n<<executionEnvironment: Serverless / Edge Function>>" as vercel_compute {
+        artifact "BrewLite Frontend App\n<<serverless: Next.js 16 App Router>>" as vercel_app {
+            component "React 19 Server Components (RSC)\nServer-Side Rendering (SSR) & Static Prerender" as next_rsc
         }
     }
 
-    note right of prod_web_node
-        <b>Port Container: 3000</b>
-        Environment:
+    note right of vercel_app
+        <b>Frontend Configuration:</b>
+        • Framework: Next.js 16 (App Router)
         • NEXT_PUBLIC_API_URL=https://api.brewlite.vn
+        • Edge Network: Singapore / Global PoPs
+        • Auto Deploy qua Vercel GitHub Integration
     end note
+}
 
-    note right of prod_api_node
+' 4.2. BACKEND: RENDER CLOUD PAAS (SINGAPORE REGION)
+node "Môi Trường Backend API (Render Cloud PaaS - Singapore Region)\n<<cloud>>" as render_env {
+    node "Render Edge Gateway & Reverse Proxy\n<<loadBalancer / reverseProxy>>" as render_edge {
+        component "TLS 1.3 Termination, DDoS Shield, Brotli/Gzip Compression\n[Domain: api.brewlite.vn / *.onrender.com]" as render_proxy
+    }
+
+    node "Render Web Service Engine\n<<service: Render Container Engine>>" as render_svc {
+        artifact "brewlite-backend\n<<container: Node 22-alpine>>" as render_api_app {
+            component "NestJS 11 REST API Engine\nPrisma ORM 6 Data Layer" as nestjs_engine
+        }
+    }
+
+    note right of render_api_app
         <b>Port Container: 3001</b>
         <b>Health Check Endpoint:</b>
         • GET /health (Probe Interval: 10s)
         <b>Centralized Logging:</b>
         • stdout / stderr -> Render Log Streams
         <b>Runtime Secrets (Render Secret Group):</b>
-        • DATABASE_URL (Private host)
+        • DATABASE_URL (Supabase Connection Pooler URI)
         • JWT_SECRET (256-bit)
+        • CORS_ORIGIN=https://brewlite.vercel.app
         • ZALOPAY_APP_ID / KEY1 / KEY2
     end note
+}
 
-    note bottom of prod_db_node
-        <b>Bảo mật Cơ sở dữ liệu:</b>
-        • Cổng nội bộ: 5432 (Không mở Public IP)
-        • Chỉ kết nối từ backend qua Private VPC
-        • SSL/TLS bắt buộc (sslmode=require)
+' 4.3. DATABASE: SUPABASE MANAGED POSTGRESQL (AWS SINGAPORE REGION)
+node "Môi Trường Cơ Sở Dữ Liệu (Supabase Cloud - AWS Singapore: ap-southeast-1)\n<<cloud: Managed PostgreSQL>>" as supabase_env {
+    database "Managed PostgreSQL 16 Cluster\n<<database: PostgreSQL 16 Engine>>" as supabase_db {
+        component "PgBouncer Connection Pooler\n[Transaction Pooling Mode]\nPort: 6543 (Pooler) / 5432 (Direct)" as pgbouncer
+        storage "Persistent NVMe SSD Disk (High IOPS, Auto-backup, WAL)\n<<persistentStorage>>" as supabase_storage
+    }
+
+    note bottom of supabase_env
+        <b>Bảo mật & Hiệu năng Cơ sở dữ liệu:</b>
+        • Kết nối bảo mật TLS/SSL bắt buộc (sslmode=require)
+        • Connection Pooling qua PgBouncer giảm áp lực tải kết nối
+        • Datacenter: AWS Singapore (ap-southeast-1) đạt chuẩn Cloud Enterprise
     end note
 }
 
 ' ==============================================================================
-' 5. DỊCH VỤ THANH TOÁN BÊN THỨ BA (EXTERNAL SERVICES)
+' 5. DỊCH VỤ BÊN THỨ BA (EXTERNAL SERVICES)
 ' ==============================================================================
-node "Dịch Vụ Bên Thứ Ba (Third-Party Services)\n<<cloud>>" as ext_services {
+node "Dịch Vụ Bên Thứ Ba (Third-Party Cloud Services)\n<<cloud>>" as ext_services {
     node "Hạ Tầng Cổng Thanh Toán ZaloPay\n<<gateway: sb-openapi.zalopay.vn>>" as zalopay_cloud {
         component "ZaloPay Sandbox Gateway API v2\n[Create Order, Query Status, Webhook Callback]" as zalopay_api
+    }
+
+    node "Dịch Vụ Giám Sát & Giữ Ấm (Anti-Sleep Monitor)\n<<monitoring: UptimeRobot / Cron-Job.org>>" as monitor_cloud {
+        component "Automated Health Checker\n[HTTP GET /health probe định kỳ 10 phút chống sleep]" as health_pinger
     }
 }
 
@@ -162,27 +179,34 @@ node "Dịch Vụ Bên Thứ Ba (Third-Party Services)\n<<cloud>>" as ext_servic
 ' CÁC KẾT NỐI VÀ GIAO THỨC (PROTOCOLS & CONNECTIONS)
 ' ==============================================================================
 
-' Kết nối Client -> Production Edge
-spa_client -[#0D9488,bold]-> render_edge : "1. HTTPS :443 (TLS 1.3 / REST & Dynamic SSR)"
+' 1. Người dùng truy cập Frontend Vercel
+spa_client -[#0D9488,bold]-> vercel_edge : "1. HTTPS :443 (TLS 1.3 / User Web Access)"
+vercel_edge -[#0D9488]-> vercel_app : "2. Internal Edge Routing / SSR Render"
 
-' Render Edge phân luồng
-render_edge -[#0D9488]-> prod_web_app : "2a. Reverse Proxy\n(HTTP :3000)"
-render_edge -[#0D9488]-> prod_api_app : "2b. Reverse Proxy / API calls\n(HTTP :3001)"
+' 2. Người dùng & Next.js SSR gọi Backend API Render
+spa_client -[#2563EB,bold]-> render_edge : "3a. HTTPS :443 (Client REST API Calls / Bearer JWT)"
+vercel_app -[#2563EB,dashed]-> render_edge : "3b. HTTPS :443 (Next.js Server-Side API Fetch)"
+render_edge -[#2563EB]-> render_api_app : "4. Reverse Proxy to Container (HTTP :3001)"
 
-' Kết nối nội bộ Backend -> PostgreSQL
-prod_api_app -[#B45309,bold]-> prod_db_node : "3. Private Network (TCP :5432)\nInternal VPC Connection (Prisma Connection Pool)"
+' 3. Backend kết nối Database Supabase
+render_api_app -[#B45309,bold]-> pgbouncer : "5. TLS/SSL :6543 (Prisma Connection Pool -> PgBouncer)\n[sslmode=require, AWS Singapore]"
+pgbouncer -> supabase_storage : "Manage Relations & Write Ahead Log"
 
-' Kết nối Backend -> ZaloPay
-prod_api_app -[#D97736,dashed]-> zalopay_api : "4. HTTPS :443\n(HMAC-SHA256 Authenticated REST API)"
+' 4. Backend tương tác ZaloPay
+render_api_app -[#D97736,dashed]-> zalopay_api : "6a. HTTPS :443 (HMAC-SHA256 Authenticated Payment API)"
+zalopay_api -[#D97736,dashed]-> render_edge : "6b. HTTPS :443 (Webhook Payment Callback)"
 
-' Luồng CI/CD
-git_source -[#6366F1]-> gh_runner : "Push commit / PR\nTrigger Workflow"
-gh_runner -[#6366F1]-> ghcr_registry : "Build & Push Multi-stage Image\n(TLS :443 via GHCR_PAT)"
-gh_runner -[#6366F1,dashed]-> render_edge : "Deploy Hook Webhook Call\n(Trigger Auto-Deploy)"
-ghcr_registry .[#6366F1].> prod_web_node : "Pull Image\n(ghcr.io/brewlite-web:sha)"
-ghcr_registry .[#6366F1].> prod_api_node : "Pull Image\n(ghcr.io/brewlite-api:sha)"
+' 5. Giám sát giữ ấm Render
+health_pinger -[#059669,dashed]-> render_edge : "7. HTTPS :443 (GET /health Ping định kỳ 10 phút chống Cold Sleep)"
 
-' Kết nối Local Development
+' 6. Luồng CI/CD
+git_source -[#6366F1,bold]-> vercel_compute : "8a. Vercel Git Integration\n(Auto-Deploy Frontend on git push)"
+git_source -[#6366F1]-> gh_runner : "8b. Push commit / PR Trigger Actions"
+gh_runner -[#6366F1]-> ghcr_registry : "9. Build & Push Multi-stage API Image\n(TLS :443 via GHCR_PAT)"
+gh_runner -[#6366F1,dashed]-> render_edge : "10. Render Deploy Hook Call\n(Trigger Auto-Deploy Backend)"
+ghcr_registry .[#6366F1].> render_svc : "11. Pull Image (ghcr.io/brewlite-api:sha)"
+
+' 7. Môi trường Local Development
 local_web -[#4B5563]-> local_api : "HTTP :3001 (API Proxy)"
 local_api -[#4B5563]-> local_db : "TCP :5432 (Docker Network)"
 spa_client .[#9CA3AF].> local_web : "Dev Test: http://localhost:3000"
