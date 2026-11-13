@@ -1,0 +1,726 @@
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background-color: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@media (min-width: 640px) {
+  .modalOverlay {
+    align-items: center;
+    padding: 20px;
+  }
+}
+
+.modalSheet {
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  height: 90vh;
+  background-color: #fef8f4;
+  border-radius: 24px 24px 0 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1d1b19;
+}
+
+@media (min-width: 640px) {
+  .modalSheet {
+    border-radius: 24px;
+    max-height: 85vh;
+    height: 85vh;
+  }
+}
+
+.modalHeader {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background-color: rgba(254, 248, 244, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  height: 56px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(231, 225, 221, 0.8);
+  flex-shrink: 0;
+}
+
+.headerTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modalTitle {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d1b19;
+  margin: 0;
+}
+
+.closeBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: 1px solid rgba(231, 225, 221, 0.8);
+  background: #f8f2ee;
+  color: #504440;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.closeBtn:hover {
+  background: #f3ede9;
+  color: #1d1b19;
+}
+
+.modalScrollArea {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 110px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Hero Section ── */
+.heroSection {
+  padding: 12px 16px 0 16px;
+}
+
+.heroWrapper {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(44, 24, 16, 0.12);
+  background: #f8f2ee;
+  border: 1px solid rgba(44, 24, 16, 0.05);
+}
+
+.heroImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.badgeTopLeft {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 2;
+}
+
+.pillBadge {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  color: #845326;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeBadge {
+  background: rgba(44, 24, 16, 0.88);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.roastMeterWrap {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  padding: 8px 12px;
+  border-radius: 12px;
+  z-index: 2;
+  border: 1px solid rgba(231, 225, 221, 0.6);
+}
+
+.roastHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.roastTitle {
+  color: #504440;
+  font-weight: 500;
+}
+
+.roastLevelName {
+  font-weight: 700;
+  color: #1d1b19;
+}
+
+.roastBars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+}
+
+.roastSegment {
+  height: 5px;
+  flex: 1;
+  border-radius: 9999px;
+  background: #e7e1dd;
+}
+
+.roastSegmentActive {
+  background: #845326;
+}
+
+/* ── Nutrition Grid ── */
+.nutritionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px 0 16px;
+}
+
+.nutritionCard {
+  background: #ffffff;
+  border: 1px solid rgba(231, 225, 221, 0.8);
+  border-radius: 14px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+}
+
+.nutritionVal {
+  font-weight: 700;
+  font-size: 13px;
+  color: #1d1b19;
+}
+
+.nutritionLabel {
+  font-size: 10px;
+  color: #786c67;
+}
+
+/* ── Info Section ── */
+.infoSection {
+  padding: 14px 16px 0 16px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.title {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1d1b19;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.currentPrice {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #845326;
+  line-height: 1.2;
+}
+
+.description {
+  font-size: 13px;
+  color: #6b5d52;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.divider {
+  height: 1px;
+  background: #ede5dd;
+  margin: 14px 16px;
+}
+
+/* ── Customization Sections ── */
+.customSection {
+  padding: 0 16px;
+  margin-bottom: 16px;
+}
+
+.sectionHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.sectionHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1d1b19;
+}
+
+.badgeRequired {
+  background: #ffdcc2;
+  color: #845326;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+
+.badgeOptional {
+  font-size: 11px;
+  color: #8c7e77;
+}
+
+/* Temp Grid */
+.tempGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tempBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid #dcd3cb;
+  background: #ffffff;
+  color: #2c1810;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tempBtnActive {
+  background: #2c1810;
+  color: #ffffff;
+  border-color: #2c1810;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.15);
+}
+
+/* Size Grid */
+.sizeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.sizeCard {
+  position: relative;
+  border-radius: 14px;
+  border: 1.5px solid #dcd3cb;
+  background: #ffffff;
+  padding: 12px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sizeCardActive {
+  border-color: #845326;
+  background: #fff8f2;
+  box-shadow: 0 2px 8px rgba(132, 83, 38, 0.12);
+}
+
+.popularPill {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #845326;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.sizeLetter {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1d1b19;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.sizeDetail {
+  font-size: 11px;
+  color: #786c67;
+  margin-bottom: 4px;
+}
+
+.sizePrice {
+  font-size: 11px;
+  font-weight: 700;
+  color: #845326;
+}
+
+/* Sweetness Grid */
+.sweetnessGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.sweetnessPill {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #dcd3cb;
+  background: #ffffff;
+  color: #2c1810;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sweetnessPillActive {
+  background: #2c1810;
+  color: #ffffff;
+  border-color: #2c1810;
+}
+
+/* Ice Grid */
+.iceGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.icePill {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #dcd3cb;
+  background: #ffffff;
+  color: #2c1810;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  transition: all 0.15s ease;
+}
+
+.icePillActive {
+  border-color: #845326;
+  background: #fff8f2;
+  color: #845326;
+  font-weight: 700;
+}
+
+/* Toppings */
+.toppingList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toppingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #ede5dd;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toppingRowActive {
+  border-color: #845326;
+  background: #fff8f2;
+}
+
+.toppingLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toppingCheckbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #845326;
+  cursor: pointer;
+}
+
+.toppingInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.toppingName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1b19;
+}
+
+.toppingDesc {
+  font-size: 11px;
+  color: #786c67;
+}
+
+.toppingPrice {
+  font-size: 12px;
+  font-weight: 700;
+  color: #845326;
+}
+
+/* Barista Notes */
+.quickChipsWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.quickChip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #845326;
+  background: #faf4ed;
+  border: 1px solid #f0e4d8;
+  border-radius: 9999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quickChip:hover {
+  background: #f5ede5;
+}
+
+.noteWrapper {
+  position: relative;
+}
+
+.noteTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #dcd3cb;
+  background: #ffffff;
+  font-size: 12px;
+  color: #1d1b19;
+  font-family: inherit;
+  resize: none;
+}
+
+.noteTextarea:focus {
+  outline: none;
+  border-color: #845326;
+}
+
+/* ── Sticky Bottom Inside Modal ── */
+.stickyBottomBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid #ede5dd;
+  padding: 10px 16px;
+  z-index: 40;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.bottomContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #786c67;
+}
+
+.selectionSummary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pointsEarn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #b45309;
+  font-weight: 700;
+}
+
+.bottomInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8f2ee;
+  border: 1px solid #e2d9cf;
+  border-radius: 9999px;
+  padding: 3px 6px;
+  flex-shrink: 0;
+}
+
+.stepBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  border: none;
+  background: #ffffff;
+  color: #2c1810;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.stepBtn:active {
+  transform: scale(0.9);
+}
+
+.stepQty {
+  min-width: 22px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1d1b19;
+}
+
+.ctaButton {
+  flex: 1;
+  height: 48px;
+  border-radius: 14px;
+  background: #2c1810;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(44, 24, 16, 0.2);
+  transition: all 0.15s ease;
+}
+
+.ctaButton:hover {
+  background: #845326;
+}
+
+.ctaButton:active {
+  transform: scale(0.98);
+}
+
+.ctaLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ctaPrice {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffdcc2;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+

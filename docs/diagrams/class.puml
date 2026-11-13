@@ -1,6 +1,7 @@
-@startuml class_diagram
+@startuml
 !theme plain
-title UML Class & Domain Entity Diagram — Hệ Thống BrewLite\n(Single Source of Truth: backend/prisma/schema.prisma & BOM Architecture)
+' Thành viên thực hiện: Nguyễn Gia Thành (Task 2.3 - Domain Class Diagram)
+title UML Class & Domain Entity Diagram — Hệ Thống BrewLite\n(Single Source of Truth: apps/api/prisma/schema.prisma & BOM Architecture)
 
 skinparam DefaultFontName "Arial"
 skinparam DefaultFontSize 11
@@ -287,13 +288,15 @@ package "4. Sales & Order Fulfillment" #FFFBEB {
         + discountAmount: Float = 0
         + voucherDeducted: Boolean = false
         + version: Int = 0 <<OptimisticLock>>
+        + idempotencyKey: String?
+        + idempotencyPayload: String?
         + staffId: Int?
         + staffName: String?
         + createdAt: DateTime
         + updatedAt: DateTime
         --
         + calculateRawSubtotal(): Float
-        + calculateVat(net: Float): Float
+        ' VAT 0%: finalTotal = max(0, rawSubtotal - discountAmount)
         + calculateFinalTotal(): Float
         + canTransitionTo(next: OrderStatus): Boolean
         + transitionTo(next: OrderStatus, staffId: Int?): void

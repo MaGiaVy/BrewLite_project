@@ -13,12 +13,14 @@
 * Mạng chập chờn hoặc hệ thống sandbox bên ngoài bảo trì có thể làm gián đoạn kiểm thử E2E trong pipeline CI/CD hoặc làm hỏng buổi demo nghiệm thu trước giảng viên.
 
 ## 2. Quyết định (Decision)
-Nhóm quyết định thiết kế một **Dịch vụ Thanh toán Mô phỏng nội bộ (`MockGatewayService`)** tại `apps/api/src/payments/mock-gateway.service.ts`:
-1. Hỗ trợ 2 phương thức thanh toán: Ví điện tử (`WALLET`) và Thẻ ngân hàng (`CARD`).
-2. Điều khiển kết quả phản hồi thông qua biến môi trường `MOCK_PAYMENT_MODE`:
-   * `success`: Luôn trả về giao dịch thành công (dùng cho Happy Path và `E2E-T01`).
-   * `failure`: Luôn trả về giao dịch thất bại (dùng để kiểm thử xử lý lỗi, giữ giỏ hàng và nút thử lại tại `E2E-T02`).
-   * `random`: Trả về ngẫu nhiên với tỷ lệ thành công 80% và thất bại 20% (dùng trong môi trường trải nghiệm thực tế).
+Nhóm quyết định thiết kế mô hình **Cổng thanh toán kép (Dual Payment Gateway)** gồm dịch vụ mô phỏng nội bộ (`MockGatewayService`) tại `apps/api/src/payments/mock-gateway.service.ts` song hành với `ZaloPayService` Sandbox tại `apps/api/src/payments/zalopay.service.ts`:
+1. Hỗ trợ 2 phương thức mô phỏng chuẩn enum `PaymentMethod`: Ví điện tử (`EWALLET`) và Thẻ ngân hàng (`BANK_CARD`), cùng luồng ZaloPay Sandbox (`/payments/zalopay/{create,callback,status/:orderId,confirm,cancel}` ký HMAC-SHA256).
+2. Điều khiển kết quả của `MockGatewayService` qua biến môi trường `MOCK_PAYMENT_MODE` (cùng tùy chọn `simulateFailure` trong body):
+   * `success`: Luôn trả về giao dịch thành công (mặc định cho Happy Path và kiểm thử tự động).
+   * `failure`: Luôn trả về trạng thái `PAYMENT_FAILED` với HTTP `201 { success: false }` (dùng để kiểm thử xử lý lỗi, giữ nguyên tồn kho tạm giữ và thử lại thanh toán).
+3. Kiểm soát an toàn trên môi trường Production:
+   * Endpoint `POST /payments` bị chặn với mã `403 Forbidden` khi `NODE_ENV=production` và `ALLOW_MOCK_PAYMENT=false`.
+   * Các endpoint mô phỏng xác nhận/hủy ZaloPay (`/payments/zalopay/confirm`, `/cancel`) yêu cầu `ALLOW_SANDBOX_CONFIRM=true` trong môi trường Production.
 
 ## 3. Hệ quả (Consequences)
 

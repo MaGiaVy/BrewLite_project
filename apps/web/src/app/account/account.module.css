@@ -1,0 +1,894 @@
+.accountContainer {
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  background: #fef8f4;
+  color: #1d1b19;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 96px;
+  box-shadow: 0 0 40px rgba(44, 24, 16, 0.08);
+  font-family: inherit;
+}
+
+/* ── Top Bar ── */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: rgba(254, 248, 244, 0.95);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid rgba(231, 225, 221, 0.8);
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #ede7de;
+  padding: 7px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c1810;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(44, 24, 16, 0.05);
+}
+
+.backBtn:hover {
+  background: #f5efe9;
+}
+
+.tierPillTop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+/* ── Header Section ── */
+.headerSection {
+  padding: 16px 16px 10px;
+}
+
+.badgeRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #845326;
+  background: #faf0e6;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  border: 1px solid rgba(132, 83, 38, 0.2);
+  margin-bottom: 6px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  color: #1d1b19;
+  letter-spacing: -0.02em;
+}
+
+.pageSubtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #78716c;
+  line-height: 1.4;
+}
+
+/* ── Content Body ── */
+.contentWrap {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 1. User Profile Card ── */
+.profileCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #ede7de;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.04);
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.avatarWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.initialsAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2c1810 0%, #502816 100%);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 3px #f3ede9;
+  letter-spacing: 0.04em;
+}
+
+.profileMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.userName {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1d1b19;
+  line-height: 1.2;
+}
+
+.tierBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.profileActionsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.editProfileBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #845326;
+  background: #faf0e6;
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px solid #e6ddd5;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.editProfileBtn:hover {
+  background: #f3e5d8;
+  color: #2c1810;
+}
+
+.contactText {
+  margin: 3px 0 0 0;
+  font-size: 11px;
+  color: #827470;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 2. Stitch BrewLite Rewards Dark Card (Không bị co) ── */
+.rewardsCard {
+  background: linear-gradient(135deg, #22130C 0%, #351D12 50%, #1A0D07 100%);
+  border-radius: 20px;
+  padding: 18px;
+  color: #fef8f4;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(34, 19, 12, 0.3);
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.radialGlow {
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 140px;
+  height: 140px;
+  background: rgba(212, 175, 55, 0.18);
+  border-radius: 50%;
+  filter: blur(35px);
+  pointer-events: none;
+}
+
+.rewardsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rewardsBrand {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.starIcon {
+  color: #d4af37;
+  font-size: 18px;
+}
+
+.brandLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d4af37;
+}
+
+.cardCodePill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #d6d3d1;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  backdrop-filter: blur(4px);
+}
+
+.pointsRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+
+.pointsNumber {
+  font-size: 34px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.pointsLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #febc85;
+}
+
+.tierSub {
+  margin: 0;
+  font-size: 11px;
+  color: #d6d3d1;
+}
+
+.progressSection {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #d6d3d1;
+}
+
+.progressBar {
+  width: 100%;
+  height: 7px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #d4af37 0%, #febc85 100%);
+  border-radius: 9999px;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.progressNote {
+  margin: 0;
+  font-size: 10px;
+  color: #a8a29e;
+  text-align: right;
+}
+
+.refreshRow {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.refreshBtn {
+  background: none;
+  border: none;
+  color: #d6d3d1;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.refreshBtn:hover {
+  color: #ffffff;
+}
+
+.refreshIcon {
+  font-size: 15px;
+  color: #d4af37;
+  transition: transform 0.3s;
+}
+
+.refreshIconSpin {
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Toast Alert ── */
+.toastWrapper {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 82px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10000;
+  padding: 0 16px;
+}
+
+.toastBox {
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(44, 24, 16, 0.2);
+  pointer-events: auto;
+  max-width: min(440px, calc(100vw - 32px));
+  animation: toastSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toastSuccess {
+  background: #064e3b;
+  color: #ffffff;
+  border: 1px solid #059669;
+}
+
+.toastError {
+  background: #991b1b;
+  color: #ffffff;
+  border: 1px solid #dc2626;
+}
+
+/* ── 3. Vouchers Section (Ưu đãi của bạn) ── */
+.vouchersSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.vouchersHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vouchersTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1d1b19;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vouchersTitleIcon {
+  font-size: 18px;
+  color: #845326;
+}
+
+.viewAllBtn {
+  font-size: 12px;
+  font-weight: 700;
+  color: #845326;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.viewAllBtn:hover {
+  text-decoration: underline;
+}
+
+/* Empty State Box */
+.emptyVouchersBox {
+  padding: 24px 16px;
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1.5px dashed #e7e1dd;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.emptyIconWrap {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fef3c7;
+  color: #d97706;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1d1b19;
+}
+
+.emptyDesc {
+  margin: 0;
+  font-size: 12px;
+  color: #78716c;
+  line-height: 1.4;
+  max-width: 290px;
+}
+
+.emptyActionBtn {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #845326;
+  color: #ffffff;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(132, 83, 38, 0.25);
+}
+
+.emptyActionBtn:hover {
+  background: #6d421d;
+}
+
+/* Real Voucher Ticket Stub Card (Vé 2 cột chuẩn Đồ án 1) */
+.voucherCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voucherCard {
+  display: flex;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #ede7de;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(44, 24, 16, 0.04);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.voucherCard:hover {
+  border-color: rgba(132, 83, 38, 0.4);
+  box-shadow: 0 4px 12px rgba(44, 24, 16, 0.08);
+}
+
+.voucherStub {
+  width: 90px;
+  background: linear-gradient(135deg, #2c1810 0%, #45271d 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px 6px;
+  border-right: 1.5px dashed #e7e1dd;
+  flex-shrink: 0;
+}
+
+.stubDiscountLabel {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+}
+
+.stubDiscountPercent {
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.1;
+  margin: 3px 0;
+}
+
+.stubCodeTag {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+
+.voucherDetails {
+  flex: 1;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.voucherTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1d1b19;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.voucherRules {
+  margin: 0;
+  font-size: 11px;
+  color: #78716c;
+  line-height: 1.35;
+}
+
+.voucherFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #f5efe9;
+}
+
+.voucherQtyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #845326;
+  background: #faf0e6;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(132, 83, 38, 0.2);
+}
+
+.useVoucherBtn {
+  background: #2c1810;
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(44, 24, 16, 0.2);
+  flex-shrink: 0;
+}
+
+.useVoucherBtn:hover {
+  background: #45271d;
+  transform: translateY(-1px);
+}
+
+.useVoucherBtn:active {
+  transform: scale(0.96);
+}
+
+/* ── 4. Barcode Loyalty Pass (Đầy đủ không bị co) ── */
+.barcodeCard {
+  background: linear-gradient(135deg, #2c1810 0%, #3e2216 100%);
+  border-radius: 18px;
+  padding: 16px;
+  color: #fef8f4;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.barcodePassHeader {
+  font-size: 11px;
+  color: #ffdcc2;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.barcodeSim {
+  background: #ffffff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  margin: 10px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 220px;
+}
+
+.barcodeLines {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 42px;
+}
+
+.barcodeLine {
+  background: #000000;
+  height: 100%;
+}
+
+.barcodeNumber {
+  font-family: monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: #827470;
+  margin-top: 4px;
+}
+
+.barcodeHint {
+  margin: 0;
+  font-size: 11px;
+  color: #ffdbce;
+}
+
+/* ── 5. Quick Links Group ── */
+.quickLinksGroup {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: #ffffff;
+  overflow: hidden;
+  border: 1px solid #ede7de;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.quickLinkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  text-decoration: none;
+  color: #2c1810;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px solid #f3ede9;
+  background: none;
+  width: 100%;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.quickLinkRow:last-child {
+  border-bottom: none;
+}
+
+.quickLinkRow:hover {
+  background: #faf6f0;
+}
+
+.quickLinkLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quickLinkIcon {
+  font-size: 18px;
+  color: #845326;
+}
+
+.quickLinkChevron {
+  font-size: 16px;
+  color: #827470;
+}
+
+/* ── 6. Logout Button ── */
+.logoutBtn {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.logoutBtn:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.loginLink {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #2c1810;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.loginLink:hover {
+  background: #45271d;
+}
+
+/* ── 7. Fixed Mobile Bottom Navigation Bar ── */
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  background: rgba(254, 248, 244, 0.98);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(231, 225, 221, 0.8);
+  z-index: 50;
+  padding: 6px 12px 8px;
+}
+
+.bottomNavInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  max-width: 480px;
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #827470;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  min-width: 60px;
+}
+
+.navItem:hover {
+  color: #2c1810;
+}
+
+.navItemActive {
+  color: #845326;
+  font-weight: 800;
+}
+
+.navIconWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.navBadge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  background: #ba1a1a;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes toastSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
