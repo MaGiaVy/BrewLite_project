@@ -2,7 +2,7 @@
 
 > **Mã nhiệm vụ:** `TASK-03` (Trọng số: **2.0 / 10 điểm** — Đợt A: Bắt đầu ngay)  
 > **Học phần:** Công nghệ Phần mềm — Giảng viên: **ThS. Từ Lãng Phiêu**  
-> **Thành viên phụ trách:** Huỳnh Tuấn Kiệt | Phối hợp kiến trúc: Cả nhóm  
+> **Thành viên phụ trách:** Vũ Châu Minh Khôi | Phối hợp kiến trúc: Cả nhóm  
 > **Kho mã nguồn:** Monorepo (`apps/web`, `apps/api`, `docs`, `tests`)  
 > **Trạng thái:** `HOÀN THÀNH BẢN THIẾT KẾ KIẾN TRÚC & TRUY VẾT (T3.1)`
 

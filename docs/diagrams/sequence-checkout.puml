@@ -1,5 +1,6 @@
-@startuml sequence_checkout
+@startuml
 !theme plain
+' Thành viên thực hiện: Huỳnh Tuấn Kiệt (Task 2.2 - Sequence Diagram)
 title Biểu Đồ Trình Tự Đặt Hàng & Thanh Toán 2 Pha (Checkout & Payment Sequence Diagram) — BrewLite
 
 skinparam DefaultFontName "Arial"

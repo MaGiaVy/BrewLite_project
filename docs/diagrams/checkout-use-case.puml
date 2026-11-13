@@ -21,6 +21,7 @@ skinparam rectangle {
     BackgroundColor white
 }
 
+' Thành viên thực hiện: Nguyễn Thị Ý (Task 1.3 - Use Case Checkout)
 title SƠ ĐỒ USE CASE PHÂN HỆ ĐẶT HÀNG & THANH TOÁN (CHECKOUT & PAYMENT)\n(Tách biệt rõ ràng 2 nghiệp vụ Tạo đơn hàng & Thanh toán trong cùng phân hệ)
 
 ' ==========================================

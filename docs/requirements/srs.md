@@ -5,6 +5,7 @@
 > **Học phần:** Công nghệ Phần mềm (Software Engineering) — Assignment 2 (Requirements to Delivery)  
 > **Đơn vị đào tạo:** Khoa Công nghệ Thông tin, Trường Đại học Sài Gòn (SGU)  
 > **Giảng viên hướng dẫn:** ThS. Từ Lãng Phiêu  
+> **Sinh viên phụ trách chính (Lead Author):** Vũ Châu Minh Khôi
 > **Nhóm thực hiện:** Nhóm BrewLite (6 thành viên):
 > 1. **Mã Gia Vỹ**
 > 2. **Huỳnh Tuấn Kiệt**

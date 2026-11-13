@@ -4,6 +4,7 @@
 > **Tài liệu:** `docs/diagrams/activity-diagrams.md`  
 > **Học phần:** Công nghệ Phần mềm (Software Engineering) — Assignment 2 (Task 2.1)  
 > **Đơn vị đào tạo:** Khoa Công nghệ Thông tin, Trường Đại học Sài Gòn (SGU)  
+> **Sinh viên thực hiện:** Mã Gia Vỹ (Task 2.1 — Activity Diagram)  
 > **Nhóm thực hiện:** Nhóm BrewLite (6 thành viên)  
 > **Phong cách thiết kế:** Monochrome UML 2.5 (Chuẩn đen trắng tối giản, Swimlane 5 phân làn, Decision hình thoi)  
 > **Trạng thái:** Chuẩn hóa hợp nhất toàn trình theo mã nguồn thực tế (Approved)

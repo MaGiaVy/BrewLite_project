@@ -17,6 +17,7 @@ skinparam swimlane {
     TitleFontColor black
 }
 
+' Thành viên thực hiện: Mã Gia Vỹ (Task 2.1 - Activity Diagram)
 title SÔ ĐÔ HOAT ĐÔNG: LUÔNG ĐÂT HÀNG & THANH TOÁN END-TO-END\n(Xem Menu -> Tùy biên Size/Topping -> Giỏ hàng -> PENDING -> ZaloPay -> KDS -> Nhận món)
 
 |#White|Khách hàng (Customer)|

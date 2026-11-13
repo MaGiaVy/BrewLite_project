@@ -1,3 +1,4 @@
+> **Thành viên thực hiện:** Huỳnh Tuấn Kiệt (Task 2.2 — Sequence Diagram)  
 # Tài Liệu Biểu Đồ Trình Tự Đặt Hàng & Thanh Toán 2 Pha (Checkout & Payment Sequence Diagram)
 
 Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và thanh toán (Checkout & Payment) của hệ thống **BrewLite**. Toàn bộ thiết kế được xây dựng đồng bộ với mã nguồn thực tế tại `apps/api/src/orders/orders.service.ts`, `apps/api/src/payments/payments.service.ts` và `apps/api/src/jobs/expire-orders.job.ts`. Biểu đồ nguồn tương ứng được lưu tại [`sequence-checkout.puml`](sequence-checkout.puml).

@@ -1,5 +1,6 @@
-@startuml class_diagram
+@startuml
 !theme plain
+' Thành viên thực hiện: Nguyễn Gia Thành (Task 2.3 - Domain Class Diagram)
 title UML Class & Domain Entity Diagram — Hệ Thống BrewLite\n(Single Source of Truth: apps/api/prisma/schema.prisma & BOM Architecture)
 
 skinparam DefaultFontName "Arial"

@@ -1,5 +1,6 @@
 @startuml deployment
 !theme plain
+' Thành viên thực hiện: Quách Kỳ Minh (Task 3.2 - Deployment Diagram)
 title UML Deployment Diagram — Hệ Thống BrewLite (Task 3.2 - Đợt A)
 
 skinparam DefaultFontName "Arial"
