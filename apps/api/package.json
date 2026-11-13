@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest",
+    "test:int": "jest --runInBand src/integration/orders-payments.int.spec.ts",
     "prisma:generate": "prisma generate"
   },
   "prisma": {
@@ -36,12 +37,15 @@
     "@nestjs/cli": "^10.4.0",
     "@nestjs/testing": "^10.4.0",
     "@types/bcrypt": "^5.0.2",
+    "@types/express": "^5.0.6",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.14.0",
     "@types/passport-jwt": "^4.0.1",
+    "@types/supertest": "^7.2.1",
     "eslint": "^9.14.0",
     "jest": "^29.7.0",
     "prisma": "^5.22.0",
+    "supertest": "^7.3.2",
     "ts-jest": "^29.2.5",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",
@@ -63,6 +67,9 @@
         }
       ]
     },
+    "setupFiles": [
+      "<rootDir>/integration/test-env.ts"
+    ],
     "testEnvironment": "node"
   }
 }
