@@ -158,7 +158,7 @@ runIntegrationSuite('orders and payments integration', () => {
       request(app.getHttpServer()).post('/orders').set(auth).send(orderBody(productId)),
     ]);
 
-    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    expect(responses.map((response: any) => response.status).sort()).toEqual([201, 409]);
     expect((await prisma.ingredient.findUnique({ where: { id: ingredientId } }))?.stock).toBe(0);
   });
 
