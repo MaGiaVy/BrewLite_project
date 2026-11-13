@@ -8,6 +8,8 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // Prisma transaction mocks and optional legacy models are intentionally structural.
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 );

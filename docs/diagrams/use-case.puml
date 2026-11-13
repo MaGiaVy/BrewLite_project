@@ -1,26 +1,36 @@
 @startuml
 left to right direction
-skinparam defaultFontName "Segoe UI, Arial, sans-serif"
+skinparam defaultFontName "Arial"
 skinparam defaultFontSize 12
 skinparam roundcorner 10
-
-' Tối giản chuẩn UML, không màu mè
-skinparam packageStyle rectangle
 skinparam shadowing false
+
 skinparam actor {
-    BorderColor black
-    BackgroundColor white
-}
-skinparam usecase {
-    BorderColor black
-    BackgroundColor white
-    ArrowColor black
-}
-skinparam rectangle {
-    BorderColor black
-    BackgroundColor white
+    BackgroundColor #FFF9F5
+    BorderColor #2C1810
+    BorderThickness 1.5
+    FontColor #2C1810
+    FontStyle bold
 }
 
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #845326
+    BorderThickness 1.2
+    ArrowColor #2C1810
+    ArrowThickness 1.2
+    FontColor #2C1810
+}
+
+skinparam rectangle {
+    BackgroundColor #FFFFFF
+    BorderColor #2C1810
+    BorderThickness 1.5
+    FontColor #2C1810
+    FontStyle bold
+}
+
+' Thành viên thực hiện: Mã Gia Vỹ (Task 1.2 - Use Case Tổng Quát)
 title SƠ ĐỒ USE CASE TỔNG QUÁT HỆ THỐNG BREWLITE\n(Nền tảng Đặt đồ uống & Thanh toán không tiền mặt)
 
 ' ==========================================

@@ -1,0 +1,731 @@
+/* Mobile-first Promotions Page Styling */
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px 96px 16px;
+  min-height: 100vh;
+  background-color: #fef8f4;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1d1b19;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Ambient Backdrops */
+.ambientGlow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(254, 188, 133, 0.25) 0%, rgba(254, 248, 244, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Top Header Bar */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 2;
+}
+
+.backBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 1px solid #e7ded5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2c1810;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(44, 24, 16, 0.05);
+  transition: all 0.15s ease;
+}
+
+.backBtn:active {
+  transform: scale(0.95);
+  background-color: #f3ede9;
+}
+
+.pageTitle {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #2c1810;
+  margin: 0;
+}
+
+.pointsPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #ffdcc2;
+  color: #2e1500;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #febc85;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.pointsPill:active {
+  transform: scale(0.96);
+}
+
+/* Member VIP Card */
+.memberCard {
+  background: linear-gradient(135deg, #22130c 0%, #351d12 55%, #1a0d07 100%);
+  border-radius: 20px;
+  padding: 18px;
+  color: #ffffff;
+  margin-bottom: 18px;
+  border: 1.5px solid rgba(212, 175, 55, 0.4);
+  box-shadow: 0 8px 24px -4px rgba(44, 24, 16, 0.25);
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.cardGlowOverlay {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.cardTopRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.tierBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(212, 175, 55, 0.2);
+  color: #ffdcc2;
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.memberName {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 4px 0 0 0;
+}
+
+.pointsDisplay {
+  text-align: right;
+}
+
+.pointsLabel {
+  font-size: 10px;
+  color: #d1c5be;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.pointsNumber {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  color: #febc85;
+  line-height: 1.1;
+}
+
+.pointsUnit {
+  font-size: 11px;
+  color: #e5ded7;
+  margin-left: 2px;
+}
+
+/* Progress bar inside Member card */
+.tierProgressWrap {
+  margin: 12px 0 14px 0;
+}
+
+.tierProgressLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #d1c5be;
+  margin-bottom: 5px;
+}
+
+.tierProgressTrack {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.tierProgressBar {
+  height: 100%;
+  background: linear-gradient(90deg, #febc85 0%, #d4af37 100%);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+/* Card Barcode Bottom */
+.cardBarcodeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  color: #bfaea5;
+}
+
+.barcodeVisual {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+}
+
+.barcodeBar {
+  background-color: #ffffff;
+  height: 100%;
+  border-radius: 1px;
+}
+
+/* Manual Voucher Input Card */
+.inputCard {
+  background-color: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e7ded5;
+  padding: 14px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.04);
+}
+
+.inputTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c1810;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+}
+
+.voucherInput {
+  flex: 1;
+  height: 42px;
+  border: 1.5px solid #ded4cc;
+  border-radius: 12px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c1810;
+  outline: none;
+  text-transform: uppercase;
+  transition: border-color 0.15s ease;
+  background-color: #fdfaf8;
+}
+
+.voucherInput:focus {
+  border-color: #845326;
+  background-color: #ffffff;
+}
+
+.applyBtn {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background-color: #2c1810;
+  color: #ffffff;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.applyBtn:active {
+  transform: scale(0.96);
+  background-color: #1e0f09;
+}
+
+.quickChipsRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.quickChipsLabel {
+  font-size: 11px;
+  color: #786c67;
+}
+
+.quickChip {
+  background-color: #f3ede9;
+  border: 1px solid rgba(44, 24, 16, 0.06);
+  color: #845326;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.quickChip:hover {
+  background-color: #ffdcc2;
+}
+
+/* Tabs Bar */
+.tabsContainer {
+  display: flex;
+  background: #f1eae4;
+  padding: 4px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  gap: 4px;
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #786c67;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tabBtnActive {
+  background: #ffffff;
+  color: #2c1810;
+  box-shadow: 0 2px 6px rgba(44, 24, 16, 0.08);
+}
+
+/* Voucher Cards List */
+.vouchersList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.voucherCard {
+  background-color: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e7ded5;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.04);
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.voucherCard.applied {
+  border-color: #845326;
+  background-color: #fffaf6;
+  box-shadow: 0 4px 14px rgba(132, 83, 38, 0.12);
+}
+
+/* Left ticket stub */
+.stubLeft {
+  width: 88px;
+  background: linear-gradient(135deg, #2c1810 0%, #45271d 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 6px;
+  text-align: center;
+  flex-shrink: 0;
+  position: relative;
+  border-right: 1.5px dashed rgba(255, 255, 255, 0.25);
+}
+
+.stubLeft.applied {
+  background: linear-gradient(135deg, #845326 0%, #603813 100%);
+}
+
+.stubPercent {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.stubLabel {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #ffdcc2;
+  margin-top: 2px;
+}
+
+.stubCode {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 2px 5px;
+  border-radius: 4px;
+  margin-top: 6px;
+}
+
+/* Card Content Middle */
+.cardContent {
+  flex: 1;
+  padding: 12px 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.cardTopInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cardTitle {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2c1810;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.badgeTag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: #ffdcc2;
+  color: #78491d;
+  white-space: nowrap;
+}
+
+.cardDesc {
+  font-size: 11px;
+  color: #6d625d;
+  line-height: 1.35;
+}
+
+.cardMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #786c67;
+  flex-wrap: wrap;
+}
+
+.qtyTag {
+  background: #f3ede9;
+  color: #845326;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.expiryTag {
+  color: #b45309;
+  font-weight: 600;
+}
+
+/* Card Actions Right */
+.cardActionCol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 10px 12px 10px 0;
+  flex-shrink: 0;
+}
+
+.applyVoucherBtn {
+  background-color: #2c1810;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.applyVoucherBtn:active {
+  transform: scale(0.95);
+  background-color: #1e0f09;
+}
+
+.removeVoucherBtn {
+  background-color: #f3ede9;
+  color: #786c67;
+  border: 1px solid #ded4cc;
+  border-radius: 10px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.appliedPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+}
+
+/* Redeem Tab Section */
+.redeemOverview {
+  background: #fdfaf8;
+  border: 1px solid #eedecf;
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.redeemOverviewLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2c1810;
+  font-weight: 700;
+}
+
+.redeemBtn {
+  background-color: #845326;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.redeemBtn:active {
+  transform: scale(0.95);
+  background-color: #6a3e18;
+}
+
+.redeemBtnDisabled {
+  background-color: #ede7e3;
+  color: #a89a93;
+  border: none;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: not-allowed;
+  white-space: nowrap;
+}
+
+/* Toast alert notification - Centered and responsive */
+.toastWrapper {
+  position: fixed;
+  bottom: 76px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 100;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.toastAlert {
+  pointer-events: auto;
+  background-color: #2c1810;
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
+  text-align: center;
+  line-height: 1.35;
+  animation: toastSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toastAlert.success {
+  background-color: #065f46;
+}
+
+.toastAlert.error {
+  background-color: #8c3b32;
+}
+
+.toastAlert span {
+  white-space: normal;
+  text-align: center;
+}
+
+@keyframes toastSlideUp {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Fixed Mobile Bottom Navigation Bar (5 Items) */
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(254, 248, 244, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(231, 225, 221, 0.85);
+  height: 64px;
+}
+
+.bottomNavInner {
+  max-width: 480px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 8px;
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 6px 0;
+  text-decoration: none;
+  color: #786c67;
+  font-size: 10px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.navItem:active {
+  transform: scale(0.92);
+}
+
+.navItemActive {
+  color: #2c1810;
+  font-weight: 800;
+}
+
+.navIconWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.navBadge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  background: #845326;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 1.5px solid #fef8f4;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
