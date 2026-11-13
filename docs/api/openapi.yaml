@@ -118,7 +118,8 @@ paths:
   /auth/redeem-points:
     post:
       tags: [Auth]
-      summary: Doi Hat Vang (loyaltyPoints) lay voucher uu dai
+      summary: Doi Hat Vang (loyaltyPoints) lay voucher uu dai theo quy dinh server (10/20/50 diem)
+      description: Quy tac quy doi diem duoc server kiem soat tuyet doi (server-enforced). Cac muc quy doi hop le la 10 diem (voucher 10k), 20 diem (voucher 20k), 50 diem (voucher 50k). He thong tu dong tinh toan va tru diem chuan xac theo ma voucher (requiredPoints), ngan chan triet de loi tru diem sai tu client.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -128,8 +129,9 @@ paths:
               $ref: '#/components/schemas/RedeemPointsDto'
       responses:
         '201':
-          description: Doi voucher thanh cong
-        '400': { $ref: '#/components/responses/BadRequest' }
+          description: Doi voucher thanh cong va tru diem atomic
+        '400':
+          description: Khong du diem loyaltyPoints hoac ma voucher khong hop le / da bi vo hieu hoa (isActive = false)
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /auth/vouchers:
@@ -235,10 +237,40 @@ paths:
         '200': { description: Da cap nhat hien thi }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /products/{id}/sold-out:
+    patch:
+      tags: [Products]
+      summary: Bat/tat trang thai het hang thu cong cua mon (86 out-of-stock) - STAFF hoac ADMIN
+      description: >-
+        Cho phep nhan vien pha che (STAFF) hoac Quan tri vien (ADMIN) danh dau mon da het hang tam thoi
+        hoac mo ban lai. Luu y bao mat RBAC: neu nguoi goi co role STAFF, ket qua tra ve se tu dong luoc bo
+        toan bo thong tin cong thuc (recipes) va gia von COGS (cogsSizeS, cogsSizeM, cogsSizeL) nham ngan chan ro ri du lieu kinh doanh.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/NumericId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToggleSoldOutDto'
+      responses:
+        '200':
+          description: Cap nhat trang thai het hang thanh cong (STAFF khong nhan duoc recipes va COGS)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /orders:
     post:
       tags: [Orders]
       summary: Tao don hang PENDING va tam giu nguyen vat lieu BOM trong transaction
+      description: Tao don hang moi o trang thai PENDING. He thong khoa User bang SELECT ... FOR UPDATE de chong race condition, kiem tra gioi han toi da 5 don hang o trang thai PENDING/PAYMENT_FAILED cung luc tren tai khoan de chong spam. Ho tro header Idempotency-Key de chong duplicate order khi client re-try.
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -250,9 +282,12 @@ paths:
               $ref: '#/components/schemas/CreateOrderDto'
       responses:
         '201':
-          description: Don hang duoc tao o trang thai PENDING (VAT 0%)
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '409': { $ref: '#/components/responses/Conflict' }
+          description: Don hang duoc tao thanh cong o trang thai PENDING (VAT 0%), hoac tra ve don hang da ton tai neu trung Idempotency-Key va trung payload
+        '400':
+          description: Du lieu khong hop le, hoac vuot qua gioi han toi da 5 don hang o trang thai PENDING/PAYMENT_FAILED cung luc
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Xung dot kho/nguyen lieu (BOM khong du ton kho) hoac Idempotency-Key payload mismatch
     get:
       tags: [Orders]
       summary: Lay tat ca don hang (ADMIN)
@@ -346,6 +381,9 @@ paths:
     post:
       tags: [Payments]
       summary: Tao giao dich ZaloPay Sandbox v2 cho don PENDING/PAYMENT_FAILED
+      description: >-
+        Tao giao dich thanh toan qua cong ZaloPay. He thong kiem tra quyen so huu (Order Ownership):
+        chi nguoi tao don (order.userId === currentUser.id) moi co quyen tao thanh toan.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -359,6 +397,9 @@ paths:
       responses:
         '200': { description: URL thanh toan va appTransId }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Tu choi truy cap neu khong phai chu so huu don hang (order.userId !== currentUser.id)
 
   /payments/zalopay/callback:
     post:
@@ -394,11 +435,15 @@ paths:
           schema: { type: string }
       responses:
         '200': { description: Trang thai thanh toan don hang }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Chi chu so huu don hang hoac STAFF/ADMIN moi co quyen xem trang thai thanh toan
 
   /payments/zalopay/confirm:
     post:
       tags: [Payments]
       summary: Gia lap callback thanh cong cho ZaloPay Sandbox (production yeu cau ALLOW_SANDBOX_CONFIRM=true)
+      description: Endpoint ho tro moi truong dev/sandbox de test xac nhan thanh toan ma khong can callback that. O moi truong production, endpoint bi chan 403 mac dinh (Default-Deny) tru khi bien moi truong ALLOW_SANDBOX_CONFIRM=true. Dong thoi kiem tra quyen so huu don hang.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -411,12 +456,16 @@ paths:
                 appTransId: { type: string }
       responses:
         '200': { description: Xac nhan thanh toan sandbox thanh cong }
-        '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Bi chan mac dinh khi ALLOW_SANDBOX_CONFIRM=false hoac khong phai chu so huu don hang
 
   /payments/zalopay/cancel:
     post:
       tags: [Payments]
       summary: Huy giao dich ZaloPay Sandbox va hoan kho (production yeu cau ALLOW_SANDBOX_CONFIRM=true)
+      description: Endpoint ho tro test huy giao dich va hoan nguyen lieu BOM. O moi truong production, endpoint bi chan 403 mac dinh (Default-Deny) tru khi ALLOW_SANDBOX_CONFIRM=true. Kiem tra chu so huu don hang.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -429,7 +478,10 @@ paths:
                 orderId: { type: integer, minimum: 1 }
       responses:
         '200': { description: Huy don va hoan nguyen vat lieu }
-        '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Bi chan mac dinh khi ALLOW_SANDBOX_CONFIRM=false hoac khong phai chu so huu don hang
 
   /inventory/pricing-config:
     get:
@@ -499,7 +551,13 @@ paths:
       parameters:
         - $ref: '#/components/parameters/NumericId'
       responses:
-        '200': { description: Da xoa }
+        '200': { description: Da xoa nguyen vat lieu thanh cong }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Khong the xoa nguyen vat lieu do da phat sinh lich su kho (InventoryLog) hoac cong thuc lien quan (onDelete Restrict)
 
   /inventory/ingredients/{id}/restock:
     patch:
@@ -813,6 +871,7 @@ components:
       in: header
       name: Idempotency-Key
       required: false
+      description: Khoa chong trung lap don hang tu client (UUIDv4). Neu gui lai cung key voi cung payload, server tra ve don hang da ton tai (khong tru kho lan hai). Neu payload khac voi key da luu, server tra ve 409 Conflict.
       schema: { type: string }
   responses:
     BadRequest: { description: Du lieu dau vao khong hop le hoac vi pham nghiep vu }
@@ -928,6 +987,13 @@ components:
       properties:
         isActive: { type: boolean }
         isSoldOutManual: { type: boolean }
+    ToggleSoldOutDto:
+      type: object
+      required: [isSoldOut]
+      properties:
+        isSoldOut:
+          type: boolean
+          description: true = het hang tam thoi (86), false = con hang / mo ban lai
     OrderItemDto:
       type: object
       required: [productId, size, toppings, quantity]
