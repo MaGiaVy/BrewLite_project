@@ -66,3 +66,19 @@ Configure GitHub `production` environment protection / required reviewers where 
 - Update `docs/traceability-matrix.md` after confirming its existing rows and format.
 - Test image builds, smoke-test failure/retry, Render release and rollback before claiming T5.3 completion.
 - A Render LIVE status and successful smoke test still require functional verification (including database migration and staff/customer flows) during acceptance.
+
+## Bootstrap first deployment (API has no public URL yet)
+
+The existing `publish` operation needs `RENDER_API_URL` to build the Web image.
+For the first deployment, use the `publish-api` operation to avoid using an invented URL:
+
+1. Review security and the API startup seed behavior with the owners before any public API deployment.
+2. Run `publish-api` on `main` with an approved version tag, such as `v1.0.0`. This runs quality and Gitleaks checks and pushes **only** the GHCR API image.
+3. Confirm the GHCR API package exists and Render can pull it (public visibility or appropriate registry credentials).
+4. Create the Render API image-backed service in the same region as PostgreSQL. Do not start a publicly accessible API with known seeded demo passwords. Set `DATABASE_URL` from Render's Internal Database URL and configure other required secrets directly on Render.
+5. Record the API's real public HTTPS origin in GitHub Actions repository variable `RENDER_API_URL`.
+6. Run `publish` with the **same tag only if the API image is unchanged** (otherwise use a new version tag), so the Web image is built with the correct URL.
+7. Create the Render Web image-backed service from the published Web image. Record its URL in `RENDER_WEB_URL`. Set the two service IDs, deploy hooks and Render API key as described above.
+8. Run `deploy` with an approved **new** version tag, or use the already-created images via a reviewed workflow change. The current `deploy` operation repushes both images for the selected tag. Do not overwrite a previously released tag with different image content.
+
+**Important:** The current API entrypoint always runs `prisma db seed`. The current seed includes fixed demo/admin/staff passwords and updates existing accounts. **Block public deployment until the seed and authentication configuration are secured with the owning team**, e.g. opt-in seed only for a controlled demo environment with rotated credentials.
