@@ -50,17 +50,17 @@
 - Consumes: Local branch `fix/wave4-frontend-api-contract` (7 commits).
 - Produces: `main` updated with KDS chime, 86 sold-out sheet, Edge route guard middleware, and live PG integration tests.
 
-- [ ] **Step 1: Verify git status is clean on `BrewLite_project`**
+- [x] **Step 1: Verify git status is clean on `BrewLite_project`**
   ```bash
   cd D:\SWE\BrewLite_project
   git checkout main
   git status
   ```
-- [ ] **Step 2: Merge `fix/wave4-frontend-api-contract` into `main`**
+- [x] **Step 2: Merge `fix/wave4-frontend-api-contract` into `main`**
   ```bash
   git merge --no-ff fix/wave4-frontend-api-contract -m "merge(wave4): integrate frontend api-contract, kds chime, 86 toggle, and route guard"
   ```
-- [ ] **Step 3: Verify build passes after merge**
+- [x] **Step 3: Verify build passes after merge**
   ```bash
   npm run build -w apps/web
   ```
@@ -77,16 +77,16 @@
 - Consumes: Approved Palette 1 tokens from `admin_modern_vintage_showcase.html`.
 - Produces: Warm Alabaster background, Bento white cards, official `BrewLiteLogo`, and monochrome vector actions.
 
-- [ ] **Step 1: Update `admin.module.css` color variables and classes**
+- [x] **Step 1: Update `admin.module.css` color variables and classes**
   - Replace `#0c0806` / `#160f0c` page background with `#FAF6F0`.
   - Replace dark red `#991b1b` / `#450a0a` logo badge with official `BrewLiteLogo` wrapper.
   - Update card backgrounds to `#FFFFFF` with borders `#EBE3D5` and subtle box-shadow `0 2px 8px rgba(44, 24, 16, 0.04)`.
   - Update typography colors: primary text `#1C1917`, secondary `#78716C`, accent `#D4AF37`.
-- [ ] **Step 2: Update Header in `apps/web/src/app/admin/page.tsx`**
+- [x] **Step 2: Update Header in `apps/web/src/app/admin/page.tsx`**
   - Import `BrewLiteLogo` from `../../components/BrewLiteLogo`.
   - Replace `<div className={styles.logoBadge}>BL</div>` with `<div className={styles.logoWrap}><BrewLiteLogo height={32} /></div>`.
   - Replace bell and action button styling with sleek monochrome black vector icons.
-- [ ] **Step 3: Verify Admin header and cards render cleanly in browser**
+- [x] **Step 3: Verify Admin header and cards render cleanly in browser**
 
 ---
 
@@ -100,11 +100,11 @@
 - Consumes: `BrewLiteLogo` component and pure SVG vector icons.
 - Produces: Professional KDS header with official logo, subtitle "Quầy bar KDS", monochrome SVG vector bottom navigation (replacing 📋 và ✅), vector recipe icon, and link back to menu. Zero emojis.
 
-- [ ] **Step 1: Import `BrewLiteLogo` in `apps/web/src/app/staff/page.tsx`**
+- [x] **Step 1: Import `BrewLiteLogo` in `apps/web/src/app/staff/page.tsx`**
   ```tsx
   import { BrewLiteLogo } from '../../components/BrewLiteLogo';
   ```
-- [ ] **Step 2: Update Staff Header markup**
+- [x] **Step 2: Update Staff Header markup**
   - Replace `<span>☕ BrewLite · Quầy bar KDS</span>` with:
     ```tsx
     <div className={styles.brand}>
@@ -113,12 +113,12 @@
     </div>
     ```
   - Add quick navigation button "Thực đơn" next to `totalChip` linking to `/menu`.
-- [ ] **Step 3: Replace all emojis in `staff/page.tsx` with clean monochrome black SVG vector icons**
+- [x] **Step 3: Replace all emojis in `staff/page.tsx` with clean monochrome black SVG vector icons**
   - Replace `📋 Đơn đang pha` with SVG Clipboard icon + text.
   - Replace `✅ Lịch sử đã xong` with SVG Check-circle icon + text.
   - Replace `📖` in recipe buttons with SVG Book-open icon.
   - Replace `⚠️` in warning banners with SVG Alert-triangle icon.
-- [ ] **Step 4: Update `staff.module.css` for bottom navigation & `.kdsBadge`**
+- [x] **Step 4: Update `staff.module.css` for bottom navigation & `.kdsBadge`**
   - Clean vector alignment, border-left divider, elegant typography matching coffee theme.
 
 ---
@@ -133,16 +133,16 @@
 - Consumes: 7-day order revenue data from `chartOrders ?? recentOrders`.
 - Produces: Smooth SVG Bezier line chart with amber gradient area, data dots, and animated pulse dot.
 
-- [ ] **Step 1: Implement `RevenueSparkline.tsx`**
+- [x] **Step 1: Implement `RevenueSparkline.tsx`**
   - Calculate 7 daily totals for the past 7 days (T2 through CN).
   - Compute normalized SVG coordinates (viewBox `0 0 320 60`).
   - Render smooth cubic Bezier spline path `d="M ... C ..."` with `<linearGradient>` amber area fill.
   - Render pulse dot `<circle>` at current day with CSS animation.
   - Render weekday labels `T2  T3  T4  T5  T6  T7  CN (Nay)`.
-- [ ] **Step 2: Integrate `RevenueSparkline` into `AdminOverviewSection.tsx`**
+- [x] **Step 2: Integrate `RevenueSparkline` into `AdminOverviewSection.tsx`**
   - Embed directly inside the top 7-day revenue card.
   - Display net revenue total with +14.2% growth indicator pill.
-- [ ] **Step 3: Verify sparkline renders accurately with zero layout shifts**
+- [x] **Step 3: Verify sparkline renders accurately with zero layout shifts**
 
 ---
 
@@ -156,13 +156,13 @@
 - Consumes: `ChartIcon`, `CupIcon`, `BoxIcon`, `UsersIcon` from `AdminIcons.tsx`.
 - Produces: Minimalist black line bottom navigation with active/inactive indicators. Zero emojis.
 
-- [ ] **Step 1: Update `AdminBottomBar.tsx` tabs**
+- [x] **Step 1: Update `AdminBottomBar.tsx` tabs**
   - Ensure all 4 tabs (`overview`, `menu`, `inventory`, `management`) use clean SVG vector icons.
   - Set active tab color to Deep Espresso/Black (`#1C1917`) with stroke-width `2.3px`.
   - Set inactive tab color to muted stone (`#A8A29E`) with hover transition.
-- [ ] **Step 2: Update bottom nav bar container styling in `admin.module.css`**
+- [x] **Step 2: Update bottom nav bar container styling in `admin.module.css`**
   - Background `#FFFFFF` with top border `#EBE3D5` and subtle backdrop blur.
-- [ ] **Step 3: Verify tab switching functions smoothly**
+- [x] **Step 3: Verify tab switching functions smoothly**
 
 ---
 
@@ -177,7 +177,7 @@
 - Consumes: `user.role` from `useAuthStore` and login API response.
 - Produces: Automatic conditional routing on login, plus Admin/Staff portal shortcuts on `/account`.
 
-- [ ] **Step 1: Update `handleSubmit` in `AuthForms.tsx`**
+- [x] **Step 1: Update `handleSubmit` in `AuthForms.tsx`**
   - Check `data.user?.role`:
     ```typescript
     const explicitRedirect = searchParams.get('redirect');
@@ -191,10 +191,10 @@
       router.push('/menu');
     }
     ```
-- [ ] **Step 2: Add portal shortcut cards in `apps/web/src/app/account/page.tsx`**
+- [x] **Step 2: Add portal shortcut cards in `apps/web/src/app/account/page.tsx`**
   - If `user?.role === 'ADMIN'`: Render prominent "Trang Quản Trị (Admin Portal)" shortcut.
   - If `user?.role === 'STAFF'`: Render "Màn hình Pha chế (KDS Barista)" shortcut.
-- [ ] **Step 3: Add "Xem Thực đơn Khách hàng" link in Header of `/admin` & `/staff`**
+- [x] **Step 3: Add "Xem Thực đơn Khách hàng" link in Header of `/admin` & `/staff`**
   - Allows seamless navigation back to `/menu` without logging out.
 
 ---
@@ -207,27 +207,27 @@
 **Interfaces:**
 - Produces: 100% passing builds, push to GitHub `personal/main`, Vercel & Render live deployment.
 
-- [ ] **Step 1: Run Next.js build verification**
+- [x] **Step 1: Run Next.js build verification**
   ```bash
   cd D:\SWE\BrewLite_project
   npm run build -w apps/web
   ```
   Expected: Compiled successfully with zero errors.
-- [ ] **Step 2: Run NestJS API build verification**
+- [x] **Step 2: Run NestJS API build verification**
   ```bash
   npm run build -w apps/api
   ```
   Expected: Compiled successfully with zero errors.
-- [ ] **Step 3: Commit all changes cleanly**
+- [x] **Step 3: Commit all changes cleanly**
   ```bash
   git add apps/web/src/
   git commit -m "feat(admin,staff): modern vintage theme, official logo, sparkline, monochrome icons, and role redirect"
   ```
-- [ ] **Step 4: Push directly to `main` on GitHub**
+- [x] **Step 4: Push directly to `main` on GitHub**
   ```bash
   git push personal main
   ```
-- [ ] **Step 5: Verify live auto-deployment on Vercel**
+- [x] **Step 5: Verify live auto-deployment on Vercel**
   - Monitor deployment at `https://brew-lite-project.vercel.app/admin`.
   - Monitor deployment at `https://brew-lite-project.vercel.app/staff`.
   - Verify live menu at `https://brew-lite-project.vercel.app/menu`.
