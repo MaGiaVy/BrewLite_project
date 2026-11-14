@@ -39,19 +39,19 @@ flowchart TB
 
 ## 2. Kiến trúc Mức Container (C4 Level 2: Container Diagram)
 
-Hệ thống BrewLite được tổ chức theo mô hình **Monorepo** (xem [ADR-001](./adr/001-monorepo.md)), phân tách rõ ràng giữa giao diện người dùng (Frontend), dịch vụ nghiệp vụ (Backend API) và hệ quản trị cơ sở dữ liệu (Database). Các container được đóng gói bằng Docker, lưu trữ trên GitHub Container Registry (GHCR) và triển khai lên nền tảng Render (xem [ADR-003](./adr/003-render-ghcr-deployment.md)).
+Hệ thống BrewLite được tổ chức theo mô hình **Monorepo** (xem [ADR-001](./adr/001-monorepo.md)), phân tách rõ ràng giữa giao diện người dùng (Frontend), dịch vụ nghiệp vụ (Backend API) và hệ quản trị cơ sở dữ liệu (Database). Trên Production, Frontend triển khai trên **Vercel**, Backend đóng gói bằng Docker triển khai trên **Render (Singapore)** kết hợp **Supabase PostgreSQL**, đồng thời duy trì tùy chọn đóng gói image qua GitHub Container Registry (GHCR) (xem [ADR-003](./adr/003-render-ghcr-deployment.md)).
 
 ```mermaid
 flowchart TB
     Customer["👤 Khách hàng<br/>[Trình duyệt Mobile / PWA]"]
     Staff["👤 Nhân viên quầy<br/>[Trình duyệt Web]"]
 
-    subgraph BrewLiteSystem["Hệ thống BrewLite (Render Production / Docker Compose Local)"]
-        WebApp["📱 Frontend Web Application<br/>[Container: Next.js / TypeScript / TailwindCSS]<br/>Thư mục: apps/web<br/>Phục vụ giao diện mobile-first/PWA,<br/>quản lý giỏ hàng (Zustand)"]
+    subgraph BrewLiteSystem["Hệ thống BrewLite (Vercel + Render + Supabase / Docker Compose Local)"]
+        WebApp["📱 Frontend Web Application (Vercel)<br/>[Next.js 15.1 / TypeScript / TailwindCSS]<br/>Thư mục: apps/web<br/>Phục vụ giao diện mobile-first/PWA,<br/>quản lý giỏ hàng (Zustand)"]
 
-        ApiApp["⚙️ Backend API Application<br/>[Container: NestJS / TypeScript / Prisma Client]<br/>Thư mục: apps/api<br/>Cung cấp REST API, xác thực JWT, tính giá,<br/>state machine, khóa tồn kho và thanh toán"]
+        ApiApp["⚙️ Backend API Application (Render Docker)<br/>[Container: NestJS 10.4 / TypeScript / Prisma Client]<br/>Thư mục: apps/api<br/>Cung cấp REST API, xác thực JWT, tính giá,<br/>state machine, khóa tồn kho và thanh toán"]
 
-        Database[("🗄️ Cơ sở dữ liệu<br/>[Container: PostgreSQL]<br/>Thư mục schema: apps/api/prisma<br/>Lưu trữ 12 bảng BOM, Orders,<br/>Payments, Users, Vouchers")]
+        Database[("🗄️ Cơ sở dữ liệu (Supabase PostgreSQL)<br/>[Managed PostgreSQL 16 / SSL]<br/>Thư mục schema: apps/api/prisma<br/>Lưu trữ 12 bảng BOM, Orders,<br/>Payments, Users, Vouchers")]
 
         MockGateway["💳 Payment Services (Mock + ZaloPay)<br/>[Internal / Sandbox trong API]<br/>Thư mục: apps/api/src/payments<br/>MockGateway (MOCK_PAYMENT_MODE)<br/>+ ZaloPayService (HMAC-SHA256)"]
     end
@@ -170,7 +170,7 @@ Nhóm lựa chọn kiến trúc **Modular Monolith (Khối đơn nguyên phân t
 | **Modular Monolith (`apps/api`)** | • Dễ dàng thực hiện ACID Transaction qua nhiều bảng (`Order`, `Product`, `Payment`, `User`) bằng Prisma.<br>• Triển khai đơn giản (chỉ cần 1 container API), không tốn chi phí giao tiếp mạng nội bộ giữa các microservices. | • Khó mở rộng (scale) độc lập từng module (ví dụ: không thể chỉ scale riêng module `orders` mà không nhân bản toàn bộ `api`).<br>• Nếu một module gây rò rỉ bộ nhớ, toàn bộ tiến trình API bị ảnh hưởng. | Chấp nhận giới hạn về khả năng scale độc lập từng module để đổi lấy **tính nhất quán dữ liệu tuyệt đối** và **tốc độ phát triển/vận hành nhanh** trong phạm vi MVP. |
 | **Monorepo (`apps/web`, `apps/api`, `docs`, `tests`)** | • Đồng bộ hóa tài liệu đặc tả (SRS, ADR, sơ đồ), mã nguồn Frontend/Backend và kiểm thử E2E trong cùng một Pull Request.<br>• Dễ dàng thiết lập CI/CD tập trung. | • Pipeline CI có thể chạy lâu hơn nếu không cấu hình tách luồng (matrix) và bộ nhớ đệm (cache). | Sử dụng GitHub Actions `matrix` (`api`, `web`) và `npm cache` để giảm thời gian build, đổi lại sự tiện lợi trong quản lý phiên bản và truy vết. |
 | **Optimistic Locking so với Pessimistic Locking** | • Không giữ khóa dòng (row lock) lâu trong DB, giúp tăng thông lượng đọc/ghi khi nhiều khách xem và đặt món cùng lúc. | • Khi có xung đột cao trên cùng 1 sản phẩm, một số request phải retry hoặc nhận lỗi `409 Conflict`. | Kết hợp cơ chế **retry tối đa 3 lần** trong `OrdersService` để giảm tỷ lệ lỗi cho người dùng mà vẫn đảm bảo tuyệt đối không bán âm tồn kho ($\text{stock} \ge 0$). |
-| **Chạy Migration lúc khởi động API** | • Không cần mở public cổng `5432` của PostgreSQL trên Render ra Internet cho GitHub Actions runner kết nối. | • Làm tăng nhẹ thời gian khởi động container API; yêu cầu các bản migration phải tương thích ngược. | Ưu tiên **bảo mật cơ sở dữ liệu production** (chỉ kết nối qua mạng nội bộ Render) và cơ chế tự động giữ bản cũ của Render nếu container mới lỗi khi migrate. |
+| **Chạy Migration lúc khởi động API** | • Không cần mở public cổng DB trực tiếp từ GitHub Actions runner để migrate từ bên ngoài. | • Làm tăng nhẹ thời gian khởi động container API; yêu cầu các bản migration phải tương thích ngược. | Ưu tiên **bảo mật kết nối cơ sở dữ liệu production** (chỉ container API trên Render giữ `DATABASE_URL` SSL tới Supabase) và cơ chế giữ bản cũ của Render nếu container mới lỗi khi migrate. |
 
 ---
 
@@ -180,11 +180,11 @@ Mọi quyết định kiến trúc trọng yếu của dự án đều được 
 
 1. **[ADR-001: Tổ chức mã nguồn theo cấu trúc Monorepo](./adr/001-monorepo.md)** — Thống nhất quản lý `apps/web`, `apps/api`, `docs` và `tests` trên một repository duy nhất.
 2. **[ADR-002: Kiến trúc phân lớp theo Module trong NestJS](./adr/002-layered-modular-nestjs.md)** — Phân tách trách nhiệm `Controller` – `Service` – `PrismaService` theo từng miền nghiệp vụ (`auth`, `products`, `orders`, `payments`, `inventory`, `customers`, `users`, `health`).
-3. **[ADR-003: Triển khai Production trên Render kết hợp GitHub Container Registry (GHCR)](./adr/003-render-ghcr-deployment.md)** — Chuẩn hóa quy trình đóng gói Docker image trên CI, lưu trữ tại GHCR và kích hoạt triển khai qua Render Deploy Hook.
+3. **[ADR-003: Triển khai Production (Vercel + Render + Supabase) & GHCR](./adr/003-render-ghcr-deployment.md)** — Chuẩn hóa triển khai Frontend trên Vercel, Backend Docker trên Render, PostgreSQL trên Supabase (SSL) và giữ pipeline GHCR trong `cd.yml` cho đóng gói/rollback container.
 4. **[ADR-004: Sử dụng Prisma ORM và quản lý Schema/Migration cho PostgreSQL](./adr/004-prisma-migrations.md)** — Đảm bảo an toàn kiểu dữ liệu (type-safety) và khả năng tái tạo cơ sở dữ liệu nhất quán giữa Local, CI và Production.
 5. **[ADR-005: Xây dựng Dịch vụ Thanh toán Mô phỏng (`MockGatewayService`)](./adr/005-mock-payment-service.md)** — Chủ động điều khiển kịch bản thanh toán (`success`, `failure`) song hành với ZaloPay Sandbox qua biến môi trường để kiểm thử toàn diện các nhánh nghiệp vụ.
 6. **[ADR-006: Kiểm soát đặt hàng đồng thời bằng Optimistic Locking và chống trùng lặp bằng Idempotency-Key](./adr/006-optimistic-locking-idempotency.md)** — Giải quyết bài toán bán vượt tồn kho (overselling) và thanh toán lặp hai lần.
-7. **[ADR-007: Thực thi Database Migration khi khởi động Container API](./adr/007-migration-on-startup.md)** — Bảo vệ cơ sở dữ liệu production trong mạng nội bộ và đảm bảo an toàn khi triển khai phiên bản mới.
+7. **[ADR-007: Thực thi Database Migration khi khởi động Container API](./adr/007-migration-on-startup.md)** — Bảo vệ cơ sở dữ liệu production và đảm bảo an toàn khi triển khai phiên bản mới.
 8. **[ADR-008: Tương thích Schema BOM 12 Bảng và Chuẩn Hóa Hợp Đồng API Monorepo](./adr/008-bom-schema-compatibility.md)** — Hợp nhất 12 model BOM, hợp đồng JSON `{ data }`, `0%` VAT và phân tách chu kỳ 15 phút TTL / 5 phút grace period.
 
 ---
@@ -195,10 +195,10 @@ Bảng dưới đây ánh xạ trực tiếp từng container/dịch vụ trong 
 
 | Thành phần / Container (trên Deployment Diagram) | Công nghệ / Nền tảng | Mục kiến trúc tương ứng | Thư mục / Tệp mã nguồn liên quan | Cổng & Giao thức |
 | :--- | :--- | :--- | :--- | :--- |
-| **`web` (Frontend Web Container)** | Next.js 15+ (App Router, React 19, TypeScript, TailwindCSS, Zustand) | Mục 2, Mục 3.1 (ADR-001, ADR-003) | • `apps/web/`<br>• `apps/web/src/app/{menu,cart,checkout,orders,staff,admin,account,promotions}/`<br>• `apps/web/src/stores/`<br>• `apps/web/Dockerfile` | • Local: `3000` (HTTP)<br>• Production (Render): `443` (HTTPS) $\rightarrow$ container port `3000` |
-| **`api` (Backend API Container)** | NestJS (TypeScript, Passport JWT, class-validator, Prisma Client) | Mục 2, Mục 3.2, Mục 3.5 (ADR-002, ADR-006, ADR-007, ADR-008) | • `apps/api/`<br>• `apps/api/src/{auth,products,orders,payments,inventory,customers,users,health,jobs,config}/`<br>• `docs/api/openapi.yaml`<br>• `apps/api/Dockerfile` | • Local: `3001` (HTTP)<br>• Production (Render): `443` (HTTPS) $\rightarrow$ container port; Health check: `GET /health` |
+| **`web` (Frontend Web App)** | Next.js 15.1.6 (App Router, React 19, TypeScript, TailwindCSS, Zustand) | Mục 2, Mục 3.1 (ADR-001, ADR-003) | • `apps/web/`<br>• `apps/web/src/app/{menu,cart,checkout,orders,staff,admin,account,promotions}/`<br>• `apps/web/src/stores/`<br>• `apps/web/Dockerfile` | • Local: `3000` (HTTP)<br>• Production (**Vercel**): `443` (HTTPS, `brew-lite-project.vercel.app`) |
+| **`api` (Backend API Container)** | NestJS 10.4 (TypeScript, Passport JWT, class-validator, Prisma Client) | Mục 2, Mục 3.2, Mục 3.5 (ADR-002, ADR-006, ADR-007, ADR-008) | • `apps/api/`<br>• `apps/api/src/{auth,products,orders,payments,inventory,customers,users,health,jobs,config}/`<br>• `docs/api/openapi.yaml`<br>• `apps/api/Dockerfile` | • Local: `3001` (HTTP)<br>• Production (**Render Singapore**): `443` (HTTPS $\rightarrow$ `:3001`, `brewlite-api-9viv.onrender.com`); Health check: `GET /health` |
 | **`MockGatewayService` & `ZaloPayService`** | NestJS Injectable Services (`MOCK_PAYMENT_MODE`, `HMAC-SHA256`) | Mục 2, Mục 3.4 (ADR-005) | • `apps/api/src/payments/mock-gateway.service.ts`<br>• `apps/api/src/payments/zalopay.service.ts`<br>• `apps/api/src/payments/payments.service.ts` | Gọi nội bộ / HTTPS tới ZaloPay Sandbox từ container `api` |
-| **`db` (Database Container / Managed PostgreSQL)** | PostgreSQL 16 + Persistent Volume / Render Internal Postgres | Mục 2, Mục 3.3 (ADR-004, ADR-007, ADR-008) | • `apps/api/prisma/schema.prisma` (12 models)<br>• `apps/api/prisma/migrations/`<br>• `apps/api/prisma/seed.ts`<br>• `docker-compose.yml` | • TCP `5432` (Host local `DB_PORT:-5433` hoặc mạng nội bộ Docker / Render Private Network) |
-| **`tests` & `scripts` (Test Suites & Smoke)** | Playwright, Jest, Vitest & Shell Smoke Scripts | Mục 3.6 | • `apps/api/src/integration/` (Wave 3b)<br>• `tests/e2e/checkout.spec.ts` (Wave 3b)<br>• `scripts/smoke-test.{sh,ps1}` | Chạy trên local container và CI runner kiểm thử qua HTTP |
-| **`registry` (Container Registry — GHCR)** | GitHub Container Registry (`ghcr.io`) | Mục 2, Mục 5 (ADR-003) | • `.github/workflows/cd.yml`<br>• `apps/web/Dockerfile`<br>• `apps/api/Dockerfile` | HTTPS (`443`) — CI push image, Render pull image theo tag `sha` / `v*.*.*` |
-| **`ci-cd` (GitHub Actions Runner)** | GitHub Actions (`ubuntu-latest`) | Mục 4.2, Mục 5 (ADR-001, ADR-003) | • `.github/workflows/ci.yml`<br>• `.github/workflows/cd.yml`<br>• `docs/deployment.md` | HTTPS (`443`) — Chạy lint/test/build, push GHCR, gọi Render Deploy Hook và Smoke Test |
+| **`db` (Database Container / Managed PostgreSQL)** | PostgreSQL 16 (`postgres:16-alpine` local / **Supabase PostgreSQL** production) | Mục 2, Mục 3.3 (ADR-004, ADR-007, ADR-008) | • `apps/api/prisma/schema.prisma` (12 models)<br>• `apps/api/prisma/migrations/`<br>• `apps/api/prisma/seed.ts`<br>• `docker-compose.yml` | • Local: TCP `${DB_PORT:-5432}:5432`<br>• Production (**Supabase**): TCP `5432`/`6543` qua TLS/SSL (`sslmode=require`) |
+| **`tests` & `scripts` (Test Suites & Smoke)** | Playwright, Jest, Vitest & Shell/PowerShell Smoke Scripts | Mục 3.6 | • `apps/api/src/integration/`<br>• `tests/e2e/checkout.spec.ts`<br>• `scripts/smoke-test.{sh,ps1}` | Chạy trên local container, CI runner và kiểm thử hậu triển khai qua HTTPS |
+| **`registry` (Container Registry — GHCR)** | GitHub Container Registry (`ghcr.io` — tùy chọn) | Mục 2, Mục 5 (ADR-003) | • `.github/workflows/cd.yml`<br>• `apps/web/Dockerfile`<br>• `apps/api/Dockerfile` | HTTPS (`443`) — CI push image, Render pull image khi dùng workflow GHCR |
+| **`ci-cd` (GitHub Actions & Auto-Deploy)** | GitHub Actions (`ubuntu-latest`) + Vercel/Render Git Integration | Mục 4.2, Mục 5 (ADR-001, ADR-003) | • `.github/workflows/ci.yml`<br>• `.github/workflows/cd.yml`<br>• `docs/deployment.md` | HTTPS (`443`) — PR CI (`ci.yml`), Auto-Deploy khi merge `main`, GHCR CD (`cd.yml`) |
