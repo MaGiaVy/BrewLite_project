@@ -32,3 +32,12 @@ Nhóm quyết định lựa chọn giải pháp:
 ### Sự đánh đổi (Trade-off):
 Chấp nhận thời gian khởi động chậm hơn khi cold-start và thời gian build image trên GHCR để đổi lấy sự an toàn về dữ liệu mạng nội bộ và tính năng triển khai container chuyên nghiệp.
 
+---
+
+## 4. Cập nhật thực tế Production (Amendment — 2026-11-14)
+Trong quá trình triển khai thực tế ở Wave 3b–Wave 4, nhóm điều chỉnh phân bổ hạ tầng Production để tối ưu tốc độ tải giao diện, miễn phí vận hành đồ án và tách biệt dữ liệu:
+1. **Frontend (`apps/web`) chuyển sang Vercel (`https://brew-lite-project.vercel.app`):** Tận dụng Edge CDN toàn cầu cho Next.js 15.1 App Router, tự động deploy từ nhánh `main` và tránh hiện tượng cold-start 50s khi người dùng mở trang đầu tiên.
+2. **Backend API (`apps/api`) giữ trên Render Singapore (`https://brewlite-api-9viv.onrender.com`):** Build trực tiếp từ `apps/api/Dockerfile` qua Render Auto-Deploy từ `main` (với `CORS_ORIGIN` hỗ trợ domain Vercel). Pipeline GHCR trong `.github/workflows/cd.yml` được giữ lại làm phương án đóng gói image chuẩn hóa và rollback container khi cần.
+3. **Database PostgreSQL chuyển sang Supabase Managed PostgreSQL:** Render project chỉ chạy web service `brewlite-api`, kết nối tới Supabase PostgreSQL qua TLS/SSL (`sslmode=require`); chuỗi kết nối `DATABASE_URL` chỉ lưu trong Render Environment Variables và không lộ ra phía client hay repository.
+
+
