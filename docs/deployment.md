@@ -1,68 +1,98 @@
-# BrewLite T5.3 — Deployment and rollback (draft)
+# BrewLite — Tài liệu Triển khai, Vận hành & Rollback (Production Runbook)
 
-## Scope and prerequisites
+Tài liệu này mô tả cấu trúc hạ tầng Production thực tế của hệ thống BrewLite, quy trình phát hành (Deploy), quay lui sự cố (Rollback), quản lý secrets và minh chứng kiểm thử hậu triển khai (đồng bộ với [`deployment.puml`](diagrams/deployment.puml) và [`ADR-003`](architecture/adr/003-render-ghcr-deployment.md)).
 
-- Architecture: ADR-003 (Render + GHCR), ADR-007 (Prisma migrate on API startup).
-- Do **not** deploy until T5.1a, T5.1b-API and T5.2b have merged and been verified on `main`.
-- The workflow `.github/workflows/cd.yml` runs **manually only**, and refuses to run unless the selected ref is `main`.
-- `publish` builds both images; `deploy` builds and triggers Render; `rollback` uses an existing release tag.
-- The initial workflow is a staging/provisional implementation; do not enable tag-triggered production deploy without team review.
+---
 
-## GitHub configuration
+## 1. Tổng quan Hạ tầng Production
 
-Create Actions **variables** (non-secret):
+| Thành phần | Nền tảng | URL / Endpoint | Nguồn triển khai |
+| :--- | :--- | :--- | :--- |
+| **Frontend Web (`apps/web`)** | **Vercel** (Next.js 15.1.6, Edge CDN, TLS 1.3) | `https://brew-lite-project.vercel.app` | Auto-Deploy từ nhánh `main` (`MaGiaVy/BrewLite_project`) |
+| **Backend API (`apps/api`)** | **Render** Singapore (Docker Free, NestJS 10.4, Prisma 5.22) | `https://brewlite-api-9viv.onrender.com` | Auto-Deploy từ `apps/api/Dockerfile` trên nhánh `main` (tùy chọn GHCR qua `cd.yml`) |
+| **Health Check** | Render Web Service (`GET /health`) | `https://brewlite-api-9viv.onrender.com/health` | Trả về HTTP `200` với `{"status":"ok","db":"up"}` |
+| **Database** | **Supabase** Managed PostgreSQL 16 | Kết nối nội tại từ Render API (`sslmode=require`) | Chỉ Backend Render giữ `DATABASE_URL`; không public ra client hay repo |
+| **Payment Gateway** | **ZaloPay Sandbox** v2 (`sb-openapi.zalopay.vn`) | Gọi server-to-server (`HMAC-SHA256`) + webhook `/payments/zalopay/callback` | Song hành `MockGatewayService` (bị chặn trên Production nếu không cấu hình cho phép) |
 
-- `RENDER_API_SERVICE_ID`: API service ID (`srv-...`).
-- `RENDER_WEB_SERVICE_ID`: Web service ID (`srv-...`).
+---
 
-- `RENDER_API_URL`: public HTTPS origin of Render NestJS service, no trailing path.
-- `RENDER_WEB_URL`: public HTTPS origin of Render Next.js service.
+## 2. Biến Môi Trường & Quản lý Secrets
 
-Create Actions **secrets** (do not paste into docs or chats):
+Không commit bất kỳ file `.env` thật nào lên Git; toàn bộ biến local mẫu nằm ở [`.env.example`](../.env.example).
 
-- `RENDER_API_DEPLOY_HOOK`: Render API image-backed service's Deploy Hook URL.
-- `RENDER_WEB_DEPLOY_HOOK`: Render Web image-backed service's Deploy Hook URL.
-- `RENDER_API_KEY`: Render API key used to poll deployment status (never commit).
+### 2.1 Render (`brewlite-api` Environment Variables)
+- `NODE_ENV=production`
+- `PORT=3001` (hoặc cổng mặc định của Render Docker)
+- `DATABASE_URL=<Supabase PostgreSQL URI kèm ?sslmode=require>`
+- `JWT_SECRET=<Chuỗi bí mật ngẫu nhiên >= 32 ký tự>`
+- `JWT_EXPIRES_IN=7d`
+- `CORS_ORIGIN=https://brew-lite-project.vercel.app,https://*.vercel.app`
+- `MOCK_PAYMENT_MODE=success` (kết hợp kiểm soát `ALLOW_MOCK_PAYMENT`)
+- `ALLOW_SANDBOX_CONFIRM=true` *(bật riêng cho môi trường chấm bài/demo Sandbox khi dùng nút xác nhận trực tiếp thay webhook ZaloPay thật; mặc định hệ thống là `false` để chặn gọi ngoài webhook)*
+- `ZALOPAY_APP_ID`, `ZALOPAY_KEY1`, `ZALOPAY_KEY2`, `ZALOPAY_ENDPOINT`, `ZALOPAY_CALLBACK_URL`, `ZALOPAY_REDIRECT_URL` *(nếu kết nối Sandbox ZaloPay live)*
 
-`GITHUB_TOKEN` with `packages: write` is used for GHCR push. Allow the workflow to access the packages; configure Render registry credentials if GHCR packages are private. Confirm the images are accessible before deployment.
+### 2.2 Vercel (`apps/web` Environment Variables)
+- `NEXT_PUBLIC_API_URL=https://brewlite-api-9viv.onrender.com`
+- `NEXT_PUBLIC_ENABLE_DEMO_TOOLS=false`
 
-Configure GitHub `production` environment protection / required reviewers where the repository's plan supports it. Keep deployment hooks restricted to this environment where possible.
+### 2.3 Bảo mật Database & Migration
+- **Non-public DB access:** Trình duyệt/Frontend không bao giờ kết nối trực tiếp tới PostgreSQL; toàn bộ truy vấn đi qua NestJS API với JWT + `RolesGuard` và kết nối TLS/SSL (`sslmode=require`) tới Supabase.
+- **Migration khi khởi động (`ADR-007`):** Container `apps/api/Dockerfile` chạy `npx prisma migrate deploy` trước khi bật server NestJS (`apps/api/src/main.ts`), nhờ đó CI/CD không cần mở kết nối DB từ runner bên ngoài.
 
-## Render configuration
+---
 
-- PostgreSQL: use internal connection within the same workspace/region; restrict external access. Do not store production `DATABASE_URL` in GitHub Actions.
-- API: image-backed Web Service using `ghcr.io/<owner>/brewlite-api:<tag>`, port `3001`; environment includes `DATABASE_URL` (internal), a strong `JWT_SECRET`, valid `MOCK_PAYMENT_MODE`, and any requirements from the final merged configuration. Health path `/health`.
-- Web: image-backed Web Service using `ghcr.io/<owner>/brewlite-web:<tag>`, port `3000`.
-- API URL is baked into the Web image with the Docker build argument `NEXT_PUBLIC_API_URL`. **Publish a new Web image if the API domain changes.**
-- Disable competing auto-deploy triggers in Render for this workflow.
-- Confirm `apps/api/docker-entrypoint.sh` migration/seed logic with T5.2b owner before first deploy. ADR-007 requires `prisma migrate deploy` at startup, but automatic seeding of production data needs explicit approval and an idempotency review.
+## 3. Quy trình Triển khai (Deploy Workflow)
 
-## Release procedure
+### 3.1 Quy trình chính (CI → Auto-Deploy Vercel & Render)
+1. Mọi thay đổi được mở Pull Request vào nhánh `main`; workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) bắt buộc chạy pass:
+   - `apps/api`: `npm ci` → `npx prisma generate` → `npm run lint` → `npm run test` → `npm run build`
+   - `apps/web`: `npm ci` → `npm run lint` → `npm run test` → `npm run build`
+2. Sau khi merge vào `main`:
+   - **Vercel** tự động pull commit mới nhất từ `main`, build `apps/web` và cập nhật `https://brew-lite-project.vercel.app`.
+   - **Render** tự động build Docker image từ `apps/api/Dockerfile`, chạy `prisma migrate deploy` lên Supabase, kiểm tra `/health` và chuyển traffic sang bản mới (`Live`).
 
-1. Review and merge all dependencies to `main`; ensure normal CI is green.
-2. Set `RENDER_API_URL`, `RENDER_WEB_URL` and deploy hook secrets.
-3. Create Render image-backed API and Web services and confirm their configured image repository paths match the workflow.
-4. Set the API key, Render service IDs, and `production` environment protection. Do not put any secret in logs.
-5. Go to GitHub **Actions → CD - Render GHCR → Run workflow**, select `main`.
-6. Use `operation=publish`, `release_tag=v1.0.0` to publish images (before the initial Render configuration if needed).
-7. Use `operation=deploy`, `release_tag=v1.0.0` to publish and trigger deployment of both services.
-8. Confirm GitHub Actions success, Render deploy status, `/health`, `/products`, and the live Web site. Preserve evidence without secrets.
-9. Create the Git release tag only according to the team's release approval process. This workflow does not itself create a Git tag.
+### 3.2 Quy trình CD Đóng gói GHCR (Tùy chọn qua `.github/workflows/cd.yml`)
+Repository cung cấp thêm workflow thủ công [`cd.yml`](../.github/workflows/cd.yml) (`workflow_dispatch`) với 3 chế độ `operation`:
+- `publish`: Chạy `ci.yml` + quét lịch sử git với `gitleaks/gitleaks-action@v3` + build và push Docker images (`brewlite-api`, `brewlite-web`) gắn tag `vX.Y.Z` lên GitHub Container Registry (`ghcr.io`).
+- `deploy`: Thực hiện `publish` và gọi `scripts/render-deploy.sh` kèm `scripts/smoke-test.sh` để xác minh bản image đã `live`.
+- `rollback`: Redeploy lại một image tag `vX.Y.Z` trước đó từ GHCR qua `scripts/render-deploy.sh` và xác minh bằng `scripts/smoke-test.sh`.
 
-## Rollback
+*(Nếu sử dụng `cd.yml` ở mode `deploy`/`rollback`, cần khai báo trong GitHub Repository `vars.RENDER_API_URL`, `vars.RENDER_WEB_URL`, `vars.RENDER_API_SERVICE_ID`, `vars.RENDER_WEB_SERVICE_ID` và `secrets.RENDER_API_KEY`, `secrets.RENDER_API_DEPLOY_HOOK`, `secrets.RENDER_WEB_DEPLOY_HOOK`.)*
 
-1. Confirm the prior *published* release tag (e.g., `v1.0.0`).
-2. Run the CD workflow on `main` with `operation=rollback` and `release_tag` set to that existing version.
-3. The workflow asks Render to redeploy **both** images by explicit `imgURL` tag, then runs smoke checks.
-4. `scripts/render-deploy.sh` verifies Render reports the expected image reference as LIVE for the returned deploy ID; additionally confirm the running service and user flows manually.
-5. Image rollback does **not** roll back database schema changes. All released migrations must be backward compatible or require a separately reviewed recovery plan.
+---
 
-## Security checks and evidence still to complete
+## 4. Quy trình Quay lui Sự cố (Rollback Procedure)
 
-- Gitleaks v3 scans repo history before publishing (personal-account repo; for an organization repository, verify licensing). Preserve redacted PASS/FAIL evidence in `docs/evidence/`.
-- Demonstrate a negative smoke test without touching production, and record the expected FAIL result.
-- `scripts/render-deploy.sh` needs `RENDER_API_KEY`; the deploy hook by itself does not prove a deploy has completed.
-- If a deploy hook returns 202/queues without a deploy ID, this script intentionally fails rather than incorrectly claiming success. Retry only after checking Render deploy history.
-- Update `docs/traceability-matrix.md` after confirming its existing rows and format.
-- Test image builds, smoke-test failure/retry, Render release and rollback before claiming T5.3 completion.
-- A Render LIVE status and successful smoke test still require functional verification (including database migration and staff/customer flows) during acceptance.
+Khi phát hiện lỗi nghiêm trọng sau triển khai trên Production:
+
+1. **Rollback Frontend trên Vercel (30 giây):**
+   - Mở **Vercel Dashboard** → Project `brew-lite-project` → tab **Deployments**.
+   - Tìm deployment ổn định gần nhất (ví dụ gắn mốc tag `v1.0.0`) → bấm **⋯ → Instant Rollback** để trỏ domain production về bản trước đó ngay lập tức.
+2. **Rollback Backend trên Render (~1–3 phút):**
+   - Mở **Render Dashboard** → Web Service `brewlite-api` → tab **Deploys**.
+   - Chọn bản deploy xanh gần nhất trước commit lỗi → bấm **Rollback** để Render khôi phục service về bản build/image trước đó.
+3. **Rollback qua Git (khi Auto-Deploy đang bật):**
+   - Chạy `git revert <bad_commit_sha>` trên `main` và `git push`, hoặc tạo nhánh/hotfix từ annotated tag ổn định (`git checkout -b hotfix/revert v1.0.0`) để Vercel và Render tự đồng bộ lại trạng thái sạch.
+4. **Rollback bằng `cd.yml` (nếu triển khai qua GHCR image):**
+   - Vào GitHub Actions → **CD** → **Run workflow** → chọn `operation = rollback`, nhập `release_tag = v1.0.0` (bản ổn định trước).
+5. **Lưu ý Database Migration:** Mọi migration trong `apps/api/prisma/migrations/` phải giữ tính tương thích ngược (*additive-first*: thêm bảng/cột nullable trước khi xóa cột cũ) để bản code cũ sau rollback vẫn đọc/ghi dữ liệu an toàn.
+
+---
+
+## 5. Kiểm tra Hậu Triển khai & Minh chứng Đã Hoàn tất
+
+Chạy kiểm tra tự động sau mỗi lần phát hành:
+
+```powershell
+./scripts/smoke-test.ps1 `
+  -ApiBaseUrl "https://brewlite-api-9viv.onrender.com" `
+  -WebBaseUrl "https://brew-lite-project.vercel.app" `
+  -Email "khach@brewlite.vn" `
+  -Password "<DEMO_PASSWORD>" `
+  -Attempts 12 -DelaySeconds 10
+```
+
+Hồ sơ minh chứng thực tế đã được ghi nhận đầy đủ:
+- **CI Pull Request Gate (`ci.yml`):** [`docs/evidence/ci.md`](evidence/ci.md)
+- **Production Smoke Test & Negative Checks:** [`docs/evidence/production-smoke.md`](evidence/production-smoke.md)
+- **Secret Scan & Environment Hygiene:** [`docs/evidence/secret-scan.md`](evidence/secret-scan.md)
