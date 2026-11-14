@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   apiClient,
   AUTH_STORAGE_KEY,
@@ -19,7 +20,8 @@ import {
   type VoucherItem,
 } from '../../components/admin/AdminManagementSection';
 import { AdminBottomSheet } from '../../components/admin/AdminBottomSheet';
-import { BellIcon } from '../../components/admin/AdminIcons';
+import { BellIcon, CupIcon } from '../../components/admin/AdminIcons';
+import { BrewLiteLogo } from '../../components/BrewLiteLogo';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -87,6 +89,7 @@ export default function AdminPortalPage() {
   const [customerList, setCustomerList] = useState<CustomerUserItem[]>([]);
   const [voucherList, setVoucherList] = useState<VoucherItem[]>([]);
   const [recentOrders, setRecentOrders] = useState<RecentOrderRow[]>([]);
+  const [chartOrders, setChartOrders] = useState<RecentOrderRow[]>([]);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(EMPTY_DASHBOARD);
 
   // Toast
@@ -233,6 +236,16 @@ export default function AdminPortalPage() {
             activeCount: Number(dData?.activeCount ?? 0),
             totalGrossProfit: Number(dData?.totalGrossProfit ?? 0),
           });
+          if (Array.isArray(dData?.chartOrders)) {
+            setChartOrders(
+              dData.chartOrders.map((o: any) => ({
+                id: o.id,
+                status: o.status,
+                totalAmount: o.finalTotal ?? o.totalAmount ?? 0,
+                createdAt: o.createdAt,
+              })),
+            );
+          }
         } else {
           hasFailure = true;
         }
@@ -586,7 +599,7 @@ export default function AdminPortalPage() {
     return (
       <div className={styles.pageContainer}>
         <div className={styles.mobileShell} style={{ justifyContent: 'center', alignItems: 'center' }}>
-          <p className="text-xs text-[#a89587]">Đang kiểm tra quyền quản trị...</p>
+          <p className="text-xs text-[#78716C]">Đang kiểm tra quyền quản trị...</p>
         </div>
       </div>
     );
@@ -602,7 +615,9 @@ export default function AdminPortalPage() {
         {/* Header */}
         <header className={styles.header}>
           <div className={styles.brandWrap}>
-            <div className={styles.logoBadge}>BL</div>
+            <div className={styles.logoWrap}>
+              <BrewLiteLogo height={30} />
+            </div>
             <div>
               <p className={styles.brandTitle}>BREWLITE PREMIER</p>
               <h1 className={styles.storeSubtitle}>
@@ -612,6 +627,15 @@ export default function AdminPortalPage() {
           </div>
 
           <div className={styles.headerActions}>
+            <Link
+              href="/menu"
+              className={styles.menuLinkBtn}
+              title="Xem thực đơn khách hàng"
+              aria-label="Xem thực đơn"
+            >
+              <CupIcon size={14} strokeWidth={2} />
+              <span>Thực đơn</span>
+            </Link>
             <button
               type="button"
               className={styles.iconBtn}
@@ -636,6 +660,7 @@ export default function AdminPortalPage() {
               grossProfit={dashboardStats.totalGrossProfit}
               lowStockItemsCount={lowStockCount}
               recentOrders={recentOrders}
+              chartOrders={chartOrders}
               onNavigateInventory={() => setActiveTab('inventory')}
             />
           )}
@@ -798,11 +823,17 @@ export default function AdminPortalPage() {
           submitLabel="Xác nhận nhập kho"
           isSubmitting={isSubmitting}
           onSubmit={async () => {
-            const amount = parseFloat(sheetStockAmount);
+            const amount = Number(sheetStockAmount);
+            if (!Number.isFinite(amount) || amount <= 0) {
+              showToast('Vui lòng nhập số lượng hợp lệ (> 0)', 'error');
+              return;
+            }
             setIsSubmitting(true);
             try {
               const ok = await handleQuickStockIn(selectedIngredientId, amount);
-              if (ok) setActiveSheet(null);
+              if (ok) {
+                setActiveSheet(null);
+              }
             } finally {
               setIsSubmitting(false);
             }
@@ -810,36 +841,32 @@ export default function AdminPortalPage() {
         >
           <div className="space-y-3">
             <div className={styles.inputGroup}>
-              <label htmlFor="restock-ingredient-select" className={styles.inputLabel}>
+              <label htmlFor="ingredient-select" className={styles.inputLabel}>
                 Chọn nguyên liệu
               </label>
               <select
-                id="restock-ingredient-select"
+                id="ingredient-select"
                 className={styles.textInput}
                 value={selectedIngredientId}
-                onChange={(e) => setSelectedIngredientId(parseInt(e.target.value, 10) || 0)}
+                onChange={(e) => setSelectedIngredientId(Number(e.target.value))}
               >
-                {ingredients.length === 0 ? (
-                  <option value={0}>Chưa có nguyên liệu</option>
-                ) : (
-                  ingredients.map((ing) => (
-                    <option key={ing.id} value={ing.id}>
-                      {ing.name} ({ing.stock} {ing.unit} hiện có)
-                    </option>
-                  ))
-                )}
+                {ingredients.map((ing) => (
+                  <option key={ing.id} value={ing.id}>
+                    {ing.name} ({ing.stock} {ing.unit})
+                  </option>
+                ))}
               </select>
             </div>
             <div className={styles.inputGroup}>
-              <label htmlFor="restock-amount-input" className={styles.inputLabel}>
+              <label htmlFor="stock-amount-input" className={styles.inputLabel}>
                 Số lượng nhập thêm
               </label>
               <input
-                id="restock-amount-input"
+                id="stock-amount-input"
                 type="number"
-                step="0.5"
-                min="0.1"
+                step="0.1"
                 className={styles.textInput}
+                placeholder="5"
                 value={sheetStockAmount}
                 onChange={(e) => setSheetStockAmount(e.target.value)}
               />
@@ -851,21 +878,21 @@ export default function AdminPortalPage() {
         <AdminBottomSheet
           isOpen={activeSheet === 'staff'}
           onClose={() => setActiveSheet(null)}
-          title="Thêm nhân viên mới"
-          submitLabel="Tạo tài khoản nhân viên"
+          title="Thêm tài khoản nhân sự"
+          submitLabel="Tạo tài khoản"
           isSubmitting={isSubmitting}
           onSubmit={handleSubmitStaff}
         >
           <div className="space-y-3">
             <div className={styles.inputGroup}>
-              <label htmlFor="staff-fullname-input" className={styles.inputLabel}>
-                Họ và tên
+              <label htmlFor="staff-name-input" className={styles.inputLabel}>
+                Họ và tên nhân viên
               </label>
               <input
-                id="staff-fullname-input"
+                id="staff-name-input"
                 type="text"
                 className={styles.textInput}
-                placeholder="Nguyễn Văn An"
+                placeholder="Nguyễn Văn A"
                 value={sheetStaffName}
                 onChange={(e) => setSheetStaffName(e.target.value)}
               />
@@ -885,7 +912,7 @@ export default function AdminPortalPage() {
             </div>
             <div className={styles.inputGroup}>
               <label htmlFor="staff-password-input" className={styles.inputLabel}>
-                Mật khẩu (ít nhất 6 ký tự)
+                Mật khẩu (tối thiểu 6 ký tự)
               </label>
               <input
                 id="staff-password-input"
@@ -897,27 +924,14 @@ export default function AdminPortalPage() {
               />
             </div>
             <div className={styles.inputGroup}>
-              <label htmlFor="staff-phone-input" className={styles.inputLabel}>
-                Số điện thoại (tùy chọn)
-              </label>
-              <input
-                id="staff-phone-input"
-                type="tel"
-                className={styles.textInput}
-                placeholder="0901234567"
-                value={sheetStaffPhone}
-                onChange={(e) => setSheetStaffPhone(e.target.value)}
-              />
-            </div>
-            <div className={styles.inputGroup}>
               <label htmlFor="staff-position-input" className={styles.inputLabel}>
-                Chức vụ (tùy chọn)
+                Vị trí công việc (tùy chọn)
               </label>
               <input
                 id="staff-position-input"
                 type="text"
                 className={styles.textInput}
-                placeholder="Barista / Thu ngân"
+                placeholder="Barista Ca Sáng / Thu ngân"
                 value={sheetStaffPosition}
                 onChange={(e) => setSheetStaffPosition(e.target.value)}
               />
@@ -929,8 +943,8 @@ export default function AdminPortalPage() {
         <AdminBottomSheet
           isOpen={activeSheet === 'voucher'}
           onClose={() => setActiveSheet(null)}
-          title="Tạo mã giảm giá (Voucher)"
-          submitLabel="Lưu mã Voucher"
+          title="Tạo mã voucher mới"
+          submitLabel="Phát hành Voucher"
           isSubmitting={isSubmitting}
           onSubmit={handleSubmitVoucher}
         >
@@ -943,7 +957,7 @@ export default function AdminPortalPage() {
                 id="voucher-code-input"
                 type="text"
                 className={styles.textInput}
-                placeholder="Ví dụ: BREW20"
+                placeholder="COFFEE20"
                 value={sheetVoucherCode}
                 onChange={(e) => setSheetVoucherCode(e.target.value)}
               />
@@ -958,49 +972,22 @@ export default function AdminPortalPage() {
                 min="1"
                 max="100"
                 className={styles.textInput}
-                placeholder="10"
+                placeholder="20"
                 value={sheetVoucherPercent}
                 onChange={(e) => setSheetVoucherPercent(e.target.value)}
               />
             </div>
             <div className={styles.inputGroup}>
               <label htmlFor="voucher-desc-input" className={styles.inputLabel}>
-                Mô tả ưu đãi (tùy chọn)
+                Mô tả chương trình
               </label>
               <input
                 id="voucher-desc-input"
                 type="text"
                 className={styles.textInput}
-                placeholder="Giảm 10% cho đơn hàng..."
+                placeholder="Giảm 20% cho đơn hàng cà phê"
                 value={sheetVoucherDesc}
                 onChange={(e) => setSheetVoucherDesc(e.target.value)}
-              />
-            </div>
-            <div className={styles.inputGroup}>
-              <label htmlFor="voucher-min-input" className={styles.inputLabel}>
-                Đơn tối thiểu (VNĐ)
-              </label>
-              <input
-                id="voucher-min-input"
-                type="number"
-                min="0"
-                className={styles.textInput}
-                value={sheetVoucherMinOrder}
-                onChange={(e) => setSheetVoucherMinOrder(e.target.value)}
-              />
-            </div>
-            <div className={styles.inputGroup}>
-              <label htmlFor="voucher-max-input" className={styles.inputLabel}>
-                Giảm tối đa (VNĐ, tùy chọn)
-              </label>
-              <input
-                id="voucher-max-input"
-                type="number"
-                min="0"
-                className={styles.textInput}
-                placeholder="25000"
-                value={sheetVoucherMaxDiscount}
-                onChange={(e) => setSheetVoucherMaxDiscount(e.target.value)}
               />
             </div>
           </div>

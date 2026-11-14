@@ -26,6 +26,14 @@
   gap: 8px;
 }
 
+.kdsBadge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5a4636;
+  padding-left: 10px;
+  border-left: 1.5px solid #c9bbae;
+}
+
 .totalChip {
   font-size: 12px;
   font-weight: 700;
@@ -646,6 +654,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   font-size: 13px;
   font-weight: 700;
   color: #5a4636;

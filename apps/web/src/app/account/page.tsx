@@ -416,6 +416,47 @@ export default function AccountPage() {
 
         {/* Quick Links */}
         <section className={styles.quickLinksGroup}>
+          {user?.role === 'ADMIN' && (
+            <>
+              <Link href="/admin" className={styles.quickLinkRow} data-testid="account-admin-shortcut">
+                <div className={styles.quickLinkLeft}>
+                  <span className={`material-symbols-outlined ${styles.quickLinkIcon}`} style={{ color: '#D4AF37' }}>
+                    shield_person
+                  </span>
+                  <span style={{ fontWeight: 700, color: '#2c1810' }}>Trang Quản Trị (Admin Portal)</span>
+                </div>
+                <span className={`material-symbols-outlined ${styles.quickLinkChevron}`}>
+                  chevron_right
+                </span>
+              </Link>
+              <Link href="/staff" className={styles.quickLinkRow} data-testid="account-staff-shortcut">
+                <div className={styles.quickLinkLeft}>
+                  <span className={`material-symbols-outlined ${styles.quickLinkIcon}`}>
+                    coffee_maker
+                  </span>
+                  <span>Màn hình Pha chế (KDS Barista)</span>
+                </div>
+                <span className={`material-symbols-outlined ${styles.quickLinkChevron}`}>
+                  chevron_right
+                </span>
+              </Link>
+            </>
+          )}
+
+          {user?.role === 'STAFF' && (
+            <Link href="/staff" className={styles.quickLinkRow} data-testid="account-staff-shortcut">
+              <div className={styles.quickLinkLeft}>
+                <span className={`material-symbols-outlined ${styles.quickLinkIcon}`}>
+                  coffee_maker
+                </span>
+                <span>Màn hình Pha chế (KDS Barista)</span>
+              </div>
+              <span className={`material-symbols-outlined ${styles.quickLinkChevron}`}>
+                chevron_right
+              </span>
+            </Link>
+          )}
+
           <Link href="/orders" className={styles.quickLinkRow}>
             <div className={styles.quickLinkLeft}>
               <span className={`material-symbols-outlined ${styles.quickLinkIcon}`}>

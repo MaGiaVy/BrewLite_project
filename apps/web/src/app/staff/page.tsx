@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   apiClient,
   AUTH_STORAGE_KEY,
@@ -26,6 +27,15 @@ import {
   SoldOutSheet,
   type StaffProductItem,
 } from '../../components/staff/SoldOutSheet';
+import { BrewLiteLogo } from '../../components/BrewLiteLogo';
+import {
+  ClipboardIcon,
+  CheckCircleIcon,
+  AlertTriangleIcon,
+  VolumeIcon,
+  VolumeMuteIcon,
+  BanIcon,
+} from '../../components/admin/AdminIcons';
 import styles from '../../components/staff/staff.module.css';
 
 function findNewPaidOrderIds(
@@ -178,7 +188,7 @@ export default function StaffBaristaKdsPage() {
       );
     if (newPaidOrderIds.length > 0 && soundEnabled) {
       playWebAudioChime();
-      showToast(`🔔 Đơn mới #BL-${newPaidOrderIds[0]} vừa thanh toán!`);
+      showToast(`Đơn mới #BL-${newPaidOrderIds[0]} vừa thanh toán!`);
     }
     prevPaidIdsRef.current = nextPaidIds;
     hasLoadedQueueOnceRef.current = nextHasLoadedOnce;
@@ -304,8 +314,8 @@ export default function StaffBaristaKdsPage() {
       );
       showToast(
         confirmedSoldOut
-          ? `🚫 Đã báo hết món (86): ${product.name}`
-          : `✅ Đã mở bán lại: ${product.name}`,
+          ? `Đã báo hết món (86): ${product.name}`
+          : `Đã mở bán lại: ${product.name}`,
       );
     } catch {
       setSoldOutError(`Lỗi kết nối khi cập nhật 86 cho ${product.name}`);
@@ -405,7 +415,8 @@ export default function StaffBaristaKdsPage() {
       {/* Header */}
       <header className={styles.header}>
         <div className={styles.brand}>
-          <span>☕ BrewLite · Quầy bar KDS</span>
+          <BrewLiteLogo height={28} />
+          <span className={styles.kdsBadge}>Quầy bar KDS</span>
         </div>
         <div className={styles.headerActions}>
           <button
@@ -420,7 +431,17 @@ export default function StaffBaristaKdsPage() {
             }}
             aria-label="Bật hoặc tắt chuông báo đơn mới"
           >
-            {soundEnabled ? '🔊 Chuông' : '🔇 Tắt'}
+            {soundEnabled ? (
+              <>
+                <VolumeIcon size={14} />
+                <span>Chuông</span>
+              </>
+            ) : (
+              <>
+                <VolumeMuteIcon size={14} />
+                <span>Tắt</span>
+              </>
+            )}
           </button>
           <button
             type="button"
@@ -433,8 +454,16 @@ export default function StaffBaristaKdsPage() {
               void fetchProducts();
             }}
           >
-            🚫 Báo hết món (86){soldOutCount > 0 ? ` · ${soldOutCount}` : ''}
+            <BanIcon size={14} />
+            <span>Báo hết món (86){soldOutCount > 0 ? ` · ${soldOutCount}` : ''}</span>
           </button>
+          <Link
+            href="/menu"
+            className={styles.headerActionBtn}
+            title="Xem thực đơn khách hàng"
+          >
+            Thực đơn
+          </Link>
           <span className={styles.totalChip}>{activeOrdersCount} đơn chờ</span>
         </div>
       </header>
@@ -451,9 +480,14 @@ export default function StaffBaristaKdsPage() {
             padding: '6px 16px',
             borderBottom: '1px solid #fef3c7',
             textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
           }}
         >
-          ⚠️ {displayError}
+          <AlertTriangleIcon size={14} />
+          <span>{displayError}</span>
         </div>
       )}
 
@@ -487,7 +521,8 @@ export default function StaffBaristaKdsPage() {
           }`}
           onClick={() => setActiveTab('PAID')}
         >
-          📋 Đơn đang pha ({activeOrdersCount})
+          <ClipboardIcon size={16} strokeWidth={activeTab !== 'COMPLETED' ? 2.2 : 2} />
+          <span>Đơn đang pha ({activeOrdersCount})</span>
         </button>
         <button
           type="button"
@@ -496,7 +531,8 @@ export default function StaffBaristaKdsPage() {
           }`}
           onClick={() => setActiveTab('COMPLETED')}
         >
-          ✅ Lịch sử đã xong ({grouped.COMPLETED.length})
+          <CheckCircleIcon size={16} strokeWidth={activeTab === 'COMPLETED' ? 2.2 : 2} />
+          <span>Lịch sử đã xong ({grouped.COMPLETED.length})</span>
         </button>
       </nav>
 

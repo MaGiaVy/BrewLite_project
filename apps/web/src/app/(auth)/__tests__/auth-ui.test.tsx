@@ -146,6 +146,56 @@ describe('Task T5.1b-UI — Mobile Login & Register UI Integration Tests', () =>
       expect(useAuthStore.getState().token).toBe('jwt_mock_token_customer');
       expect(useAuthStore.getState().user?.fullName).toBe('Huỳnh Tuấn Kiệt');
     });
+
+    it('authenticates ADMIN and redirects to /admin when no redirect param is present', async () => {
+      mockSearchParams = {};
+
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            accessToken: 'jwt_admin_token',
+            user: { id: 99, email: 'admin@brewlite.vn', fullName: 'Quản Trị Viên', role: 'ADMIN' },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<LoginPage />);
+
+      fireEvent.change(screen.getByLabelText(/Email đăng nhập/i), { target: { value: 'admin@brewlite.vn' } });
+      fireEvent.change(screen.getByLabelText(/Mật khẩu/i), { target: { value: 'password123' } });
+      fireEvent.click(screen.getByRole('button', { name: /Đăng nhập vào BrewLite/i }));
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/admin');
+      });
+    });
+
+    it('authenticates STAFF and redirects to /staff when no redirect param is present', async () => {
+      mockSearchParams = {};
+
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            accessToken: 'jwt_staff_token',
+            user: { id: 88, email: 'barista@brewlite.vn', fullName: 'Barista Nguyễn', role: 'STAFF' },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<LoginPage />);
+
+      fireEvent.change(screen.getByLabelText(/Email đăng nhập/i), { target: { value: 'barista@brewlite.vn' } });
+      fireEvent.change(screen.getByLabelText(/Mật khẩu/i), { target: { value: 'password123' } });
+      fireEvent.click(screen.getByRole('button', { name: /Đăng nhập vào BrewLite/i }));
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/staff');
+      });
+    });
   });
 
   describe('2. Register UI (/register)', () => {

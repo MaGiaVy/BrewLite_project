@@ -1,11 +1,12 @@
 /* ==========================================================================
-   BREWLITE ADMIN — HIGHLANDS PRO MOBILE DESIGN SYSTEM (CSS MODULE)
+   BREWLITE ADMIN — MODERN VINTAGE DESIGN SYSTEM (CSS MODULE)
+   Palette 1: Warm Alabaster (#FAF6F0) & Deep Espresso (#1C1917)
    ========================================================================== */
 
 .pageContainer {
   min-height: 100vh;
-  background-color: #0c0806;
-  color: #fff8f0;
+  background-color: #F3EDE4;
+  color: #1C1917;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -18,11 +19,12 @@
   width: 100%;
   max-width: 480px;
   min-height: 100vh;
-  background-color: #160f0c;
+  background-color: #FAF6F0;
+  color: #1C1917;
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 12px 40px rgba(44, 24, 16, 0.12);
 }
 
 /* Header */
@@ -34,8 +36,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background-color: #160f0c;
-  border-bottom: 1px solid #361f15;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #EBE3D5;
 }
 
 .brandWrap {
@@ -44,33 +46,25 @@
   gap: 10px;
 }
 
-.logoBadge {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #991b1b, #450a0a);
-  border: 1px solid #d4af37;
-  color: #fff8f0;
+.logoWrap {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .brandTitle {
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   font-weight: 800;
-  color: #d4af37;
+  color: #9C6644;
   margin: 0;
 }
 
 .storeSubtitle {
   font-size: 13px;
   font-weight: 700;
-  color: #fff8f0;
+  color: #1C1917;
   margin: 2px 0 0 0;
   display: flex;
   align-items: center;
@@ -78,34 +72,59 @@
 }
 
 .openBadge {
-  font-size: 10px;
-  font-weight: 600;
-  color: #34d399;
+  font-size: 9px;
+  font-weight: 700;
+  color: #047857;
+  background-color: #D1FAE5;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid #A7F3D0;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .iconBtn {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background-color: #231612;
-  border: 1px solid #42261a;
-  color: #d4af37;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background-color: #FAF6F0;
+  border: 1px solid #EBE3D5;
+  color: #1C1917;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   position: relative;
-  transition: transform 0.1s ease;
+  transition: transform 0.1s ease, background-color 0.15s ease;
 }
 
 .iconBtn:active {
-  transform: scale(0.95);
+  transform: scale(0.96);
+}
+
+.menuLinkBtn {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background-color: #FAF6F0;
+  border: 1px solid #EBE3D5;
+  color: #1C1917;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.menuLinkBtn:hover {
+  background-color: #F0EAE1;
 }
 
 .badgeDot {
@@ -115,18 +134,19 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #ef4444;
+  background-color: #EF4444;
+  border: 1.5px solid #FFFFFF;
 }
 
 .userAvatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background-color: #2c1a14;
-  border: 1px solid #d4af37;
-  color: #d4af37;
-  font-size: 12px;
-  font-weight: 700;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background-color: #1C1917;
+  border: 1px solid #1C1917;
+  color: #FDFBF7;
+  font-size: 11px;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,18 +162,18 @@
   gap: 14px;
 }
 
-/* Card Styling */
+/* Card Styling (Bento Warm Alabaster & Crisp White) */
 .card {
-  background-color: #231612;
-  border: 1px solid #42261a;
+  background-color: #FFFFFF;
+  border: 1px solid #EBE3D5;
   border-radius: 18px;
   padding: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 10px rgba(44, 24, 16, 0.04);
 }
 
 .cardHighlight {
-  border-color: #c5a059;
-  background: linear-gradient(145deg, #281813, #1f120e);
+  border-color: #E2D5C1;
+  background: #FFFFFF;
 }
 
 /* Hero Metrics */
@@ -168,14 +188,14 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #c5a059;
+  color: #78716C;
   margin: 0;
 }
 
 .metricValue {
   font-size: 26px;
   font-weight: 800;
-  color: #ffffff;
+  color: #1C1917;
   margin: 4px 0 0 0;
   letter-spacing: -0.02em;
 }
@@ -185,9 +205,9 @@
   border-radius: 8px;
   font-size: 11px;
   font-weight: 700;
-  background-color: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background-color: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #A7F3D0;
 }
 
 /* 2-col Stats */
@@ -197,18 +217,19 @@
   gap: 10px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid #361f15;
+  border-top: 1px solid #F0EAE1;
 }
 
 .statBox {
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: #FAF6F0;
+  border: 1px solid #EBE3D5;
   border-radius: 12px;
   padding: 10px;
 }
 
 .statBoxLabel {
   font-size: 10px;
-  color: #a89587;
+  color: #78716C;
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -216,14 +237,14 @@
 .statBoxValue {
   font-size: 15px;
   font-weight: 700;
-  color: #fff8f0;
+  color: #1C1917;
   margin-top: 2px;
 }
 
 /* Critical Alert Banner */
 .alertCard {
-  background-color: rgba(153, 27, 27, 0.25);
-  border: 1px solid rgba(220, 38, 38, 0.5);
+  background-color: #FEF2F2;
+  border: 1px solid #FECACA;
   border-radius: 16px;
   padding: 12px 14px;
   display: flex;
@@ -239,47 +260,48 @@
 }
 
 .alertIcon {
-  color: #f87171;
+  color: #DC2626;
   flex-shrink: 0;
 }
 
 .alertTitle {
   font-size: 12px;
   font-weight: 700;
-  color: #fca5a5;
+  color: #991B1B;
   margin: 0;
 }
 
 .alertDesc {
   font-size: 11px;
-  color: #f87171;
+  color: #B91C1C;
   margin: 2px 0 0 0;
 }
 
 .alertActionBtn {
-  background-color: #dc2626;
-  color: #ffffff;
+  background-color: #1C1917;
+  color: #FFFFFF;
   border: none;
   border-radius: 10px;
-  padding: 8px 12px;
+  padding: 8px 14px;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
-  min-height: 44px;
+  min-height: 40px;
   display: flex;
   align-items: center;
 }
 
 /* Card Stack (Products & Ingredients) */
 .itemCard {
-  background-color: #231612;
-  border: 1px solid #42261a;
+  background-color: #FFFFFF;
+  border: 1px solid #EBE3D5;
   border-radius: 16px;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.03);
 }
 
 .itemHeaderRow {
@@ -297,19 +319,19 @@
 .itemName {
   font-size: 14px;
   font-weight: 700;
-  color: #fff8f0;
+  color: #1C1917;
   margin: 0;
 }
 
 .itemMeta {
   font-size: 12px;
-  color: #d4af37;
+  color: #9C6644;
   font-weight: 700;
 }
 
 .itemSubtext {
   font-size: 11px;
-  color: #a89587;
+  color: #78716C;
 }
 
 /* Switch Toggle (Touch Target >= 48px) */
@@ -317,7 +339,7 @@
   width: 52px;
   height: 32px;
   border-radius: 16px;
-  background-color: #4b5563;
+  background-color: #D6D3D1;
   position: relative;
   border: none;
   cursor: pointer;
@@ -327,15 +349,15 @@
 }
 
 .toggleSwitchActive {
-  background-color: #10b981;
+  background-color: #1C1917;
 }
 
 .toggleKnob {
   width: 28px;
   height: 28px;
   border-radius: 14px;
-  background-color: #ffffff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  background-color: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transform: translateX(0);
   transition: transform 0.2s ease;
 }
@@ -349,9 +371,9 @@
   width: 100%;
   height: 8px;
   border-radius: 4px;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: #F0EAE1;
   overflow: hidden;
-  border: 1px solid #361f15;
+  border: 1px solid #EBE3D5;
 }
 
 .progressBarFill {
@@ -361,20 +383,20 @@
 }
 
 .fillGreen {
-  background-color: #10b981;
+  background-color: #059669;
 }
 .fillAmber {
-  background-color: #f59e0b;
+  background-color: #D97706;
 }
 .fillRed {
-  background-color: #ef4444;
+  background-color: #DC2626;
 }
 
 /* Action Button >= 48px */
 .primaryBtn {
-  background: linear-gradient(135deg, #991b1b, #7f1d1d);
-  color: #fff8f0;
-  border: 1px solid #d4af37;
+  background: #1C1917;
+  color: #FDFBF7;
+  border: 1px solid #1C1917;
   border-radius: 14px;
   font-size: 14px;
   font-weight: 700;
@@ -385,8 +407,8 @@
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(153, 27, 27, 0.35);
-  transition: transform 0.1s ease;
+  box-shadow: 0 4px 12px rgba(28, 25, 23, 0.18);
+  transition: transform 0.1s ease, background-color 0.15s ease;
 }
 
 .primaryBtn:active {
@@ -394,18 +416,24 @@
 }
 
 .secondaryBtn {
-  background-color: #2c1a14;
-  color: #d4af37;
-  border: 1px solid #42261a;
+  background-color: #FAF6F0;
+  color: #1C1917;
+  border: 1px solid #EBE3D5;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 700;
   padding: 8px 14px;
-  min-height: 44px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.secondaryBtn:hover {
+  background-color: #F0EAE1;
 }
 
 /* Fixed Bottom Tab Bar (Thumb Zone) */
@@ -417,10 +445,10 @@
   width: 100%;
   max-width: 480px;
   height: 68px;
-  background-color: rgba(22, 15, 12, 0.96);
+  background-color: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid #361f15;
+  border-top: 1px solid #EBE3D5;
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -438,7 +466,7 @@
   min-height: 48px;
   background: none;
   border: none;
-  color: #8f7d73;
+  color: #A8A29E;
   cursor: pointer;
   padding: 6px 4px;
   position: relative;
@@ -446,7 +474,8 @@
 }
 
 .tabItemActive {
-  color: #d4af37;
+  color: #1C1917;
+  font-weight: 800;
 }
 
 .tabLabel {
@@ -461,14 +490,15 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #ef4444;
+  background-color: #EF4444;
+  border: 1.5px solid #FFFFFF;
 }
 
 /* Bottom Sheet Modal */
 .sheetOverlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(28, 25, 23, 0.5);
   backdrop-filter: blur(4px);
   z-index: 60;
   display: flex;
@@ -480,29 +510,30 @@
   width: 100%;
   max-width: 480px;
   max-height: 88vh;
-  background-color: #1a120e;
+  background-color: #FAF6F0;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
-  border-top: 2px solid #d4af37;
+  border-top: 2px solid #1C1917;
   padding: 16px 20px 24px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  color: #1C1917;
 }
 
 .sheetHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #361f15;
+  border-bottom: 1px solid #EBE3D5;
   padding-bottom: 12px;
 }
 
 .sheetTitle {
   font-size: 16px;
   font-weight: 800;
-  color: #fff8f0;
+  color: #1C1917;
   margin: 0;
 }
 
@@ -515,14 +546,14 @@
 .inputLabel {
   font-size: 12px;
   font-weight: 700;
-  color: #c5a059;
+  color: #57534E;
 }
 
 .textInput {
-  background-color: #231612;
-  border: 1px solid #42261a;
+  background-color: #FFFFFF;
+  border: 1px solid #EBE3D5;
   border-radius: 12px;
-  color: #ffffff;
+  color: #1C1917;
   font-size: 14px;
   padding: 12px 14px;
   min-height: 48px;
@@ -530,7 +561,7 @@
 }
 
 .textInput:focus {
-  border-color: #d4af37;
+  border-color: #1C1917;
 }
 
 /* Toast */
@@ -541,16 +572,28 @@
   transform: translateX(-50%);
   width: 90%;
   max-width: 440px;
-  background-color: #231612;
-  border: 1px solid #d4af37;
-  color: #fff8f0;
+  background-color: #1C1917;
+  border: 1px solid #D4AF37;
+  color: #FDFBF7;
   border-radius: 14px;
   padding: 12px 16px;
   font-size: 13px;
   font-weight: 700;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 25px rgba(28, 25, 23, 0.25);
   z-index: 70;
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Sparkline Animations */
+@keyframes pulseRing {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  50% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(0.8); opacity: 0; }
+}
+
+.pulseDot {
+  transform-origin: center;
+  animation: pulseRing 2s infinite ease-out;
 }

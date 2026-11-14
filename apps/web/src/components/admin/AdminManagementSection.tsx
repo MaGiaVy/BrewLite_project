@@ -58,13 +58,13 @@ export function AdminManagementSection({
   return (
     <div className="space-y-3.5">
       {/* Sub Tabs */}
-      <div className="flex gap-2 p-1 rounded-xl bg-[#231612] border border-[#361f15]">
+      <div className="flex gap-2 p-1 rounded-xl bg-[#FAF6F0] border border-[#EBE3D5]">
         <button
           type="button"
           className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
           style={{
-            backgroundColor: subTab === 'staff' ? '#991b1b' : 'transparent',
-            color: subTab === 'staff' ? '#ffffff' : '#d3bfb2',
+            backgroundColor: subTab === 'staff' ? '#1C1917' : 'transparent',
+            color: subTab === 'staff' ? '#FFFFFF' : '#78716C',
           }}
           onClick={() => setSubTab('staff')}
           data-testid="subtab-staff"
@@ -75,8 +75,8 @@ export function AdminManagementSection({
           type="button"
           className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
           style={{
-            backgroundColor: subTab === 'customers' ? '#991b1b' : 'transparent',
-            color: subTab === 'customers' ? '#ffffff' : '#d3bfb2',
+            backgroundColor: subTab === 'customers' ? '#1C1917' : 'transparent',
+            color: subTab === 'customers' ? '#FFFFFF' : '#78716C',
           }}
           onClick={() => setSubTab('customers')}
           data-testid="subtab-customers"
@@ -87,8 +87,8 @@ export function AdminManagementSection({
           type="button"
           className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
           style={{
-            backgroundColor: subTab === 'vouchers' ? '#991b1b' : 'transparent',
-            color: subTab === 'vouchers' ? '#ffffff' : '#d3bfb2',
+            backgroundColor: subTab === 'vouchers' ? '#1C1917' : 'transparent',
+            color: subTab === 'vouchers' ? '#FFFFFF' : '#78716C',
           }}
           onClick={() => setSubTab('vouchers')}
           data-testid="subtab-vouchers"
@@ -101,7 +101,7 @@ export function AdminManagementSection({
       {subTab === 'staff' && (
         <div className="space-y-3">
           <div className="flex justify-between items-center px-1">
-            <span className="text-xs font-bold text-[#a89587]">
+            <span className="text-xs font-bold text-[#78716C]">
               Đội ngũ Barista & Thu ngân
             </span>
             <button
@@ -116,7 +116,7 @@ export function AdminManagementSection({
           </div>
 
           {staffList.length === 0 ? (
-            <div className={`${styles.card} text-center py-6 text-xs text-[#a89587]`}>
+            <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
               Chưa có nhân viên nào
             </div>
           ) : (
@@ -146,8 +146,8 @@ export function AdminManagementSection({
                       />
                     </button>
                   </div>
-                  <div className="pt-2 border-t border-[#361f15] text-[10px]">
-                    <span className={active ? 'text-[#34d399]' : 'text-[#ef4444]'}>
+                  <div className="pt-2 border-t border-[#EBE3D5] text-[10px]">
+                    <span className={active ? 'text-[#059669] font-bold' : 'text-[#DC2626] font-bold'}>
                       {active ? '● Đang làm việc' : '○ Đã khóa tài khoản'}
                     </span>
                   </div>
@@ -162,7 +162,7 @@ export function AdminManagementSection({
       {subTab === 'customers' && (
         <div className="space-y-2.5">
           {customerList.length === 0 ? (
-            <div className={`${styles.card} text-center py-6 text-xs text-[#a89587]`}>
+            <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
               Chưa có khách hàng nào
             </div>
           ) : (
@@ -180,8 +180,8 @@ export function AdminManagementSection({
                       <span className={styles.itemSubtext}>
                         {c.email} • {orderTotal} đơn
                       </span>
-                      <div className="text-xs font-bold text-[#d4af37] mt-1">
-                        ⭐ {points} hạt vàng
+                      <div className="text-xs font-bold text-[#9C6644] mt-1">
+                        {points} hạt vàng
                       </div>
                     </div>
                     {onToggleCustomerStatus && (
@@ -209,7 +209,7 @@ export function AdminManagementSection({
       {subTab === 'vouchers' && (
         <div className="space-y-3">
           <div className="flex justify-between items-center px-1">
-            <span className="text-xs font-bold text-[#a89587]">
+            <span className="text-xs font-bold text-[#78716C]">
               Mã khuyến mãi & Giảm giá
             </span>
             <button
@@ -224,7 +224,7 @@ export function AdminManagementSection({
           </div>
 
           {voucherList.length === 0 ? (
-            <div className={`${styles.card} text-center py-6 text-xs text-[#a89587]`}>
+            <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
               Chưa có mã voucher nào
             </div>
           ) : (
@@ -233,10 +233,10 @@ export function AdminManagementSection({
                 <div className={styles.itemHeaderRow}>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-[#991b1b] text-white">
+                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-[#1C1917] text-white">
                         {v.code}
                       </span>
-                      <span className="text-xs font-bold text-[#d4af37]">
+                      <span className="text-xs font-bold text-[#9C6644]">
                         Giảm {v.discountPercent}%
                       </span>
                     </div>

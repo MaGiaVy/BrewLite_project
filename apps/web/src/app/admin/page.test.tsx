@@ -209,6 +209,8 @@ describe('T5.1g Admin Page (/admin) — Real API Integration', () => {
     await waitFor(() => {
       expect(screen.getByText('BREWLITE PREMIER')).toBeTruthy();
       expect(screen.getByText('Doanh thu hôm nay')).toBeTruthy();
+      expect(screen.getByTestId('revenue-sparkline')).toBeTruthy();
+      expect(screen.getByText(/\(Nay\)/)).toBeTruthy();
       expect(screen.getAllByText('0đ').length).toBeGreaterThanOrEqual(2);
     });
 

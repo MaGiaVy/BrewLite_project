@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './staff.module.css';
+import { AlertTriangleIcon } from '../admin/AdminIcons';
 
 export interface StockBannerProps {
   lowItems: string[];
@@ -10,7 +11,8 @@ export function StockBanner({ lowItems }: StockBannerProps) {
 
   return (
     <div className={styles.stockBanner} role="alert">
-      <span>⚠️ Sắp hết: {lowItems.join(', ')}</span>
+      <AlertTriangleIcon size={14} className={styles.alertIcon} />
+      <span>Sắp hết: {lowItems.join(', ')}</span>
     </div>
   );
 }

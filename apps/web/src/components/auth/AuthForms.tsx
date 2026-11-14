@@ -272,7 +272,22 @@ function LoginFormContent() {
 
       const token = data.accessToken ?? data.token;
       useAuthStore.getState().login(token, data.user);
-      router.push(redirectParam);
+
+      // Role-based login redirection:
+      // If user had an explicit deep link (e.g. ?redirect=/checkout), honor it.
+      // Otherwise, redirect according to role (ADMIN -> /admin, STAFF -> /staff, CUSTOMER -> /menu).
+      const role = data.user?.role;
+      const explicitRedirect = searchParams.get('redirect');
+      const targetPath =
+        explicitRedirect && explicitRedirect !== '/menu'
+          ? explicitRedirect
+          : role === 'ADMIN'
+            ? '/admin'
+            : role === 'STAFF'
+              ? '/staff'
+              : explicitRedirect || '/menu';
+
+      router.push(targetPath);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Đã xảy ra lỗi, vui lòng thử lại sau.',
@@ -488,7 +503,22 @@ function RegisterFormContent() {
 
       const token = data.accessToken ?? data.token;
       useAuthStore.getState().login(token, data.user);
-      router.push(redirectParam);
+
+      // Role-based login redirection:
+      // If user had an explicit deep link (e.g. ?redirect=/checkout), honor it.
+      // Otherwise, redirect according to role (ADMIN -> /admin, STAFF -> /staff, CUSTOMER -> /menu).
+      const role = data.user?.role;
+      const explicitRedirect = searchParams.get('redirect');
+      const targetPath =
+        explicitRedirect && explicitRedirect !== '/menu'
+          ? explicitRedirect
+          : role === 'ADMIN'
+            ? '/admin'
+            : role === 'STAFF'
+              ? '/staff'
+              : explicitRedirect || '/menu';
+
+      router.push(targetPath);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Đã xảy ra lỗi, vui lòng thử lại.',

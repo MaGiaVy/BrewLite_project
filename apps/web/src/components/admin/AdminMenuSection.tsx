@@ -40,10 +40,10 @@ export function AdminMenuSection({
       {/* Header & Add Button */}
       <div className="flex justify-between items-center px-1">
         <div>
-          <h2 className="text-sm font-bold text-[#fff8f0] m-0">
+          <h2 className="text-sm font-bold text-[#1C1917] m-0">
             Thực đơn món ({products.length})
           </h2>
-          <p className="text-[11px] text-[#a89587] m-0">
+          <p className="text-[11px] text-[#78716C] m-0">
             Chạm công tắc để bật / tắt bán tức thì
           </p>
         </div>
@@ -68,7 +68,7 @@ export function AdminMenuSection({
           className={styles.textInput}
           style={{ width: '100%', paddingLeft: '38px' }}
         />
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a89587]">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#78716C]">
           <SearchIcon size={18} />
         </div>
       </div>
@@ -91,9 +91,9 @@ export function AdminMenuSection({
               fontSize: '11px',
               minHeight: '38px',
               backgroundColor:
-                selectedCategory === cat.id ? '#991b1b' : '#231612',
-              color: selectedCategory === cat.id ? '#ffffff' : '#d3bfb2',
-              borderColor: selectedCategory === cat.id ? '#d4af37' : '#42261a',
+                selectedCategory === cat.id ? '#1C1917' : '#FAF6F0',
+              color: selectedCategory === cat.id ? '#FFFFFF' : '#1C1917',
+              borderColor: selectedCategory === cat.id ? '#1C1917' : '#EBE3D5',
             }}
             onClick={() => setSelectedCategory(cat.id)}
           >
@@ -105,7 +105,7 @@ export function AdminMenuSection({
       {/* Product Cards Stack (Mobile-First) */}
       <div className="space-y-2.5">
         {filtered.length === 0 ? (
-          <div className={`${styles.card} text-center py-6 text-xs text-[#a89587]`}>
+          <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
             Không tìm thấy món ăn nào phù hợp
           </div>
         ) : (
@@ -139,15 +139,15 @@ export function AdminMenuSection({
                   </button>
                 </div>
 
-                <div className="pt-2 border-t border-[#361f15] flex justify-between items-center text-[10px]">
+                <div className="pt-2 border-t border-[#EBE3D5] flex justify-between items-center text-[10px]">
                   <span
                     className={
-                      isSelling ? 'text-[#34d399] font-bold' : 'text-[#ef4444] font-bold'
+                      isSelling ? 'text-[#059669] font-bold' : 'text-[#DC2626] font-bold'
                     }
                   >
                     {isSelling ? '● Đang mở bán' : '○ Tạm ngưng bán'}
                   </span>
-                  <span className="text-[#a89587]">
+                  <span className="text-[#78716C]">
                     Ước tính tồn: ~{item.availableServings ?? 0} ly
                   </span>
                 </div>

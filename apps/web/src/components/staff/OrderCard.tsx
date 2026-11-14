@@ -8,6 +8,7 @@ import {
   type StaffOrder,
   type StaffOrderItem,
 } from '../../lib/staff-orders';
+import { BookOpenIcon } from '../admin/AdminIcons';
 import styles from './staff.module.css';
 
 export interface OrderCardProps {
@@ -109,10 +110,10 @@ export function OrderCard({
 
     if (order.status === 'PREPARING') {
       if (allCupsChecked) {
-        return `🎉 Đã xong đủ ${totalCups}/${totalCups} ly — Báo Sẵn Sàng!`;
+        return `Đã xong đủ ${totalCups}/${totalCups} ly — Báo Sẵn Sàng!`;
       }
       if (completedCount > 0) {
-        return `🔔 Báo đã xong (Đã làm ${completedCount}/${totalCups} ly)`;
+        return `Báo đã xong (Đã làm ${completedCount}/${totalCups} ly)`;
       }
       return action.label;
     }
@@ -214,7 +215,8 @@ export function OrderCard({
                       onClick={() => onOpenRecipe(cup.item)}
                       aria-label={`Xem công thức ${cup.productName}`}
                     >
-                      📖 Xem công thức
+                      <BookOpenIcon size={13} strokeWidth={2} />
+                      <span>Xem công thức</span>
                     </button>
                   )}
                 </div>
