@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styles from './staff.module.css';
+import { AlertTriangleIcon, BanIcon } from '../admin/AdminIcons';
 
 export interface StaffProductItem {
   id: number;
@@ -55,8 +56,11 @@ export function SoldOutSheet({
     >
       <div className={styles.sheetContent}>
         <div className={styles.sheetHeader}>
-          <span id="staff-soldout-sheet-title">
-            🚫 Báo hết món (86) · {soldOutCount} đang khóa
+          <span
+            id="staff-soldout-sheet-title"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <BanIcon size={16} /> Báo hết món (86) · {soldOutCount} đang khóa
           </span>
           <button
             type="button"
@@ -78,8 +82,12 @@ export function SoldOutSheet({
         />
 
         {error && (
-          <div className={styles.soldOutError} role="alert">
-            ⚠️ {error}
+          <div
+            className={styles.soldOutError}
+            role="alert"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <AlertTriangleIcon size={14} /> <span>{error}</span>
           </div>
         )}
 

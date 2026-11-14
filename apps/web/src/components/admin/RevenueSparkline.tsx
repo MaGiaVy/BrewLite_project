@@ -14,6 +14,15 @@ export interface RevenueSparklineProps {
 
 const DAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
+function toLocalDateKey(dateInput: Date | string): string {
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * Builds a smooth cubic Bezier path through a series of points (x, y).
  */
@@ -52,7 +61,7 @@ export function RevenueSparkline({ orders = [], className = '' }: RevenueSparkli
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      const dateKey = d.toISOString().slice(0, 10);
+      const dateKey = toLocalDateKey(d);
       const dayIndex = (d.getDay() + 6) % 7; // 0 = T2, 6 = CN
       const label = i === 0 ? `${DAY_LABELS[dayIndex]} (Nay)` : DAY_LABELS[dayIndex];
       days.push({ label, dateStr: dateKey, total: 0 });
@@ -61,7 +70,7 @@ export function RevenueSparkline({ orders = [], className = '' }: RevenueSparkli
     // Accumulate valid non-cancelled orders
     orders.forEach((o) => {
       if (o.status === 'CANCELLED') return;
-      const oDate = typeof o.createdAt === 'string' ? o.createdAt.slice(0, 10) : '';
+      const oDate = typeof o.createdAt === 'string' ? toLocalDateKey(o.createdAt) : '';
       const bucket = days.find((b) => b.dateStr === oDate);
       if (bucket) {
         bucket.total += Number(o.totalAmount || 0);
