@@ -6,6 +6,7 @@ import { RecipeSheet } from './RecipeSheet';
 import { ConfirmDialog } from './ConfirmDialog';
 import { StatusTabs } from './StatusTabs';
 import { StockBanner } from './StockBanner';
+import { SoldOutSheet, type StaffProductItem } from './SoldOutSheet';
 import type { StaffOrder, StaffOrderItem } from '../../lib/staff-orders';
 
 afterEach(() => {
@@ -214,5 +215,54 @@ describe('T5.1f Staff Components (WEB-T18)', () => {
     fireEvent.click(checkButtons[0]);
     expect(screen.getByText(/Đã làm 1\/3 ly/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /hoàn tác/i })).toBeTruthy();
+  });
+
+  it('SoldOutSheet filters products, triggers 86 toggle, and closes on Escape', () => {
+    const products: StaffProductItem[] = [
+      {
+        id: 1,
+        name: 'Cà phê sữa đá',
+        price: 29000,
+        isOutOfStock: false,
+        availableServings: 15,
+        isSoldOutManual: false,
+      },
+      {
+        id: 2,
+        name: 'Matcha Latte',
+        price: 45000,
+        isOutOfStock: true,
+        availableServings: 0,
+        isSoldOutManual: true,
+      },
+    ];
+    const onToggle = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <SoldOutSheet
+        products={products}
+        busyProductId={null}
+        error={null}
+        onToggleSoldOut={onToggle}
+        onClose={onClose}
+      />,
+    );
+
+    expect(screen.getByText(/1 đang khóa/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Báo hết món \(86\)/i }));
+    expect(onToggle).toHaveBeenCalledWith(products[0]);
+
+    fireEvent.click(screen.getByRole('button', { name: /Mở bán lại/i }));
+    expect(onToggle).toHaveBeenCalledWith(products[1]);
+
+    fireEvent.change(screen.getByLabelText(/Tìm món báo hết/i), {
+      target: { value: 'Matcha' },
+    });
+    expect(screen.queryByText('Cà phê sữa đá')).toBeNull();
+    expect(screen.getByText('Matcha Latte')).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

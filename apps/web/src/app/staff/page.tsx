@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   apiClient,
@@ -22,7 +22,71 @@ import { OrderCard } from '../../components/staff/OrderCard';
 import { RecipeSheet } from '../../components/staff/RecipeSheet';
 import { ConfirmDialog } from '../../components/staff/ConfirmDialog';
 import { StockBanner } from '../../components/staff/StockBanner';
+import {
+  SoldOutSheet,
+  type StaffProductItem,
+} from '../../components/staff/SoldOutSheet';
 import styles from '../../components/staff/staff.module.css';
+
+function findNewPaidOrderIds(
+  orders: StaffOrder[],
+  prevPaidIds: Set<number>,
+  hasLoadedOnce: boolean,
+): {
+  newPaidOrderIds: number[];
+  nextPaidIds: Set<number>;
+  nextHasLoadedOnce: boolean;
+} {
+  const nextPaidIds = new Set(
+    orders.filter((o) => o.status === 'PAID').map((o) => o.id),
+  );
+  if (!hasLoadedOnce) {
+    return {
+      newPaidOrderIds: [],
+      nextPaidIds,
+      nextHasLoadedOnce: true,
+    };
+  }
+  const newPaidOrderIds: number[] = [];
+  for (const id of nextPaidIds) {
+    if (!prevPaidIds.has(id)) {
+      newPaidOrderIds.push(id);
+    }
+  }
+  return {
+    newPaidOrderIds,
+    nextPaidIds,
+    nextHasLoadedOnce: true,
+  };
+}
+
+function playWebAudioChime(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const freqs = [659.25, 987.77];
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+      gain.gain.setValueAtTime(0.18, now + idx * 0.14);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.45);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.14);
+      osc.stop(now + idx * 0.14 + 0.46);
+    });
+  } catch {
+    // Ignore audio context block if user hasn't interacted yet
+  }
+}
 
 function readStoredUser(): AuthSession['user'] {
   if (typeof window === 'undefined') return null;
@@ -58,6 +122,31 @@ export default function StaffBaristaKdsPage() {
   const [lowStockItems, setLowStockItems] = useState<string[]>([]);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
 
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [products, setProducts] = useState<StaffProductItem[]>([]);
+  const [soldOutOpen, setSoldOutOpen] = useState<boolean>(false);
+  const [busyProductId, setBusyProductId] = useState<number | null>(null);
+  const [soldOutError, setSoldOutError] = useState<string | null>(null);
+
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevPaidIdsRef = useRef<Set<number>>(new Set());
+  const hasLoadedQueueOnceRef = useRef<boolean>(false);
+
+  const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToastMsg(msg);
+    toastTimerRef.current = setTimeout(() => setToastMsg(null), 3500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   // 1. Role Guard: only STAFF and ADMIN
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -73,8 +162,64 @@ export default function StaffBaristaKdsPage() {
 
   // 2. Barista Queue Polling Hook (only starts once authorized)
   const { orders, error, pendingId, transition } = useBaristaQueue(3000, authorized === true);
+  const initialOrdersRef = useRef<StaffOrder[]>(orders);
 
-  // 3. Low stock polling (inventory ingredients)
+  // 2b. Chime + Toast on newly arriving PAID orders (even after empty queue)
+  useEffect(() => {
+    if (!authorized) return;
+    if (!hasLoadedQueueOnceRef.current && orders === initialOrdersRef.current) {
+      return;
+    }
+    const { newPaidOrderIds, nextPaidIds, nextHasLoadedOnce } =
+      findNewPaidOrderIds(
+        orders,
+        prevPaidIdsRef.current,
+        hasLoadedQueueOnceRef.current,
+      );
+    if (newPaidOrderIds.length > 0 && soundEnabled) {
+      playWebAudioChime();
+      showToast(`🔔 Đơn mới #BL-${newPaidOrderIds[0]} vừa thanh toán!`);
+    }
+    prevPaidIdsRef.current = nextPaidIds;
+    hasLoadedQueueOnceRef.current = nextHasLoadedOnce;
+  }, [authorized, orders, soundEnabled, showToast]);
+
+  // 3. Low stock & products polling (inventory ingredients + /products for 86 control)
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await apiClient('/products', { cache: 'no-store' });
+      if (!res.ok) return;
+      const payload = await res.json();
+      const rawList = Array.isArray(payload) ? payload : payload?.data ?? [];
+      if (!Array.isArray(rawList)) return;
+      setProducts(
+        rawList.map((p: any) => {
+          const isOutOfStock = Boolean(p.isOutOfStock);
+          // Fallback only for partial test fixtures omitting isSoldOutManual; real GET /products always includes it
+          const isSoldOutManual =
+            typeof p.isSoldOutManual === 'boolean'
+              ? p.isSoldOutManual
+              : Boolean(
+                  p.isOutOfStock &&
+                    (!Array.isArray(p.outOfStockSizes) ||
+                      p.outOfStockSizes.length === 0),
+                );
+          return {
+            id: Number(p.id),
+            name: String(p.name || `Món #${p.id}`),
+            price: Number(p.price ?? p.basePrice ?? 0),
+            isOutOfStock,
+            availableServings: Number(p.availableServings ?? 0),
+            isSoldOutManual,
+          };
+        }),
+      );
+      setSoldOutError(null);
+    } catch {
+      // Ignore transient network errors when polling product availability
+    }
+  }, []);
+
   useEffect(() => {
     if (!authorized) return;
     let active = true;
@@ -103,12 +248,71 @@ export default function StaffBaristaKdsPage() {
     };
 
     fetchInventory();
-    const invTimer = setInterval(fetchInventory, 15000);
+    fetchProducts();
+    const invTimer = setInterval(() => {
+      fetchInventory();
+      fetchProducts();
+    }, 15000);
     return () => {
       active = false;
       clearInterval(invTimer);
     };
-  }, [authorized]);
+  }, [authorized, fetchProducts]);
+
+  const handleToggleSoldOut = async (product: StaffProductItem) => {
+    if (busyProductId !== null) return;
+    const nextSoldOut = !product.isSoldOutManual;
+    setBusyProductId(product.id);
+    setSoldOutError(null);
+    try {
+      const res = await apiClient(`/products/${product.id}/sold-out`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isSoldOutManual: nextSoldOut }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg =
+          (Array.isArray(err?.message) ? err.message.join(', ') : err?.message) ||
+          `Không thể cập nhật trạng thái món ${product.name}`;
+        setSoldOutError(msg);
+        return;
+      }
+      const updated = await res.json().catch(() => null);
+      const confirmedSoldOut =
+        typeof updated?.isSoldOutManual === 'boolean'
+          ? updated.isSoldOutManual
+          : nextSoldOut;
+      setProducts((prev) =>
+        prev.map((item) =>
+          item.id === product.id
+            ? {
+                ...item,
+                isSoldOutManual: confirmedSoldOut,
+                isOutOfStock:
+                  typeof updated?.isOutOfStock === 'boolean'
+                    ? updated.isOutOfStock
+                    : confirmedSoldOut,
+                availableServings:
+                  typeof updated?.availableServings === 'number'
+                    ? updated.availableServings
+                    : confirmedSoldOut
+                    ? 0
+                    : item.availableServings,
+              }
+            : item,
+        ),
+      );
+      showToast(
+        confirmedSoldOut
+          ? `🚫 Đã báo hết món (86): ${product.name}`
+          : `✅ Đã mở bán lại: ${product.name}`,
+      );
+    } catch {
+      setSoldOutError(`Lỗi kết nối khi cập nhật 86 cho ${product.name}`);
+    } finally {
+      setBusyProductId(null);
+    }
+  };
 
   // 4. Group & Sort orders
   const grouped = useMemo(() => groupByStatus(orders), [orders]);
@@ -126,6 +330,11 @@ export default function StaffBaristaKdsPage() {
     }
     return sortOldestFirst(list);
   }, [grouped, activeTab]);
+
+  const soldOutCount = useMemo(
+    () => products.filter((p) => p.isSoldOutManual).length,
+    [products],
+  );
 
   // 5. Actions
   const handleAction = (
@@ -183,6 +392,13 @@ export default function StaffBaristaKdsPage() {
 
   return (
     <div className={styles.container}>
+      {/* Toast notification */}
+      {toastMsg && (
+        <div className={styles.toastBanner} role="status">
+          {toastMsg}
+        </div>
+      )}
+
       {/* Stock warning banner */}
       <StockBanner lowItems={lowStockItems} />
 
@@ -191,7 +407,36 @@ export default function StaffBaristaKdsPage() {
         <div className={styles.brand}>
           <span>☕ BrewLite · Quầy bar KDS</span>
         </div>
-        <span className={styles.totalChip}>{activeOrdersCount} đơn chờ</span>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={`${styles.headerActionBtn} ${
+              soundEnabled ? styles.headerActionBtnActive : ''
+            }`}
+            onClick={() => {
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              if (next) playWebAudioChime();
+            }}
+            aria-label="Bật hoặc tắt chuông báo đơn mới"
+          >
+            {soundEnabled ? '🔊 Chuông' : '🔇 Tắt'}
+          </button>
+          <button
+            type="button"
+            className={`${styles.headerActionBtn} ${
+              soldOutCount > 0 ? styles.headerActionBtnDanger : ''
+            }`}
+            onClick={() => {
+              setSoldOutError(null);
+              setSoldOutOpen(true);
+              void fetchProducts();
+            }}
+          >
+            🚫 Báo hết món (86){soldOutCount > 0 ? ` · ${soldOutCount}` : ''}
+          </button>
+          <span className={styles.totalChip}>{activeOrdersCount} đơn chờ</span>
+        </div>
       </header>
 
       {/* Error notification if polling or transition fails */}
@@ -260,6 +505,17 @@ export default function StaffBaristaKdsPage() {
         <RecipeSheet
           item={selectedRecipeItem}
           onClose={() => setSelectedRecipeItem(null)}
+        />
+      )}
+
+      {/* Sold-Out (86) Sheet */}
+      {soldOutOpen && (
+        <SoldOutSheet
+          products={products}
+          busyProductId={busyProductId}
+          error={soldOutError}
+          onToggleSoldOut={handleToggleSoldOut}
+          onClose={() => setSoldOutOpen(false)}
         />
       )}
 

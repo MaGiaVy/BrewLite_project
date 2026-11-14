@@ -908,4 +908,158 @@ runInt('Security & Concurrency Integration (Real PostgreSQL)', () => {
     );
     expect(orderStatusEmptyRes.status).toBe(400);
   });
+
+  it('8. redeemPoints deducts catalog requiredPoints (10) instead of client points (50) for BREW10', async () => {
+    const passwordHash = await bcrypt.hash('TestPass123!', 10);
+    const redeemUser = await prisma.user.create({
+      data: {
+        email: 'redeem-brew10@brewlite.vn',
+        passwordHash,
+        fullName: 'Redeem Brew10 Customer',
+        role: Role.CUSTOMER,
+        isActive: true,
+        loyaltyPoints: 50,
+      },
+    });
+    const redeemToken = signToken({
+      id: redeemUser.id,
+      email: redeemUser.email,
+      role: Role.CUSTOMER,
+    });
+
+    const res = await requestJson('POST', '/auth/redeem-points', {
+      token: redeemToken,
+      body: {
+        points: 50,
+        voucherCode: 'BREW10',
+      },
+    });
+    expect(res.status).toBe(201);
+
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: redeemUser.id },
+    });
+    expect(updatedUser?.loyaltyPoints).toBe(40);
+  });
+
+  it('9. STAFF can PATCH /products/:id/sold-out (200, omits recipes & cogsSizeS) but gets 403 on PATCH /products/:id/visibility', async () => {
+    const staffToken = signToken({
+      id: staffUser.id,
+      email: staffUser.email,
+      role: Role.STAFF,
+    });
+
+    const soldOutRes = await requestJson(
+      'PATCH',
+      `/products/${activeBeverageId}/sold-out`,
+      {
+        token: staffToken,
+        body: { isSoldOutManual: true },
+      },
+    );
+    expect(soldOutRes.status).toBe(200);
+    expect(soldOutRes.data.isSoldOutManual).toBe(true);
+    expect(soldOutRes.data.recipes).toBeUndefined();
+    expect(soldOutRes.data.cogsSizeS).toBeUndefined();
+
+    const visibilityRes = await requestJson(
+      'PATCH',
+      `/products/${activeBeverageId}/visibility`,
+      {
+        token: staffToken,
+        body: { isActive: false },
+      },
+    );
+    expect(visibilityRes.status).toBe(403);
+
+    // Restore active beverage availability
+    const restoreRes = await requestJson(
+      'PATCH',
+      `/products/${activeBeverageId}/sold-out`,
+      {
+        token: staffToken,
+        body: { isSoldOutManual: false },
+      },
+    );
+    expect(restoreRes.status).toBe(200);
+    expect(restoreRes.data.isSoldOutManual).toBe(false);
+  });
+
+  it('10. getBaristaQueue preserves both active PAID orders alongside 205 recent COMPLETED orders and caps COMPLETED at 50', async () => {
+    const staffToken = signToken({
+      id: staffUser.id,
+      email: staffUser.email,
+      role: Role.STAFF,
+    });
+
+    const baseNow = Date.now();
+    await prisma.order.createMany({
+      data: Array.from({ length: 205 }, (_, idx) => ({
+        userId: customerUser.id,
+        status: OrderStatus.COMPLETED,
+        totalAmount: 35000,
+        createdAt: new Date(baseNow - (idx + 10) * 1000),
+        updatedAt: new Date(baseNow - (idx + 1) * 1000),
+      })),
+    });
+
+    const [paidOrder1, paidOrder2] = await Promise.all([
+      prisma.order.create({
+        data: {
+          userId: customerUser.id,
+          status: OrderStatus.PAID,
+          totalAmount: 45000,
+          items: {
+            create: [
+              {
+                productId: activeBeverageId,
+                productName: 'Cà phê Sữa Test',
+                size: 'M',
+                toppings: [],
+                quantity: 1,
+                unitPrice: 45000,
+              },
+            ],
+          },
+        },
+      }),
+      prisma.order.create({
+        data: {
+          userId: customerUser.id,
+          status: OrderStatus.PAID,
+          totalAmount: 39000,
+          items: {
+            create: [
+              {
+                productId: bakeryProductId,
+                productName: 'Bánh Pain au Chocolat Test',
+                size: 'ALL',
+                toppings: [],
+                quantity: 1,
+                unitPrice: 39000,
+              },
+            ],
+          },
+        },
+      }),
+    ]);
+
+    const queueRes = await requestJson('GET', '/orders/barista/queue', {
+      token: staffToken,
+    });
+    expect(queueRes.status).toBe(200);
+    expect(Array.isArray(queueRes.data)).toBe(true);
+
+    const queueOrders = queueRes.data as Array<{ id: number; status: OrderStatus }>;
+    const paidIds = queueOrders
+      .filter((o) => o.status === OrderStatus.PAID)
+      .map((o) => o.id);
+    const completedOrders = queueOrders.filter(
+      (o) => o.status === OrderStatus.COMPLETED,
+    );
+
+    expect(paidIds).toContain(paidOrder1.id);
+    expect(paidIds).toContain(paidOrder2.id);
+    expect(completedOrders.length).toBeLessThanOrEqual(50);
+  });
 });

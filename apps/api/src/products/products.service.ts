@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProductDto,
   ToggleProductVisibilityDto,
+  ToggleSoldOutDto,
   UpdateProductDto,
 } from './dto/product.dto';
 
@@ -151,6 +152,7 @@ export class ProductsService {
         description: product.description ?? null,
         stock,
         isOutOfStock,
+        isSoldOutManual: manualSoldOut,
         outOfStockSizes,
         availableServings,
         category: product.category,
@@ -381,6 +383,30 @@ export class ProductsService {
     });
 
     return this.enrichProductStock(updated, undefined, true);
+  }
+
+  async toggleSoldOut(id: number, dto: ToggleSoldOutDto, isAdmin = false) {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Không tìm thấy sản phẩm #${id}`);
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: {
+        isSoldOutManual: dto.isSoldOutManual,
+      },
+      include: {
+        recipes: {
+          include: { ingredient: true },
+        },
+      },
+    });
+
+    return {
+      ...this.enrichProductStock(updated, undefined, isAdmin),
+      isSoldOutManual: updated.isSoldOutManual,
+    };
   }
 
   async remove(id: number) {

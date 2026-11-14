@@ -580,41 +580,45 @@ export class OrdersService {
    */
   async getBaristaQueue() {
     const completedWindowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [orders, allRecipes, allToppingRecipes] = await Promise.all([
-      this.prisma.order.findMany({
-        where: {
-          OR: [
-            {
-              status: {
-                in: [
-                  OrderStatus.PAID,
-                  OrderStatus.PREPARING,
-                  OrderStatus.READY,
-                ],
-              },
+    const orderInclude = {
+      items: true,
+      user: {
+        select: { id: true, fullName: true, phone: true },
+      },
+    };
+    const [activeOrders, completedOrders, allRecipes, allToppingRecipes] =
+      await Promise.all([
+        this.prisma.order.findMany({
+          where: {
+            status: {
+              in: [
+                OrderStatus.PAID,
+                OrderStatus.PREPARING,
+                OrderStatus.READY,
+              ],
             },
-            {
-              status: OrderStatus.COMPLETED,
-              updatedAt: { gte: completedWindowStart },
-            },
-          ],
-        },
-        include: {
-          items: true,
-          user: {
-            select: { id: true, fullName: true, phone: true },
           },
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 200,
-      }),
-      this.prisma.recipe
-        ? this.prisma.recipe.findMany({ include: { ingredient: true } })
-        : Promise.resolve([]),
-      this.prisma.toppingRecipe
-        ? this.prisma.toppingRecipe.findMany({ include: { ingredient: true } })
-        : Promise.resolve([]),
-    ]);
+          include: orderInclude,
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.prisma.order.findMany({
+          where: {
+            status: OrderStatus.COMPLETED,
+            updatedAt: { gte: completedWindowStart },
+          },
+          include: orderInclude,
+          orderBy: { updatedAt: 'desc' },
+          take: 50,
+        }),
+        this.prisma.recipe
+          ? this.prisma.recipe.findMany({ include: { ingredient: true } })
+          : Promise.resolve([]),
+        this.prisma.toppingRecipe
+          ? this.prisma.toppingRecipe.findMany({ include: { ingredient: true } })
+          : Promise.resolve([]),
+      ]);
+
+    const orders = [...(activeOrders ?? []), ...(completedOrders ?? [])];
 
     return orders.map((order) => ({
       ...order,

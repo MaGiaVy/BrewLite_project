@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { clearAuthSession, getAuthToken, setAuthSession } from '../lib/api-client';
+import {
+  clearAuthSession,
+  clearSessionRoleCookie,
+  getAuthToken,
+  setAuthSession,
+  syncSessionRoleCookie,
+} from '../lib/api-client';
 
 export interface UserVoucherItem {
   code: string;
@@ -53,6 +59,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       login: (token: string, user: User) => {
+        syncSessionRoleCookie(user?.role ?? 'CUSTOMER');
         set({
           token,
           accessToken: token,
@@ -70,6 +77,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        clearSessionRoleCookie();
         set({
           token: null,
           accessToken: null,
@@ -111,7 +119,10 @@ export const useAuthStore = create<AuthState>()(
 
       refreshProfile: async () => {
         const token = get().token ?? getAuthToken();
-        if (!token) return;
+        if (!token) {
+          clearSessionRoleCookie();
+          return;
+        }
         try {
           const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
           const res = await fetch(`${apiBase}/auth/me`, {
@@ -125,14 +136,18 @@ export const useAuthStore = create<AuthState>()(
               const vouchers = Array.isArray(profile.vouchers)
                 ? profile.vouchers
                 : u?.vouchers;
-              set({
-                user: {
-                  ...u,
-                  ...profile,
-                  ...(vouchers !== undefined ? { vouchers } : {}),
-                },
-              });
+              const nextUser = {
+                ...u,
+                ...profile,
+                ...(vouchers !== undefined ? { vouchers } : {}),
+              };
+              set({ user: nextUser });
+              syncSessionRoleCookie(nextUser?.role ?? 'CUSTOMER');
             }
+          } else if (res.status === 401 || res.status === 403) {
+            get().logout();
+          } else {
+            clearSessionRoleCookie();
           }
         } catch {
           // ignore network failure
@@ -179,6 +194,13 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.isAuthenticated && (state.token || state.accessToken) && state.user) {
+          syncSessionRoleCookie(state.user.role ?? 'CUSTOMER');
+        } else {
+          clearSessionRoleCookie();
+        }
+      },
     },
   ),
 );
