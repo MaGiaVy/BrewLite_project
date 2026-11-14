@@ -1,6 +1,7 @@
+> **Thành viên thực hiện:** Huỳnh Tuấn Kiệt (Task 2.2 — Sequence Diagram)  
 # Tài Liệu Biểu Đồ Trình Tự Đặt Hàng & Thanh Toán 2 Pha (Checkout & Payment Sequence Diagram)
 
-Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và thanh toán (Checkout & Payment) của hệ thống **BrewLite**. Toàn bộ thiết kế được xây dựng đồng bộ 100% với mã nguồn thực tế tại [`backend/src/orders/orders.service.ts`](file:///d:/SWE/BrewLite_SWE/backend/src/orders/orders.service.ts) và [`backend/src/payments/payments.service.ts`](file:///d:/SWE/BrewLite_SWE/backend/src/payments/payments.service.ts). Biểu đồ nguồn tương ứng được lưu tại [`sequence-checkout.puml`](file:///d:/SWE/BrewLite_SWE/docs/diagrams/sequence-checkout.puml).
+Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và thanh toán (Checkout & Payment) của hệ thống **BrewLite**. Toàn bộ thiết kế được xây dựng đồng bộ với mã nguồn thực tế tại `apps/api/src/orders/orders.service.ts`, `apps/api/src/payments/payments.service.ts` và `apps/api/src/jobs/expire-orders.job.ts`. Biểu đồ nguồn tương ứng được lưu tại [`sequence-checkout.puml`](sequence-checkout.puml).
 
 ---
 
@@ -13,7 +14,7 @@ Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và th
      │
      ├──(Pha 1: POST /orders)────► [Tạo đơn PENDING, Trừ/Giữ kho BOM với Optimistic Lock]
      │                                     │
-     │                           (Hết hạn 5 phút -> Tự hủy & hoàn kho)
+     │                          (Hết hạn 15 phút -> Tự hủy & hoàn kho)
      │                                     │
      └──(Pha 2: POST /payments)───► [Gửi Idempotency-Key, Chuyển sang PAID, Tích Hạt Vàng]
 ```
@@ -49,11 +50,10 @@ Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và th
    - Tra cứu trong cơ sở dữ liệu bảng `DiscountCode` hoặc voucher cá nhân `UserVoucher`.
    - Kiểm tra trạng thái kích hoạt (`isActive`), điều kiện đơn tối thiểu (`minOrderAmount`), và giới hạn giảm tối đa (`maxDiscountAmount`).
    - Nếu mã không tồn tại hoặc đơn không đủ giá trị tối thiểu -> Ném `BadRequestException(400)`.
-   - Tính toán thuế VAT 8% và **làm tròn xuống hàng nghìn**:
+   - Áp dụng **0% VAT** và tính tổng thanh toán cuối cùng:
      ```ts
      const afterDiscount = Math.max(0, rawSubtotal - discountAmount);
-     const vat = Math.floor(afterDiscount * 0.08);
-     const totalAmount = Math.floor((afterDiscount + vat) / 1000) * 1000;
+     const totalAmount = afterDiscount; // 0% VAT
      ```
 3. **Thực thi trong Prisma Transaction (`$transaction`)**:
    - **Tính toán BOM (Bill of Materials)**: Hàm `computeRequiredIngredients` truy xuất công thức món (`Recipe`) theo từng size sản phẩm (`M`, `L`, hoặc `ALL` cho bánh ngọt) và công thức topping (`ToppingRecipe`) để tính tổng định lượng từng nguyên vật liệu tiêu hao.
@@ -77,7 +77,7 @@ Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và th
        }
        ```
    - **Tạo bản ghi đơn hàng**: Tạo đơn hàng với trạng thái mặc định **`PENDING`** và `version: 0`. Lưu ý: Không trừ lượt voucher của người dùng tại thời điểm này để tránh thất thoát voucher nếu đơn không thanh toán thành công.
-4. **Phản hồi**: Trả về `orderId`, trạng thái `PENDING`, tổng tiền thực tế cần thanh toán. Client bắt đầu đếm ngược thời gian thanh toán trong vòng **5 phút**.
+4. **Phản hồi**: Trả về `orderId`, trạng thái `PENDING`, tổng tiền thực tế cần thanh toán. Đơn hàng giữ tồn kho BOM tối đa trong vòng **15 phút**.
 
 ---
 
@@ -93,10 +93,11 @@ Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và th
   ```json
   {
     "orderId": 105,
-    "method": "MOCK_QR",
+    "method": "EWALLET",
     "simulateFailure": false
   }
   ```
+  *(Trong đó `method` thuộc enum `PaymentMethod`: `EWALLET` hoặc `BANK_CARD`.)*
 
 #### Quy trình xử lý tại Backend:
 1. **Kiểm tra Idempotency-Key**:
@@ -106,12 +107,12 @@ Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và th
 2. **Xác thực quyền sở hữu & Tính hợp lệ của đơn hàng**:
    - Tra cứu đơn hàng theo `orderId`.
    - **Chống IDOR**: Kiểm tra `order.userId === req.user.userId`. Ném `ForbiddenException(403)` nếu truy cập trái phép.
-   - **Kiểm tra thời hạn thanh toán**: Đơn hàng phải ở trạng thái `PENDING` và thời gian khởi tạo không quá **5 phút (300.000 ms)**. Nếu quá hạn, ném `BadRequestException('Đơn hàng đã hết hạn thanh toán (quá 5 phút). Vui lòng tạo đơn mới.')`.
+   - **Kiểm tra thời hạn thanh toán**: Đơn hàng phải ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` và thời gian khởi tạo không quá **15 phút (900.000 ms)**. Nếu quá hạn, hệ thống tự động hủy hoàn kho và ném `BadRequestException`.
    - **Bảo mật giá tiền**: Số tiền thanh toán lấy trực tiếp từ `order.totalAmount` trong cơ sở dữ liệu.
    - **State Machine Guard**: Kiểm tra chuyển trạng thái hợp lệ thông qua `assertTransition(order.status, 'PAID')`.
 3. **Thực thi trong Prisma Transaction (`$transaction`)**:
-   - Gọi `mockPaymentService.processPayment(...)`.
-   - **Nếu thất bại**: Cập nhật đơn hàng sang `PAYMENT_FAILED`, tạo bản ghi Payment trạng thái `FAILED`.
+   - Gọi `mockGatewayService.charge(...)` (endpoint `POST /payments` trả về HTTP `201 Created`; bị chặn `403 Forbidden` ở môi trường production nếu `ALLOW_MOCK_PAYMENT=false`).
+   - **Nếu thất bại**: Cập nhật đơn hàng sang `PAYMENT_FAILED`, tạo bản ghi Payment trạng thái `FAILED`, trả về HTTP `201 { success: false, status: 'PAYMENT_FAILED' }` và **tiếp tục giữ nguyên kho BOM** để khách thử lại.
    - **Nếu thành công**:
      - Cập nhật đơn hàng sang **`PAID`** bằng Optimistic Locking:
        ```ts
@@ -157,15 +158,15 @@ Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và th
 
 ---
 
-## 4. Cơ Chế Tự Động Hoàn Kho & Timeout 5 Phút (Auto-Expiration)
+## 4. Cơ Chế Tự Động Hoàn Kho & Timeout 15 Phút (Auto-Expiration)
 
 Hệ thống BrewLite thiết lập cơ chế giải phóng tồn kho tự động nhằm ngăn chặn tình trạng khách đặt giữ chỗ đơn hàng nhưng không thanh toán làm cạn kiệt nguyên liệu của cửa hàng.
 
-- **Cơ chế kích hoạt**: Chạy định kỳ mỗi **15 giây** (`setInterval`) trong vòng đời `OrdersService` hoặc quét dọn ngay lúc server khởi động (`onModuleInit`).
-- **Thời hạn TTL (Time-To-Live)**: **Chính xác 5 phút (300.000 ms)**, hoàn toàn **KHÔNG PHẢI 15 phút**.
+- **Cơ chế kích hoạt**: Tác vụ `ExpireOrdersJob` (`apps/api/src/jobs/expire-orders.job.ts`) chạy định kỳ mỗi **1 phút** bằng `@Cron('*/1 * * * *')`, gọi `expirePendingOrders(..., { timeoutMinutes: 15 })`.
+- **Thời hạn TTL (Time-To-Live)**: **15 phút (900.000 ms)** áp dụng cho đơn ở trạng thái `PENDING` hoặc `PAYMENT_FAILED`.
 - **Trình tự hoàn kho trong Transaction**:
-  1. Quét các đơn hàng `status = PENDING` và `createdAt <= now - 5 phút`.
-  2. Với mỗi đơn hết hạn, gọi `computeRequiredIngredients(order.items)` để xác định đúng số lượng nguyên vật liệu và topping đã giữ.
+  1. Quét các đơn hàng `status IN ('PENDING', 'PAYMENT_FAILED')` có `createdAt <= now - 15 phút`.
+  2. Với mỗi đơn hết hạn, gọi `computeRequiredIngredients(order.items)` (qua `refundOrderResources`) để xác định đúng số lượng nguyên vật liệu và topping đã giữ.
   3. Hoàn trả 100% nguyên liệu vào kho:
      ```ts
      await tx.ingredient.update({
@@ -176,8 +177,8 @@ Hệ thống BrewLite thiết lập cơ chế giải phóng tồn kho tự độ
        },
      });
      ```
-  4. Cập nhật trạng thái đơn hàng sang **`CANCELLED`**.
-  5. Ghi log cảnh báo: `[Auto-Expire 5m] Đơn hàng #id đã tự động hủy do quá 5 phút chưa thanh toán. Đã hoàn trả nguyên liệu vào kho.`
+  4. Cập nhật trạng thái đơn hàng sang **`CANCELLED`** (tăng `version + 1`).
+  5. Ghi log cảnh báo: `[Auto-Expire 15m] Đơn hàng #id đã tự động hủy do quá 15 phút chưa thanh toán. Đã hoàn trả nguyên liệu vào kho.`
 
 ---
 

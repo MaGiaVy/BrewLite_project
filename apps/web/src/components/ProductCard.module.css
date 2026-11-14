@@ -1,27 +1,250 @@
 .card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #f8f2ee;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 2px 12px rgba(44, 24, 16, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid rgba(231, 225, 221, 0.6);
   overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #ffffff;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
 }
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(44, 24, 16, 0.08);
+}
+
+.cardHero {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #f8f2ee;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px -4px rgba(44, 24, 16, 0.08);
+  border: 1px solid rgba(198, 139, 89, 0.25);
+}
+
+.imageWrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ede7e3;
+  margin-bottom: 10px;
+}
+
+.imageWrapperHero {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ede7e3;
+  margin-bottom: 0;
+}
+
 .picture {
   width: 100%;
-  height: 168px;
-  display: block;
+  height: 100%;
   object-fit: cover;
-  background: #f1f5f9;
+  display: block;
+  transition: transform 0.3s ease;
 }
-.content { padding: 16px; }
-.name { margin: 0 0 8px; font-size: 1.08rem; }
-.price { margin: 0; font-weight: 600; color: #0f766e; }
-.unavailable .picture { opacity: .55; }
+
+.card:hover .picture {
+  transform: scale(1.05);
+}
+
+.badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: #845326;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  z-index: 2;
+}
+
+.badgeNew {
+  background: rgba(255, 255, 255, 0.92);
+  color: #2c1810;
+  backdrop-filter: blur(4px);
+}
+
+.badgeSecondary {
+  background: #febc85;
+  color: #78491d;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.contentHero {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.heroTag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #845326;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.name {
+  margin: 0;
+  font-family: 'Epilogue', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c1810;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nameHero {
+  font-size: 16px;
+  font-weight: 700;
+  -webkit-line-clamp: 1;
+}
+
+.description {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: #504440;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.descriptionHero {
+  font-size: 12px;
+  -webkit-line-clamp: 2;
+  margin-top: 4px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  gap: 6px;
+}
+
+.priceGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.price {
+  margin: 0;
+  font-family: 'Epilogue', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #2c1810;
+}
+
+.priceHero {
+  font-size: 18px;
+}
+
+.originalPrice {
+  font-size: 11px;
+  color: #827470;
+  text-decoration: line-through;
+}
+
+.addButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: #2c1810;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.2);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.addButtonHero {
+  width: 38px;
+  height: 38px;
+}
+
+.addButton:hover {
+  background: #845326;
+}
+
+.addButton:active {
+  transform: scale(0.88);
+}
+
+.addButton:disabled {
+  background: #d3c3be;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.unavailable {
+  opacity: 0.72;
+}
+
+.unavailable .picture {
+  filter: grayscale(40%);
+}
+
 .soldOut {
   display: inline-block;
-  margin-top: 10px;
-  padding: 5px 10px;
-  color: #991b1b;
-  background: #fee2e2;
-  border-radius: 20px;
-  font-size: .85rem;
+  padding: 2px 8px;
+  color: #ba1a1a;
+  background: #ffdad6;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.addedFeedback {
+  animation: popSuccess 0.4s ease;
+}
+
+@keyframes popSuccess {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); background: #845326; }
+  100% { transform: scale(1); }
 }

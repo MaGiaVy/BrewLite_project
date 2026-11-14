@@ -1,0 +1,620 @@
+/* Google Stitch Design Theme: Artisanal Warmth - Mobile First */
+
+.container {
+  min-height: 100vh;
+  width: 100%;
+  background-color: #fef8f4;
+  color: #1d1b19;
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Sticky Top Navigation Bar ===== */
+.topNav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  height: 60px;
+  background-color: rgba(254, 248, 244, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 1px 8px rgba(44, 24, 16, 0.04);
+  border-bottom: 1px solid #ede7e3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.navLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d1b19;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.15s;
+}
+
+.backBtn:hover {
+  background-color: #ede7e3;
+}
+
+.backBtn:active {
+  transform: scale(0.92);
+}
+
+.brandWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brandLogo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background-color: #2c1810;
+  color: #fef8f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navTitle {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2c1810;
+  letter-spacing: -0.01em;
+}
+
+.navRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #504440;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.iconBtn:hover {
+  background-color: #ede7e3;
+}
+
+.userBadge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #2c1810;
+  color: #fef8f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(44, 24, 16, 0.15);
+}
+
+/* ===== Main Body Container ===== */
+.mainContent {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 14px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+/* ===== Cozy Brand Visual Banner (Stitch Spec) ===== */
+.heroBanner {
+  position: relative;
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: #2c1810;
+  min-height: 140px;
+  box-shadow: 0 4px 14px rgba(44, 24, 16, 0.12);
+  display: flex;
+  align-items: center;
+}
+
+.heroBannerBg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.28;
+  filter: grayscale(20%);
+}
+
+.heroBannerGradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #2c1810 0%, rgba(44, 24, 16, 0.92) 55%, rgba(44, 24, 16, 0.4) 100%);
+}
+
+.heroBannerContent {
+  position: relative;
+  z-index: 10;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.heroBannerText {
+  flex: 1;
+}
+
+.cashlessPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background-color: #febc85;
+  color: #78491d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+
+.heroBannerTitle {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fef8f4;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.heroBannerSub {
+  font-size: 12px;
+  color: #ede7e3;
+  margin: 4px 0 0;
+  opacity: 0.9;
+  line-height: 1.3;
+}
+
+.heroBannerThumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background-color: #ede7e3;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.heroBannerImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ===== Segmented Tab Switcher (Stitch Spec) ===== */
+.tabBar {
+  display: flex;
+  background-color: #f3ede9;
+  border-radius: 9999px;
+  padding: 4px;
+  box-shadow: inset 0 1px 3px rgba(44, 24, 16, 0.06);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.tabBtnActive {
+  background-color: #2c1810;
+  color: #fef8f4;
+  box-shadow: 0 2px 8px rgba(44, 24, 16, 0.18);
+}
+
+.tabBtnInactive {
+  background: transparent;
+  color: #504440;
+}
+
+.tabBtnInactive:hover {
+  color: #1d1b19;
+}
+
+/* ===== Form Header ===== */
+.authHeader {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.authHeading {
+  font-family: 'Epilogue', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #090100;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.authSubheading {
+  font-size: 13.5px;
+  color: #504440;
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+/* ===== Form Fields ===== */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1b19;
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 14px;
+  color: #827470;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px 12px 42px;
+  border-radius: 10px;
+  background-color: #f8f2ee;
+  border: 1.5px solid transparent;
+  color: #1d1b19;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.input:focus {
+  background-color: #ffffff;
+  border-color: #845326;
+  box-shadow: 0 0 0 3px rgba(132, 83, 38, 0.15);
+}
+
+.input::placeholder {
+  color: #827470;
+  font-size: 14px;
+}
+
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover, 
+.input:-webkit-autofill:focus,
+.input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #f8f2ee inset !important;
+  -webkit-text-fill-color: #1d1b19 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.toggleEyeBtn {
+  position: absolute;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #827470;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.toggleEyeBtn:hover {
+  color: #1d1b19;
+  background-color: #ede7e3;
+}
+
+/* ===== Checkbox Row ===== */
+.checkboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13px;
+  color: #1d1b19;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkboxInput {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: #2c1810;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.rememberForgotRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2px;
+}
+
+.forgotLink {
+  font-size: 13px;
+  font-weight: 600;
+  color: #845326;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.forgotLink:hover {
+  color: #2c1810;
+  text-decoration: underline;
+}
+
+/* ===== Error Alert ===== */
+.errorAlert {
+  background-color: #ffdad6;
+  color: #93000a;
+  border: 1px solid #ba1a1a;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+/* ===== Primary Submit Button ===== */
+.submitBtn {
+  width: 100%;
+  min-height: 48px;
+  padding: 13px 20px;
+  border-radius: 12px;
+  background-color: #2c1810;
+  color: #fef8f4;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(44, 24, 16, 0.18);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 4px;
+}
+
+.submitBtn:hover:not(:disabled) {
+  background-color: #090100;
+  box-shadow: 0 6px 16px rgba(44, 24, 16, 0.28);
+  transform: translateY(-1px);
+}
+
+.submitBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ===== Security Trust Badge ===== */
+.trustBadge {
+  background-color: #f8f2ee;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #504440;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 6px;
+}
+
+/* ===== Guest Checkout Option ===== */
+.guestWrap {
+  text-align: center;
+  margin-top: 6px;
+}
+
+.guestPrompt {
+  font-size: 13px;
+  color: #504440;
+  margin: 0;
+}
+
+.guestBtn {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #845326;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.15s;
+}
+
+.guestBtn:hover {
+  color: #2c1810;
+}
+
+/* ===== Member Perks Accordion Card ===== */
+.perksCard {
+  background-color: #f3ede9;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-top: 8px;
+}
+
+.perksToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.perksLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.perksIconBadge {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: #febc85;
+  color: #78491d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.perksTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2c1810;
+  margin: 0;
+}
+
+.perksSubtitle {
+  font-size: 12px;
+  color: #827470;
+  margin: 2px 0 0;
+}
+
+.perksChevron {
+  color: #504440;
+  transition: transform 0.2s ease;
+}
+
+.perksChevronOpen {
+  transform: rotate(180deg);
+}
+
+.perksList {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #ede7e3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.perkItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.perkItemIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #ede7e3;
+  color: #845326;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.perkItemName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c1810;
+  margin: 0;
+}
+
+.perkItemDesc {
+  font-size: 12px;
+  color: #504440;
+  margin: 2px 0 0;
+  line-height: 1.35;
+}

@@ -12,19 +12,31 @@ delay="${3:-10}"
 [[ "$base" =~ ^https?://[^/]+ ]] || { echo 'Invalid URL' >&2; exit 2; }
 [[ "$attempts" =~ ^[1-9][0-9]*$ && "$delay" =~ ^[0-9]+$ ]] || exit 2
 
-for endpoint in health products; do
-  success=0
+check_endpoint() {
+  local endpoint="$1"
+  local pattern="$2"
+  local success=0
+  local body=""
+
   for ((i=1; i<=attempts; i++)); do
-    if curl --fail --silent --show-error --max-time 15 "$base/$endpoint" > /dev/null; then
-      echo "PASS /$endpoint (attempt $i)"
-      success=1
-      break
+    if body=$(curl --fail --silent --show-error --max-time 15 "$base/$endpoint"); then
+      if [[ -z "$pattern" ]] || grep -Eq "$pattern" <<< "$body"; then
+        echo "PASS /$endpoint (attempt $i)"
+        success=1
+        break
+      fi
+      echo "Retry /$endpoint ($i/$attempts): unexpected payload"
+    else
+      echo "Retry /$endpoint ($i/$attempts)"
     fi
-    echo "Retry /$endpoint ($i/$attempts)"
     if ((i < attempts)); then sleep "$delay"; fi
   done
+
   if ((success == 0)); then
     echo "FAIL /$endpoint" >&2
     exit 1
   fi
-done
+}
+
+check_endpoint "health" '"status"[[:space:]]*:[[:space:]]*"ok".*"db"[[:space:]]*:[[:space:]]*"up"|"db"[[:space:]]*:[[:space:]]*"up".*"status"[[:space:]]*:[[:space:]]*"ok"'
+check_endpoint "products" '"data"[[:space:]]*:[[:space:]]*\['

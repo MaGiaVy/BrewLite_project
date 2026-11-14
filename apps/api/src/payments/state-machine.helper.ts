@@ -12,7 +12,10 @@ export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export function assertTransition(current: OrderStatus, next: OrderStatus): void {
-  if (!ALLOWED_TRANSITIONS[current].includes(next)) {
-    throw new BadRequestException(`Invalid order transition: ${current} -> ${next}`);
+  const allowed = ALLOWED_TRANSITIONS[current] ?? [];
+  if (!allowed.includes(next)) {
+    throw new BadRequestException(
+      `Không thể chuyển trạng thái đơn hàng từ ${current} sang ${next}. Các trạng thái hợp lệ: [${allowed.join(', ')}]`,
+    );
   }
 }

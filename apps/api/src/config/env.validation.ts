@@ -56,6 +56,34 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   CORS_ORIGIN?: string = 'http://localhost:3000';
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  ALLOW_MOCK_PAYMENT?: 'true' | 'false';
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  ALLOW_SANDBOX_CONFIRM?: 'true' | 'false';
+
+  @IsOptional()
+  @IsString()
+  ZALOPAY_APP_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  ZALOPAY_KEY1?: string;
+
+  @IsOptional()
+  @IsString()
+  ZALOPAY_KEY2?: string;
+
+  @IsOptional()
+  @IsString()
+  ZALOPAY_ENDPOINT?: string;
+
+  @IsOptional()
+  @IsString()
+  ZALOPAY_CALLBACK_URL?: string;
 }
 
 /**

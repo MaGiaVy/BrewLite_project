@@ -1,0 +1,235 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { createHmac, timingSafeEqual } from 'crypto';
+
+export interface ZaloPayCreateOrderParams {
+  orderId: number;
+  amount: number;
+  description?: string;
+  appUser?: string;
+}
+
+export interface ZaloPayCreateOrderResult {
+  returnCode: number;
+  returnMessage: string;
+  subReturnCode: number;
+  subReturnMessage: string;
+  orderUrl?: string;
+  zpTransToken?: string;
+  orderToken?: string;
+  appTransId: string;
+}
+
+export interface ZaloPayQueryResult {
+  returnCode: number;
+  returnMessage: string;
+  subReturnCode: number;
+  subReturnMessage: string;
+  isProcessing: boolean;
+  amount: number;
+  zpTransId: number;
+}
+
+const SANDBOX_DEFAULT_KEY1 = 'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn';
+const SANDBOX_DEFAULT_KEY2 = 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf';
+
+@Injectable()
+export class ZaloPayService {
+  private readonly logger = new Logger(ZaloPayService.name);
+
+  readonly appId: number;
+  readonly key1: string;
+  readonly key2: string;
+  readonly createEndpoint: string;
+  readonly queryEndpoint: string;
+  readonly callbackUrl: string;
+
+  constructor() {
+    const isProd = process.env.NODE_ENV === 'production';
+    const hasKeys = Boolean(process.env.ZALOPAY_KEY1 && process.env.ZALOPAY_KEY2);
+    if (isProd && !hasKeys) {
+      // Log warning at startup so Docker API can boot with MOCK_PAYMENT_MODE; fail closed on any ZaloPay call
+      this.logger.warn(
+        'Missing ZALOPAY_KEY1 or ZALOPAY_KEY2 in production environment; ZaloPay endpoints will fail closed.',
+      );
+    }
+
+    this.appId = Number(process.env.ZALOPAY_APP_ID || 2554);
+    this.key1 = process.env.ZALOPAY_KEY1 || (isProd ? '' : SANDBOX_DEFAULT_KEY1);
+    this.key2 = process.env.ZALOPAY_KEY2 || (isProd ? '' : SANDBOX_DEFAULT_KEY2);
+    this.createEndpoint =
+      process.env.ZALOPAY_CREATE_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/create';
+    this.queryEndpoint =
+      process.env.ZALOPAY_QUERY_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/query';
+    this.callbackUrl =
+      process.env.ZALOPAY_CALLBACK_URL || 'http://localhost:3001/payments/zalopay/callback';
+  }
+
+  private assertConfigured(): void {
+    if (process.env.NODE_ENV === 'production' && (!this.key1 || !this.key2)) {
+      throw new Error(
+        'Missing ZALOPAY_KEY1 or ZALOPAY_KEY2 in production environment.',
+      );
+    }
+  }
+
+  generateAppTransId(orderId: number): string {
+    const now = new Date();
+    const vnTime = new Date(now.getTime() + (7 * 60 + now.getTimezoneOffset()) * 60000);
+    const yy = vnTime.getFullYear().toString().slice(-2);
+    const mm = ('0' + (vnTime.getMonth() + 1)).slice(-2);
+    const dd = ('0' + vnTime.getDate()).slice(-2);
+    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+    return `${yy}${mm}${dd}_${orderId}_${randomSuffix}`;
+  }
+
+  computeCreateOrderMac(params: {
+    appTransId: string;
+    appUser: string;
+    amount: number;
+    appTime: number;
+    embedData: string;
+    item: string;
+  }): string {
+    this.assertConfigured();
+    const { appTransId, appUser, amount, appTime, embedData, item } = params;
+    const data = [
+      this.appId,
+      appTransId,
+      appUser,
+      amount,
+      appTime,
+      embedData,
+      item,
+    ].join('|');
+    return createHmac('sha256', this.key1).update(data).digest('hex');
+  }
+
+  async createOrder(params: ZaloPayCreateOrderParams): Promise<ZaloPayCreateOrderResult> {
+    this.assertConfigured();
+    const { orderId, amount, description, appUser = 'brewlite_customer' } = params;
+    const appTransId = this.generateAppTransId(orderId);
+    const appTime = Date.now();
+    const embedData = JSON.stringify({
+      redirecturl: `http://localhost:3000/order-confirmation?orderId=${orderId}`,
+      orderId,
+    });
+    const item = JSON.stringify([]);
+    const orderDescription = description || `BrewLite - Thanh toán đơn hàng #${orderId}`;
+
+    const mac = this.computeCreateOrderMac({
+      appTransId,
+      appUser,
+      amount,
+      appTime,
+      embedData,
+      item,
+    });
+
+    const payload = {
+      app_id: this.appId.toString(),
+      app_user: appUser,
+      app_trans_id: appTransId,
+      app_time: appTime.toString(),
+      amount: amount.toString(),
+      item,
+      description: orderDescription,
+      embed_data: embedData,
+      bank_code: '',
+      callback_url: this.callbackUrl,
+      mac,
+    };
+
+    this.logger.log(
+      `[ZaloPay] Gửi yêu cầu tạo đơn #${orderId} (app_trans_id: ${appTransId}, amount: ${amount})`,
+    );
+
+    const body = new URLSearchParams(payload).toString();
+    const response = await fetch(this.createEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    const data = await response.json();
+    this.logger.log(`[ZaloPay] Kết quả tạo đơn #${orderId}: ${JSON.stringify(data)}`);
+
+    return {
+      returnCode: data.return_code,
+      returnMessage: data.return_message,
+      subReturnCode: data.sub_return_code,
+      subReturnMessage: data.sub_return_message,
+      orderUrl: data.order_url,
+      zpTransToken: data.zp_trans_token,
+      orderToken: data.order_token,
+      appTransId,
+    };
+  }
+
+  verifyCallback(dataStr: string, requestMac: string): boolean {
+    this.assertConfigured();
+    if (typeof dataStr !== 'string' || typeof requestMac !== 'string') {
+      return false;
+    }
+    const computedMac = createHmac('sha256', this.key2).update(dataStr).digest('hex');
+    const computedBuf = Buffer.from(computedMac, 'utf8');
+    const reqBuf = Buffer.from(requestMac, 'utf8');
+    if (computedBuf.length !== reqBuf.length) {
+      return false;
+    }
+    return timingSafeEqual(computedBuf, reqBuf);
+  }
+
+  createMockCallbackPayload(
+    orderId: number,
+    amount: number,
+    appTransId: string,
+    zpTransId = Date.now(),
+  ) {
+    this.assertConfigured();
+    const dataObj = {
+      app_id: this.appId,
+      app_trans_id: appTransId,
+      app_time: Date.now(),
+      app_user: 'zalopay_sandbox_user',
+      amount,
+      embed_data: JSON.stringify({ orderId }),
+      item: JSON.stringify([]),
+      zp_trans_id: zpTransId,
+      server_time: Date.now(),
+      channel: 38,
+      merchant_user_id: `user_${orderId}`,
+    };
+    const dataStr = JSON.stringify(dataObj);
+    const mac = createHmac('sha256', this.key2).update(dataStr).digest('hex');
+    return { data: dataStr, mac, type: 1 };
+  }
+
+  async queryStatus(appTransId: string): Promise<ZaloPayQueryResult> {
+    this.assertConfigured();
+    const data = [this.appId, appTransId, this.key1].join('|');
+    const mac = createHmac('sha256', this.key1).update(data).digest('hex');
+
+    const body = new URLSearchParams({
+      app_id: this.appId.toString(),
+      app_trans_id: appTransId,
+      mac,
+    }).toString();
+
+    const response = await fetch(this.queryEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    const res = await response.json();
+    return {
+      returnCode: res.return_code,
+      returnMessage: res.return_message,
+      subReturnCode: res.sub_return_code,
+      subReturnMessage: res.sub_return_message,
+      isProcessing: Boolean(res.is_processing),
+      amount: Number(res.amount || 0),
+      zpTransId: Number(res.zp_trans_id || 0),
+    };
+  }
+}
