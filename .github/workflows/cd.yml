@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'publish: build images; deploy: publish and deploy; rollback: redeploy existing tag'
+        description: 'publish-api: bootstrap API image; publish: both images; deploy: publish and deploy; rollback: redeploy existing tag'
         required: true
         type: choice
         options:
+          - publish-api
           - publish
           - deploy
           - rollback
@@ -48,6 +49,10 @@ jobs:
           fi
           if [[ -n "$RELEASE_TAG" && ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo 'release_tag must look like v1.0.0.' >&2
+            exit 1
+          fi
+          if [[ ! "$OPERATION" =~ ^(publish-api|publish|deploy|rollback)$ ]]; then
+            echo "Unsupported CD operation." >&2
             exit 1
           fi
           if [[ "$OPERATION" == "rollback" && -z "$RELEASE_TAG" ]]; then
@@ -99,6 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check API URL build configuration
+        if: inputs.operation != 'publish-api'
         env:
           API_URL: ${{ vars.RENDER_API_URL }}
         run: |
@@ -121,6 +127,7 @@ jobs:
           tags: ${{ needs.validate.outputs.api_image }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
       - name: Build and push Web image
+        if: inputs.operation != 'publish-api'
         uses: docker/build-push-action@v6
         with:
           context: ./apps/web
