@@ -2,7 +2,7 @@
 .container {
   max-width: 480px;
   margin: 0 auto;
-  padding: 20px 16px 48px 16px;
+  padding: 16px 16px 104px 16px;
   min-height: 100vh;
   background-color: #fef8f4;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -10,6 +10,76 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Top Bar Navigation */
+.topNavBar {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: #f3ede9;
+  color: #2c1810;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(44, 24, 16, 0.06);
+  transition: background-color 0.15s ease;
+}
+
+.backBtn:hover {
+  background: #eae1da;
+}
+
+.pollingBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  border: 1px solid #fde68a;
+  white-space: nowrap;
+}
+
+.pollingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b45309;
+  display: inline-block;
+  animation: pingDot 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.inlineErrorBanner {
+  width: 100%;
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  border: 1px solid #fecaca;
+  text-align: left;
+  box-sizing: border-box;
 }
 
 /* Ambient Backdrops */
@@ -88,6 +158,11 @@
 .iconInner.cancelled {
   background-color: #8c3b32;
   color: #ffffff;
+}
+
+.iconInner.pending {
+  background-color: #92400e;
+  color: #fef3c7;
 }
 
 .loyaltyFloatingBadge {
@@ -197,6 +272,10 @@
   background: linear-gradient(90deg, #8c3b32 0%, #a2483e 50%, #845326 100%);
 }
 
+.topRibbon.pending {
+  background: linear-gradient(90deg, #b45309 0%, #d97706 50%, #fbbf24 100%);
+}
+
 .ticketHeader {
   padding: 18px 16px 14px 16px;
   background-color: rgba(248, 242, 238, 0.45);
@@ -274,6 +353,47 @@
   background: #faf0ee;
   color: #8c3b32;
   border-color: rgba(140, 59, 50, 0.25);
+}
+
+.statusBadge.pending {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.ticketMetaGrid {
+  margin: 12px 16px 0 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #faf7f5;
+  border: 1px solid #f1eae4;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ticketMetaCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ticketMetaLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: #786c67;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.ticketMetaValue {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2c1810;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .orderMetaRow {
@@ -788,6 +908,161 @@
 .secondaryBtn:active {
   transform: scale(0.98);
   background-color: #f7f3ef;
+}
+
+.secondaryActionsRow {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.secondaryBtnCompact {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background-color: #ffffff;
+  color: #2c1810;
+  border: 1.5px solid #ded4cc;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.secondaryBtnCompact:active {
+  transform: scale(0.98);
+  background-color: #f7f3ef;
+}
+
+.pendingPayBtn {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  background-color: #845326;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(132, 83, 38, 0.25);
+  border: none;
+  cursor: pointer;
+}
+
+.cancelFeedbackBox {
+  padding: 12px 14px;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cancelOrderBtn {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 14px;
+  background-color: #ffffff;
+  border: 1.5px solid #fca5a5;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.cancelOrderBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* Fixed 5-item Mobile Bottom Navigation Bar */
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(254, 248, 244, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(231, 225, 221, 0.85);
+  height: 64px;
+}
+
+.bottomNavInner {
+  max-width: 480px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 8px;
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 48px;
+  color: #6b5c56;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 500;
+  gap: 2px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.navItemActive {
+  color: #2c1810;
+  font-weight: 700;
+}
+
+.navIconWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navBadge {
+  position: absolute;
+  top: -4px;
+  right: -9px;
+  background: #ba1a1a;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 /* Keyframes */

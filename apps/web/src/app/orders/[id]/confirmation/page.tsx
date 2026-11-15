@@ -7,6 +7,7 @@ import { Flame, Snowflake, Check, Copy, Store, History, RefreshCw, Sparkles, Bel
 import styles from './confirmation.module.css';
 import { MOCK_PRODUCTS } from '../../../../data/mock-products';
 import { apiClient } from '../../../../lib/api-client';
+import { useCartStore } from '../../../../stores/cart-store';
 
 interface ConfirmationItem {
   id?: string | number;
@@ -100,8 +101,15 @@ export default function OrderConfirmationPage({
   const [order, setOrder] = useState<OrderConfirmationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [receiptState, setReceiptState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const [mountedCart, setMountedCart] = useState(false);
+  const rawTotalCartCount = useCartStore((s) => s.getTotalCount());
   const prevStatusRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setMountedCart(true);
+  }, []);
+
+  const totalCartCount = mountedCart ? rawTotalCartCount : 0;
 
   // Unwrap params safely without unhandled Suspense boundary
   useEffect(() => {
@@ -202,16 +210,33 @@ export default function OrderConfirmationPage({
             };
           });
 
+          const resolvedItems =
+            mergedItems.length > 0 ? mergedItems : (localSnapshot?.items || []);
+          const computedItemsSubtotal = resolvedItems.reduce(
+            (acc: number, item: ConfirmationItem) =>
+              acc + Number(item.unitPrice || 0) * Number(item.quantity || 1),
+            0,
+          );
+          const resolvedDiscountAmount =
+            mergedData.discountAmount ?? localSnapshot?.discountAmount ?? 0;
+          const resolvedTotalAmount =
+            mergedData.totalAmount ?? localSnapshot?.totalAmount ?? computedItemsSubtotal;
+
           setOrder({
             id: mergedData.id || orderId,
             status: mergedData.status || 'PAID',
-            totalAmount: mergedData.totalAmount ?? localSnapshot?.totalAmount ?? 0,
-            subtotal: mergedData.subtotal ?? localSnapshot?.subtotal ?? mergedData.totalAmount ?? 0,
+            totalAmount: resolvedTotalAmount,
+            subtotal:
+              mergedData.subtotal ??
+              localSnapshot?.subtotal ??
+              (computedItemsSubtotal > 0
+                ? computedItemsSubtotal
+                : resolvedTotalAmount + resolvedDiscountAmount),
             discountCode: mergedData.discountCode ?? localSnapshot?.discountCode ?? null,
-            discountAmount: mergedData.discountAmount ?? localSnapshot?.discountAmount ?? 0,
+            discountAmount: resolvedDiscountAmount,
             createdAt: mergedData.createdAt || localSnapshot?.createdAt || new Date().toISOString(),
             paymentMethod: localSnapshot?.paymentMethod || 'Ví điện tử',
-            items: mergedItems.length > 0 ? mergedItems : (localSnapshot?.items || []),
+            items: resolvedItems,
           });
           if (isInitial) setLoading(false);
           return;
@@ -252,14 +277,6 @@ export default function OrderConfirmationPage({
     } catch {
       // fallback
     }
-  };
-
-  const handleDownloadReceipt = () => {
-    setReceiptState('loading');
-    setTimeout(() => {
-      setReceiptState('done');
-      setTimeout(() => setReceiptState('idle'), 3500);
-    }, 800);
   };
 
   const status = order?.status || 'PAID';
@@ -740,34 +757,11 @@ export default function OrderConfirmationPage({
             )}
           </div>
 
-          {/* Eco note & E-receipt download */}
+          {/* Eco note */}
           <div className={styles.ecoSection}>
             <div className={styles.ecoRow}>
-              <span style={{ fontSize: 13 }}>🌿</span>
               <span>Phục vụ trong 100% Cốc Bã Mía Sinh Học phân hủy tự nhiên.</span>
             </div>
-
-            <button
-              type="button"
-              onClick={handleDownloadReceipt}
-              className={styles.receiptBtn}
-            >
-              {receiptState === 'loading' ? (
-                <>
-                  <RefreshCw size={13} className="animate-spin" />
-                  <span>Đang tải hóa đơn...</span>
-                </>
-              ) : receiptState === 'done' ? (
-                <>
-                  <Check size={13} strokeWidth={2.4} style={{ color: '#059669' }} />
-                  <span style={{ color: '#059669' }}>Đã lưu hóa đơn điện tử (PDF)!</span>
-                </>
-              ) : (
-                <>
-                  <span>📄 Tải hóa đơn điện tử (E-Receipt)</span>
-                </>
-              )}
-            </button>
           </div>
         </div>
 
@@ -784,6 +778,54 @@ export default function OrderConfirmationPage({
           </Link>
         </div>
       </div>
+
+      {/* Fixed 5-item Mobile Bottom Navigation Bar */}
+      <nav className={styles.bottomNav}>
+        <div className={styles.bottomNavInner}>
+          <Link href="/menu" className={styles.navItem}>
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+              coffee
+            </span>
+            <span>Thực đơn</span>
+          </Link>
+
+          <Link href="/cart" className={styles.navItem} data-testid="cart-link">
+            <div className={styles.navIconWrap}>
+              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+                shopping_cart
+              </span>
+              {totalCartCount > 0 && (
+                <span className={styles.navBadge}>{totalCartCount}</span>
+              )}
+            </div>
+            <span>Giỏ hàng</span>
+          </Link>
+
+          <Link href="/orders" className={`${styles.navItem} ${styles.navItemActive}`}>
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: 22, fontVariationSettings: "'FILL' 1" }}
+            >
+              receipt_long
+            </span>
+            <span>Đơn hàng</span>
+          </Link>
+
+          <Link href="/promotions" className={styles.navItem}>
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+              confirmation_number
+            </span>
+            <span>Ưu đãi</span>
+          </Link>
+
+          <Link href="/account" className={styles.navItem}>
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+              account_circle
+            </span>
+            <span>Tài khoản</span>
+          </Link>
+        </div>
+      </nav>
     </main>
   );
 }

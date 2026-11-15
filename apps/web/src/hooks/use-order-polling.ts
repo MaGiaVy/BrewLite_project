@@ -1,22 +1,50 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { apiClient } from '../lib/api-client';
 
+export interface OrderDetailItem {
+  id?: string | number;
+  productId: string | number;
+  name?: string;
+  productName?: string;
+  size?: string;
+  toppings?: string[] | string;
+  temperature?: string;
+  servingStyle?: string;
+  iceLevel?: string;
+  sugarLevel?: string;
+  notes?: string | null;
+  isBakery?: boolean;
+  imageUrl?: string | null;
+  quantity: number;
+  unitPrice: number;
+}
+
 export interface OrderDetail {
   id: string | number;
-  status: 'PENDING' | 'PAID' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+  status:
+    | 'PENDING'
+    | 'PAID'
+    | 'PREPARING'
+    | 'READY'
+    | 'COMPLETED'
+    | 'CANCELLED'
+    | 'PAYMENT_FAILED';
   totalAmount?: number;
   finalAmount?: number;
+  subtotal?: number;
+  discountCode?: string | null;
   discountAmount?: number;
   createdAt?: string;
+  updatedAt?: string;
   staffName?: string | null;
-  items?: {
+  paymentMethod?: string;
+  payments?: Array<{
     id?: string | number;
-    productId: string | number;
-    name: string;
-    size: string;
-    quantity: number;
-    unitPrice: number;
-  }[];
+    method?: string;
+    status?: string;
+    amount?: number;
+  }>;
+  items?: OrderDetailItem[];
 }
 
 export function useOrderPolling(

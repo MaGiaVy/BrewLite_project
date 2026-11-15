@@ -2,11 +2,14 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { User } from 'lucide-react';
 import type { ProductSummary } from '../../components/ProductCard';
 import { MenuContent } from '../../components/MenuContent';
 import type { MenuState } from '../../components/MenuContent';
 import { BrewLiteLogo } from '../../components/BrewLiteLogo';
 import { useCartStore } from '../../stores/cart-store';
+import { useAuthStore } from '../../stores/auth-store';
+import { getInitials } from '../../lib/format';
 import { MOCK_PRODUCTS } from '../../data/mock-products';
 import { matchesCategory, unwrapProductList } from '../../lib/product-normalize';
 import styles from './menu.module.css';
@@ -47,6 +50,13 @@ export default function Menu() {
 
   const totalCount = mounted ? rawTotalCount : 0;
   const cartTotalAmount = mounted ? rawCartTotalAmount : 0;
+
+  // Auth state for top-right avatar
+  const { user, isAuthenticated } = useAuthStore();
+  const isLogged = mounted && isAuthenticated && Boolean(user);
+  const userInitials = isLogged
+    ? getInitials(user?.fullName || user?.email?.split('@')[0] || '')
+    : '';
 
   const retry = useCallback(() => setAttempt((current) => current + 1), []);
 
@@ -129,19 +139,27 @@ export default function Menu() {
           </span>
         </button>
 
-        {/* User Profile Avatar / Loyalty Pill */}
-        <Link
-          href="/account"
-          aria-label="Tài khoản và điểm thưởng"
-          className={styles.avatarButton}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-            alt="User profile"
-            className={styles.avatarImg}
-          />
-          <span className={styles.avatarBadge}>GOLD</span>
-        </Link>
+        {/* User Profile Avatar / Guest Badge */}
+        {isLogged ? (
+          <Link
+            href="/account"
+            aria-label="Tài khoản và điểm thưởng"
+            className={styles.avatarButton}
+            data-testid="header-avatar-initials"
+          >
+            <div className={styles.userAvatarInitials}>{userInitials}</div>
+            <span className={styles.avatarBadge}>GOLD</span>
+          </Link>
+        ) : (
+          <Link
+            href="/login"
+            aria-label="Đăng nhập tài khoản"
+            className={styles.userBadgeGuest}
+            data-testid="header-avatar-guest"
+          >
+            <User size={17} />
+          </Link>
+        )}
       </header>
 
       {/* 2. Sub-bar: Giờ mở cửa & Khoảng cách */}

@@ -1,59 +1,205 @@
 'use client';
 
-import React, { use, useEffect, useRef, useCallback, useState } from 'react';
+import React, { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { apiClient } from '../../../lib/api-client';
-import { useOrderPolling } from '../../../hooks/use-order-polling';
-import { useAuthStore } from '../../../stores/auth-store';
+import Image from 'next/image';
+import {
+  ArrowLeft,
+  Bell,
+  Check,
+  Clock,
+  Coffee,
+  Copy,
+  Flame,
+  History,
+  RefreshCw,
+  Snowflake,
+  Sparkles,
+  Store,
+  X,
+} from 'lucide-react';
+import { useOrderPolling, type OrderDetail, type OrderDetailItem } from '../../../hooks/use-order-polling';
 import { useCartStore } from '../../../stores/cart-store';
+import { MOCK_PRODUCTS } from '../../../data/mock-products';
+import styles from './confirmation/confirmation.module.css';
 
-const ORDER_STEPS = [
-  { key: 'PAID', label: '1. Đã thanh toán', desc: 'Đơn đã ghi nhận & gửi quầy Barista' },
-  { key: 'PREPARING', label: '2. Đang pha chế', desc: 'Barista đang đong nguyên liệu & chiết xuất' },
-  { key: 'READY', label: '3. Sẵn sàng lấy nước', desc: 'Mời bạn tới Kệ Express Bar 04 nhận đồ uống' },
-  { key: 'COMPLETED', label: '4. Đã hoàn tất', desc: 'Bàn giao thành công & cộng điểm Hạt Vàng' },
-];
-
-function getStepIndex(status: string): number {
-  switch (status) {
-    case 'PENDING':
-      return -1;
-    case 'PAID':
-      return 0;
-    case 'PREPARING':
-      return 1;
-    case 'READY':
-      return 2;
-    case 'COMPLETED':
-      return 3;
-    default:
-      return 0;
-  }
+interface MergedOrderItem extends OrderDetailItem {
+  toppings: string[];
 }
+
+function getItemImage(productId?: string | number, productName?: string, customImage?: string | null): string {
+  if (customImage && (customImage.startsWith('/') || customImage.startsWith('http'))) {
+    return customImage;
+  }
+  if (productId) {
+    const byId = MOCK_PRODUCTS.find((p) => String(p.id) === String(productId));
+    if (byId?.imageUrl) return byId.imageUrl;
+  }
+  const norm = (productName || '').normalize('NFC').toLowerCase().trim();
+  const byName = MOCK_PRODUCTS.find((p) => p.name.normalize('NFC').toLowerCase().trim() === norm);
+  if (byName?.imageUrl) return byName.imageUrl;
+
+  if (norm.includes('muối') || norm.includes('muoi')) return '/images/products/ca-phe-muoi.png';
+  if (norm.includes('bạc xỉu') || norm.includes('bac xiu')) return '/images/products/ca-phe-bac-xiu.png';
+  if (norm.includes('sữa') || norm.includes('sua')) return '/images/products/ca-phe-sua.png';
+  if (norm.includes('đen') || norm.includes('den')) return '/images/products/ca-phe-den.png';
+  if (norm.includes('macchiato')) return '/images/products/iced-caramel-macchiato.png';
+  if (norm.includes('matcha')) return '/images/products/matcha-latte.png';
+  if (norm.includes('đào') || norm.includes('cam sả')) return '/images/products/tra-dao-cam-sa.png';
+  if (norm.includes('pain') || norm.includes('chocolat')) return '/images/products/pain-au-chocolat.png';
+  if (norm.includes('cheesecake')) return '/images/products/basque-burnt-cheesecake.png';
+  if (norm.includes('tiramisu')) return '/images/products/classic-tiramisu.png';
+
+  return '/images/products/ca-phe-sua.png';
+}
+
+function formatIceLevel(ice?: string): string {
+  if (!ice) return '100% đá';
+  const val = ice.trim();
+  if (val.includes('100%')) return '100% đá';
+  if (val.includes('70%')) return '70% đá';
+  if (val.includes('50%')) return '50% đá';
+  if (val.includes('0%') || val.toLowerCase().includes('không') || val.toLowerCase().includes('khong')) {
+    return 'Không đá';
+  }
+  return val.endsWith('đá') ? val : `${val} đá`;
+}
+
+function formatSugarLevel(sugar?: string): string {
+  if (!sugar) return '100% đường';
+  const val = sugar.trim();
+  if (val === '0%' || val.toLowerCase().includes('không') || val.toLowerCase().includes('khong')) {
+    return 'Không đường';
+  }
+  if (val.endsWith('%')) return `${val} đường`;
+  if (!val.toLowerCase().includes('đường') && !val.toLowerCase().includes('duong')) {
+    return `${val} đường`;
+  }
+  return val;
+}
+
+function normalizeToppings(raw?: string[] | string): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((t) => String(t).trim()).filter(Boolean);
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+    } catch {
+      return raw
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function formatPaymentMethod(method?: string): string {
+  if (!method) return 'Ví điện tử';
+  const upper = method.toUpperCase();
+  if (upper === 'ZALOPAY') return 'Ví ZaloPay';
+  if (upper === 'MOMO' || upper === 'WALLET' || upper === 'EWALLET') return 'Ví điện tử';
+  if (upper === 'CARD' || upper === 'BANK_CARD') return 'Thẻ ngân hàng';
+  if (upper === 'APPLE_PAY') return 'Apple Pay';
+  return method;
+}
+
+const formatVND = (n: number) => `${(n || 0).toLocaleString('vi-VN')} ₫`;
+
+interface StatusUiConfig {
+  badge: string;
+  pillText: string;
+  headline: string;
+  variant: '' | 'ready' | 'completed' | 'cancelled' | 'pending';
+  etaText: string;
+}
+
+const STATUS_UI_MAP: Record<string, StatusUiConfig> = {
+  PENDING: {
+    badge: 'PENDING • CHỜ THANH TOÁN',
+    pillText: 'Đơn hàng đang chờ thanh toán',
+    headline: 'Chờ hoàn tất thanh toán',
+    variant: 'pending',
+    etaText: 'Giữ chỗ 5 phút',
+  },
+  PAID: {
+    badge: 'PAID • ĐÃ THANH TOÁN',
+    pillText: 'Giao dịch không tiền mặt thành công',
+    headline: 'Đặt hàng thành công!',
+    variant: '',
+    etaText: '~3 - 5 phút',
+  },
+  PREPARING: {
+    badge: 'PREPARING • ĐANG PHA CHẾ',
+    pillText: 'Barista đang pha chế trực tiếp',
+    headline: 'Barista đang pha chế món của bạn!',
+    variant: '',
+    etaText: '~2 - 3 phút',
+  },
+  READY: {
+    badge: 'READY • MỜI LẤY NƯỚC',
+    pillText: 'Quầy Barista đang gọi bạn nhận món!',
+    headline: 'Đồ uống đã sẵn sàng lấy!',
+    variant: 'ready',
+    etaText: 'Sẵn sàng ngay',
+  },
+  COMPLETED: {
+    badge: 'COMPLETED • ĐÃ HOÀN TẤT',
+    pillText: 'Đã bàn giao đồ uống hoàn tất',
+    headline: 'Đã nhận nước thành công!',
+    variant: 'completed',
+    etaText: 'Đã bàn giao',
+  },
+  CANCELLED: {
+    badge: 'CANCELLED • ĐÃ HỦY',
+    pillText: 'Đơn hàng đã bị hủy',
+    headline: 'Đơn hàng đã bị hủy',
+    variant: 'cancelled',
+    etaText: 'Đã hủy',
+  },
+  PAYMENT_FAILED: {
+    badge: 'CANCELLED • LỖI THANH TOÁN',
+    pillText: 'Thanh toán không thành công',
+    headline: 'Đặt hàng thất bại',
+    variant: 'cancelled',
+    etaText: 'Không khả dụng',
+  },
+};
 
 export default function OrderDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const router = useRouter();
   const resolvedParams = use(params);
   const orderId = resolvedParams.id;
   const { order, error, isPolling } = useOrderPolling(orderId, 5000);
-  const { user } = useAuthStore();
   const rawTotalCartCount = useCartStore((s) => s.getTotalCount());
+
   const [mounted, setMounted] = useState(false);
+  const [localSnapshot, setLocalSnapshot] = useState<OrderDetail | null>(null);
+  const [localCustomizations, setLocalCustomizations] = useState<OrderDetailItem[]>([]);
+  const [copied, setCopied] = useState(false);
+  const prevStatusRef = useRef<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (typeof window === 'undefined' || !orderId) return;
+    try {
+      const saved = localStorage.getItem(`order_details_${orderId}`);
+      if (saved) setLocalSnapshot(JSON.parse(saved) as OrderDetail);
+      const savedCustoms = localStorage.getItem(`order_customizations_${orderId}`);
+      if (savedCustoms) {
+        const parsed = JSON.parse(savedCustoms);
+        if (Array.isArray(parsed)) setLocalCustomizations(parsed);
+      }
+    } catch {
+      // ignore corrupted snapshot
+    }
+  }, [orderId]);
 
-  const totalCartCount = mounted ? rawTotalCartCount : 0;
-
-  const prevStatusRef = useRef<string | null>(null);
-
-  // Chime sound notification
   const playPickupChime = useCallback(() => {
     try {
       const AudioCtx =
@@ -76,819 +222,624 @@ export default function OrderDetailPage({
         osc.stop(now + idx * 0.14 + 0.38);
       });
     } catch {
-      // ignore
+      // Audio context might be blocked before user gesture
     }
   }, []);
 
   useEffect(() => {
-    if (order?.status) {
-      if (prevStatusRef.current && prevStatusRef.current !== order.status) {
-        if (order.status === 'READY' || order.status === 'COMPLETED') {
-          playPickupChime();
-        }
+    if (!order?.status) return;
+    if (prevStatusRef.current && prevStatusRef.current !== order.status) {
+      if (order.status === 'READY' || order.status === 'COMPLETED') {
+        playPickupChime();
       }
-      prevStatusRef.current = order.status;
     }
+    prevStatusRef.current = order.status;
   }, [order?.status, playPickupChime]);
 
-  const [isCancelling, setIsCancelling] = useState(false);
-  const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
-
-  const handleCancelOrder = async () => {
-    if (!confirm('Bạn có chắc chắn muốn hủy đơn hàng này không? Nguyên liệu giữ chỗ sẽ được hoàn trả về kho.')) {
-      return;
-    }
-    setIsCancelling(true);
+  const handleCopyOrderId = () => {
+    if (!orderId) return;
     try {
-      const res = await apiClient(`/orders/${orderId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'CANCELLED' }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || 'Không thể hủy đơn hàng.');
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        void navigator.clipboard.writeText(String(orderId));
       }
-      setCancelFeedback('Đã hủy đơn hàng thành công trong thời gian 5 phút cho phép.');
-      setTimeout(() => {
-        router.push('/orders');
-      }, 1500);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Lỗi khi hủy đơn hàng.');
-    } finally {
-      setIsCancelling(false);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore clipboard restrictions
     }
   };
 
-  if (!order && !error) {
+  const totalCartCount = mounted ? rawTotalCartCount : 0;
+  const displayOrder = order ?? localSnapshot;
+
+  if (!displayOrder && !error) {
     return (
-      <main
-        style={{
-          maxWidth: 480,
-          margin: '0 auto',
-          padding: '48px 16px',
-          textAlign: 'center',
-          fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-          backgroundColor: '#fef8f4',
-          minHeight: '100vh',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid #845326', borderTopColor: 'transparent', animation: 'spin 1s linear infinite', margin: '0 auto 16px auto' }} />
-        <p style={{ color: '#786c67', fontSize: 14 }}>Đang tải trạng thái đơn hàng #{orderId}...</p>
+      <main className={styles.container}>
+        <div style={{ margin: 'auto', textAlign: 'center', padding: '60px 0' }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              border: '3px solid #e7ded5',
+              borderTopColor: '#2c1810',
+              borderRadius: '50%',
+              margin: '0 auto 12px auto',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
+          <p style={{ color: '#786c67', fontSize: 13 }}>
+            Đang tải trạng thái đơn hàng #{orderId}...
+          </p>
+          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        </div>
       </main>
     );
   }
 
-  if (!order) {
+  if (!displayOrder) {
     return (
-      <main
-        style={{
-          maxWidth: 480,
-          margin: '0 auto',
-          padding: '48px 16px',
-          textAlign: 'center',
-          fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-          backgroundColor: '#fef8f4',
-          minHeight: '100vh',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 16, padding: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#b91c1c', margin: '0 0 8px 0' }}>Không thể tải đơn hàng</h2>
-          <p style={{ color: '#7f1d1d', fontSize: 13, margin: '0 0 16px 0' }}>{error || 'Không tìm thấy thông tin đơn hàng.'}</p>
-          <Link
-            href="/orders"
-            style={{
-              padding: '10px 18px',
-              borderRadius: 12,
-              backgroundColor: '#845326',
-              color: '#ffffff',
-              fontWeight: 700,
-              textDecoration: 'none',
-              fontSize: 13,
-              display: 'inline-block',
-            }}
-          >
-            Quay lại Lịch sử đơn
+      <main className={styles.container}>
+        <div
+          style={{
+            maxWidth: 440,
+            margin: '48px auto',
+            textAlign: 'center',
+            padding: 24,
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            border: '1px solid #fecaca',
+          }}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#b91c1c', margin: '0 0 8px 0' }}>
+            Không thể tải đơn hàng #{orderId}
+          </h2>
+          <p style={{ color: '#7f1d1d', fontSize: 13, margin: '0 0 20px 0' }}>
+            {error || 'Không tìm thấy thông tin đơn hàng hoặc phiên làm việc đã hết hạn.'}
+          </p>
+          <Link href="/orders" className={styles.primaryBtn}>
+            <History size={17} />
+            <span>Quay lại Lịch sử đơn</span>
           </Link>
         </div>
       </main>
     );
   }
 
-  const displayOrder = order;
-  const status = displayOrder.status;
-  const currentStep = getStepIndex(status);
-  const isCancelled = status === 'CANCELLED';
+  const rawItems =
+    displayOrder.items && displayOrder.items.length > 0
+      ? displayOrder.items
+      : localSnapshot?.items || [];
+
+  const mergedItems: MergedOrderItem[] = rawItems.map((it, idx) => {
+    const localIt = localSnapshot?.items?.[idx];
+    const localCust =
+      localCustomizations[idx] ||
+      localCustomizations.find((c) => String(c.productId) === String(it.productId));
+    const apiToppings = normalizeToppings(it.toppings);
+    const fallbackToppings = normalizeToppings(localIt?.toppings);
+
+    return {
+      ...it,
+      productName: it.productName || it.name || localIt?.productName || localIt?.name || 'Đồ uống BrewLite',
+      toppings: apiToppings.length > 0 ? apiToppings : fallbackToppings,
+      temperature: it.temperature || localCust?.temperature || localIt?.temperature,
+      servingStyle: it.servingStyle || localCust?.servingStyle || localIt?.servingStyle,
+      iceLevel: it.iceLevel || localCust?.iceLevel || localIt?.iceLevel,
+      sugarLevel: it.sugarLevel || localCust?.sugarLevel || localIt?.sugarLevel,
+      notes: it.notes || localCust?.notes || localIt?.notes,
+      isBakery: it.isBakery !== undefined ? it.isBakery : (localCust?.isBakery ?? localIt?.isBakery),
+      imageUrl: it.imageUrl || localIt?.imageUrl,
+    };
+  });
+
+  const status = displayOrder.status || 'PAID';
+  const statusUi = STATUS_UI_MAP[status] ?? STATUS_UI_MAP.PAID;
   const isReady = status === 'READY';
+  const isPreparing = status === 'PREPARING';
+  const isCompleted = status === 'COMPLETED';
   const isPending = status === 'PENDING';
-  const isCancelEligible =
-    order &&
-    (order.status === 'PENDING' || order.status === 'PAID') &&
-    order.createdAt &&
-    Date.now() - new Date(order.createdAt).getTime() <= 5 * 60 * 1000;
+  const isCancelled = status === 'CANCELLED' || status === 'PAYMENT_FAILED';
+  const isPaidOrBeyond = status === 'PAID' || isPreparing || isReady || isCompleted;
+
+  const computedItemsSubtotal = mergedItems.reduce(
+    (acc, it) => acc + Number(it.unitPrice || 0) * Number(it.quantity || 1),
+    0,
+  );
+  const finalTotal = Number(
+    displayOrder.finalAmount ?? displayOrder.totalAmount ?? localSnapshot?.totalAmount ?? computedItemsSubtotal,
+  );
+  const discountAmount = Number(
+    displayOrder.discountAmount ?? localSnapshot?.discountAmount ?? 0,
+  );
+  const discountCode = displayOrder.discountCode ?? localSnapshot?.discountCode ?? null;
+  const subtotal = Number(
+    displayOrder.subtotal ??
+    localSnapshot?.subtotal ??
+    (computedItemsSubtotal > 0 ? computedItemsSubtotal : finalTotal + discountAmount),
+  );
+  const totalCups = mergedItems.reduce((acc, it) => acc + Number(it.quantity || 1), 0);
+  const loyaltyPoints = !isCancelled && !isPending ? Math.floor(finalTotal / 1000) : 0;
+
+  const paymentMethodLabel = formatPaymentMethod(
+    localSnapshot?.paymentMethod ||
+    displayOrder.paymentMethod ||
+    displayOrder.payments?.[0]?.method,
+  );
+
+  const formattedTime = displayOrder.createdAt
+    ? new Date(displayOrder.createdAt).toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }) + ' Hôm nay'
+    : 'Hôm nay';
 
   return (
-    <main
-      style={{
-        maxWidth: 480,
-        margin: '0 auto',
-        padding: '16px 16px 96px 16px',
-        fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-        backgroundColor: '#fef8f4',
-        minHeight: '100vh',
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* Top Bar Navigation */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Link
-          href="/orders"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            borderRadius: 9999,
-            background: '#f3ede9',
-            color: '#2c1810',
-            textDecoration: 'none',
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-            arrow_back
-          </span>
+    <main className={styles.container}>
+      <div className={styles.ambientGlow} />
+
+      {/* Top Navigation & Live Sync Badge */}
+      <div className={styles.topNavBar}>
+        <Link href="/orders" className={styles.backBtn}>
+          <ArrowLeft size={16} strokeWidth={2.2} />
           <span>Lịch sử đơn</span>
         </Link>
 
-        {isPolling && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#fef3c7',
-              color: '#92400e',
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: 9999,
-              border: '1px solid #fde68a',
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#b45309',
-                display: 'inline-block',
-              }}
-            />
-            Live Polling 5s
+        {isPolling && !isCancelled && !isCompleted && (
+          <span className={styles.pollingBadge}>
+            <span className={styles.pollingDot} />
+            <span>Live Polling 5s</span>
           </span>
         )}
       </div>
 
       {error && (
-        <div
-          role="alert"
-          style={{
-            background: '#fef2f2',
-            color: '#b91c1c',
-            padding: '10px 14px',
-            borderRadius: 12,
-            fontSize: 13,
-            marginBottom: 16,
-            border: '1px solid #fecaca',
-          }}
-        >
+        <div role="alert" className={styles.inlineErrorBanner}>
           {error}
         </div>
       )}
 
-      {/* Prominent Callout when READY */}
-      {isReady && (
-        <section
-          style={{
-            background: 'linear-gradient(135deg, #047857 0%, #059669 100%)',
-            color: '#ffffff',
-            borderRadius: 20,
-            padding: 16,
-            marginBottom: 18,
-            boxShadow: '0 8px 20px -4px rgba(5, 150, 105, 0.4)',
-            border: '1.5px solid #6ee7b7',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <div className={styles.contentWrapper}>
+        {/* Animated Status Icon + Loyalty Reward Chip */}
+        <div className={styles.iconContainer}>
+          <div className={styles.iconPulseRing} />
+          <div className={styles.iconCircle}>
             <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                background: '#ffffff',
-                color: '#047857',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
+              className={`${styles.iconInner} ${statusUi.variant ? styles[statusUi.variant] : ''
+                }`}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 26 }}>
-                notifications_active
+              {isCancelled ? (
+                <X size={26} strokeWidth={2.5} />
+              ) : isPending ? (
+                <Clock size={26} strokeWidth={2.3} />
+              ) : isReady ? (
+                <Bell size={26} strokeWidth={2.4} />
+              ) : (
+                <Check size={28} strokeWidth={2.6} />
+              )}
+            </div>
+          </div>
+
+          {!isCancelled && !isPending && (
+            <div className={styles.loyaltyFloatingBadge}>
+              <Sparkles size={12} strokeWidth={2.4} />
+              <span>+{loyaltyPoints} Hạt Vàng</span>
+            </div>
+          )}
+        </div>
+
+        {/* Live Status Pill */}
+        <div
+          className={`${styles.statusPill} ${isReady ? styles.ready : isCancelled ? styles.cancelled : ''
+            }`}
+        >
+          <span
+            className={`${styles.pingDot} ${isReady ? styles.ready : isCancelled ? styles.cancelled : ''
+              }`}
+          />
+          <span>{statusUi.pillText}</span>
+        </div>
+
+        {/* Headline & Subheadline */}
+        <h1 className={styles.headline}>{statusUi.headline}</h1>
+
+        <p className={styles.subheadline}>
+          {isCancelled ? (
+            <>
+              Đơn hàng <strong>#BL-{orderId}</strong> đã bị hủy hoặc hết hạn thanh toán.
+            </>
+          ) : isPending ? (
+            <>
+              Đơn hàng <strong>#BL-{orderId}</strong> đang được giữ chỗ nguyên liệu. Vui lòng hoàn tất thanh toán để Barista pha chế ngay.
+            </>
+          ) : isReady ? (
+            <>
+              Mời bạn di chuyển đến{' '}
+              <strong style={{ color: '#059669' }}>Kệ Express Bar số 04</strong> và đọc mã đơn{' '}
+              <strong>#BL-{orderId}</strong> để nhận nước ngay.
+            </>
+          ) : isPreparing ? (
+            <>
+              Barista tại <strong>BrewLite Downtown Roastery</strong> đã tiếp nhận đơn và đang chiết xuất đồ uống tươi.
+            </>
+          ) : (
+            <>
+              Cảm ơn bạn đã lựa chọn trải nghiệm tự động &amp; không tiền mặt tại{' '}
+              <strong>BrewLite Downtown Roastery</strong>.
+            </>
+          )}
+        </p>
+
+        {/* Boarding Pass Ticket Card */}
+        <div className={styles.ticketCard}>
+          <div
+            className={`${styles.topRibbon} ${statusUi.variant && statusUi.variant !== 'completed' ? styles[statusUi.variant] : ''
+              }`}
+          />
+
+          {/* Ticket Header */}
+          <div className={styles.ticketHeader}>
+            <div>
+              <span className={styles.orderNumberLabel}>Mã số đơn hàng (Xuất trình tại quầy)</span>
+              <div className={styles.orderIdRow}>
+                <span className={styles.orderIdText}>#BL-{orderId}</span>
+                <button
+                  type="button"
+                  onClick={handleCopyOrderId}
+                  className={styles.copyButton}
+                  title="Sao chép mã đơn"
+                >
+                  {copied ? (
+                    <>
+                      <Check size={12} strokeWidth={2.4} />
+                      <span>Đã chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} strokeWidth={2} />
+                      <span>Chép mã</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              <span
+                data-testid="order-status"
+                className={`${styles.statusBadge} ${statusUi.variant && statusUi.variant !== 'completed' ? styles[statusUi.variant] : ''
+                  }`}
+              >
+                {statusUi.badge}
               </span>
+              <div className={styles.orderMetaRow}>
+                <span className={styles.paymentTag}>{paymentMethodLabel}</span>
+                <span>{formattedTime}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-Column Boarding Info Strip */}
+          <div className={styles.ticketMetaGrid}>
+            <div className={styles.ticketMetaCell}>
+              <span className={styles.ticketMetaLabel}>Thời gian đặt</span>
+              <span className={styles.ticketMetaValue}>{formattedTime}</span>
+            </div>
+            <div className={styles.ticketMetaCell}>
+              <span className={styles.ticketMetaLabel}>Dự kiến có nước</span>
+              <span className={styles.ticketMetaValue}>{statusUi.etaText}</span>
+            </div>
+          </div>
+
+          {/* Express Station Banner */}
+          <div className={`${styles.expressCard} ${isReady ? styles.ready : ''}`}>
+            <div className={`${styles.expressIconWrapper} ${isReady ? styles.ready : ''}`}>
+              <Store size={22} strokeWidth={2} />
             </div>
             <div>
-              <span
-                style={{
-                  background: 'rgba(255,255,255,0.25)',
-                  color: '#fff',
-                  fontSize: 10,
-                  fontWeight: 800,
-                  textTransform: 'uppercase',
-                  padding: '2px 8px',
-                  borderRadius: 9999,
-                }}
-              >
-                ĐÃ HOÀN TẤT PHA CHẾ
-              </span>
-              <h2 style={{ margin: '2px 0 0 0', fontSize: 17, fontWeight: 800 }}>
-                Đồ uống đã sẵn sàng tại quầy!
-              </h2>
+              <div className={styles.expressTitle}>
+                {isReady
+                  ? 'Mời bạn nhận đồ uống tại Kệ Express Bar số 04!'
+                  : 'Downtown Roastery Bar - 124 Lê Lợi, Bến Nghé, Q.1'}
+              </div>
+              <div className={styles.expressDesc}>
+                {isReady
+                  ? 'Ly nước của bạn đã hoàn thiện và đặt sẵn trên kệ trả món Express Pickup.'
+                  : 'Vị trí nhận nước: Kệ Express Bar số 04 • Trạm Barista #01'}
+              </div>
             </div>
           </div>
-          <p style={{ margin: 0, fontSize: 12, color: '#ecfdf5', lineHeight: 1.4 }}>
-            Mời bạn di chuyển đến <strong>Kệ Express Bar số 04</strong> và xuất trình
-            mã QR nhận nước bên dưới.
-          </p>
-        </section>
-      )}
 
-      {/* ── INTERACTIVE PICKUP TICKET & SIMULATED QR CODE ── */}
-      <section
-        style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #e7e1dd',
-          padding: 18,
-          marginBottom: 18,
-          boxShadow: '0 4px 16px rgba(44, 24, 16, 0.06)',
-          textAlign: 'center',
-          position: 'relative',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ textAlign: 'left' }}>
-            <span style={{ fontSize: 11, color: '#786c67', textTransform: 'uppercase', fontWeight: 700 }}>
-              Vé nhận nước điện tử
-            </span>
-            <h1
-              style={{
-                fontFamily: "'Epilogue', sans-serif",
-                fontSize: 22,
-                fontWeight: 800,
-                color: '#2c1810',
-                margin: 0,
-              }}
-            >
-              #BL-{orderId}
-            </h1>
+          {/* Stepper Tracker */}
+          {!isCancelled && (
+            <div className={styles.stepperSection}>
+              <div className={styles.stepperHeader}>
+                <span className={styles.stepperTitle}>Tiến trình phục vụ</span>
+                <span className={styles.stepperStation}>Trạm Barista KDS #01</span>
+              </div>
+              <div className={styles.stepperGrid}>
+                {/* Step 1: Đã thanh toán */}
+                <div className={styles.stepperItem}>
+                  <div className={styles.stepperBar}>
+                    {isPaidOrBeyond ? <div className={styles.stepperBarFilled} /> : null}
+                  </div>
+                  <span className={styles.stepperLabel}>
+                    {isPaidOrBeyond && <Check size={11} strokeWidth={2.4} style={{ color: '#059669' }} />}
+                    <span>1. Đã thanh toán</span>
+                  </span>
+                </div>
+
+                {/* Step 2: Đang pha chế */}
+                <div className={styles.stepperItem}>
+                  <div className={styles.stepperBar}>
+                    {isPreparing ? (
+                      <div className={styles.stepperBarActive} />
+                    ) : isReady || isCompleted ? (
+                      <div className={styles.stepperBarFilled} />
+                    ) : null}
+                  </div>
+                  <span className={`${styles.stepperLabel} ${isPreparing ? styles.active : ''}`}>
+                    {isPreparing ? (
+                      <RefreshCw size={11} strokeWidth={2.4} />
+                    ) : isReady || isCompleted ? (
+                      <Check size={11} strokeWidth={2.4} style={{ color: '#059669' }} />
+                    ) : null}
+                    <span>2. Đang pha chế</span>
+                  </span>
+                </div>
+
+                {/* Step 3: Sẵn sàng lấy */}
+                <div className={styles.stepperItem}>
+                  <div className={styles.stepperBar}>
+                    {isReady ? (
+                      <div className={styles.stepperBarReady} />
+                    ) : isCompleted ? (
+                      <div className={styles.stepperBarFilled} />
+                    ) : null}
+                  </div>
+                  <span className={`${styles.stepperLabel} ${isReady ? styles.ready : ''}`}>
+                    {isReady ? (
+                      <Bell size={11} strokeWidth={2.4} style={{ color: '#059669' }} />
+                    ) : isCompleted ? (
+                      <Check size={11} strokeWidth={2.4} style={{ color: '#059669' }} />
+                    ) : null}
+                    <span>3. Sẵn sàng lấy</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cut-out ticket line */}
+          <div className={styles.cutoutWrapper}>
+            <div className={styles.notchLeft} />
+            <div className={styles.notchRight} />
+            <div className={styles.dashedLine} />
           </div>
 
-          <span
-            data-testid="order-status"
-            style={{
-              padding: '4px 10px',
-              borderRadius: 9999,
-              fontSize: 11,
-              fontWeight: 800,
-              background: isReady ? '#059669' : isCancelled ? '#b91c1c' : '#2c1810',
-              color: '#ffffff',
-            }}
-          >
-            {status}
-          </span>
-        </div>
+          {/* Product Items List */}
+          <div className={styles.itemsSection}>
+            <div className={styles.itemsHeader}>
+              <span>Chi tiết thức uống ({totalCups} món)</span>
+              <span>Thành tiền</span>
+            </div>
 
-        {/* QR Code Mockup Frame */}
-        <div
-          style={{
-            background: '#fcfaf8',
-            borderRadius: 16,
-            padding: 16,
-            border: '2px dashed #ded4cc',
-            margin: '12px auto',
-            maxWidth: 240,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              width: 140,
-              height: 140,
-              background: '#2c1810',
-              borderRadius: 12,
-              padding: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-            }}
-          >
-            {/* Visual SVG QR Pattern */}
-            <svg
-              viewBox="0 0 100 100"
-              style={{ width: '100%', height: '100%', fill: '#ffffff' }}
-            >
-              <rect x="0" y="0" width="30" height="30" rx="4" />
-              <rect x="5" y="5" width="20" height="20" fill="#2c1810" />
-              <rect x="10" y="10" width="10" height="10" />
-              <rect x="70" y="0" width="30" height="30" rx="4" />
-              <rect x="75" y="5" width="20" height="20" fill="#2c1810" />
-              <rect x="80" y="10" width="10" height="10" />
-              <rect x="0" y="70" width="30" height="30" rx="4" />
-              <rect x="5" y="75" width="20" height="20" fill="#2c1810" />
-              <rect x="10" y="80" width="10" height="10" />
-              <rect x="40" y="10" width="20" height="10" />
-              <rect x="40" y="40" width="20" height="20" />
-              <rect x="70" y="40" width="10" height="20" />
-              <rect x="10" y="40" width="15" height="10" />
-              <rect x="40" y="75" width="30" height="15" />
-              <rect x="80" y="75" width="15" height="15" />
-            </svg>
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#845326', marginTop: 10 }}>
-            Quét mã tại Kệ Express Bar số 04
-          </span>
-          <span style={{ fontSize: 10, color: '#786c67', marginTop: 2 }}>
-            Khách hàng: {user?.fullName || 'Khách đặt qua Web Mobile'}
-          </span>
-        </div>
-
-        {/* Barista & Station Info */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-around',
-            paddingTop: 10,
-            borderTop: '1px solid #f3ede9',
-            fontSize: 12,
-          }}
-        >
-          <div>
-            <span style={{ color: '#786c67', display: 'block', fontSize: 10 }}>ĐỊA ĐIỂM</span>
-            <strong style={{ color: '#2c1810' }}>Trạm 01 • Express Bar</strong>
-          </div>
-          <div style={{ width: 1, height: 24, background: '#eee' }} />
-          <div>
-            <span style={{ color: '#786c67', display: 'block', fontSize: 10 }}>BARISTA</span>
-            <strong style={{ color: '#845326' }}>
-              👨‍🍳 {displayOrder.staffName || 'Hoàng Nam'}
-            </strong>
-          </div>
-        </div>
-      </section>
-
-      {/* ── TIẾN TRÌNH PHA CHẾ (TIMELINE STEPPER) ── */}
-      <section
-        style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #e7e1dd',
-          padding: 18,
-          marginBottom: 18,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-        }}
-      >
-        <h3
-          style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: '#2c1810',
-            margin: '0 0 16px 0',
-          }}
-        >
-          Tiến trình đơn hàng
-        </h3>
-
-        {isCancelled ? (
-          <div
-            style={{
-              background: '#fee2e2',
-              color: '#b91c1c',
-              padding: 14,
-              borderRadius: 12,
-              textAlign: 'center',
-              fontWeight: 700,
-              fontSize: 13,
-            }}
-          >
-            Đơn hàng này đã bị hủy tại quầy hoặc hết thời gian thanh toán.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {ORDER_STEPS.map((step, idx) => {
-              const isDone = idx < currentStep;
-              const isCurrent = idx === currentStep;
+            {mergedItems.map((item, idx) => {
+              const productName = item.productName || item.name || 'Đồ uống BrewLite';
+              const lowerName = productName.toLowerCase();
+              const isBakery =
+                Boolean(item.isBakery) ||
+                lowerName.includes('bánh') ||
+                lowerName.includes('pain') ||
+                lowerName.includes('cheesecake') ||
+                lowerName.includes('tiramisu');
+              const isHot =
+                item.temperature === 'hot' ||
+                item.temperature === 'HOT' ||
+                lowerName.includes('nóng') ||
+                lowerName.includes('hot');
+              const isWarm =
+                item.servingStyle === 'Hâm nóng' ||
+                item.servingStyle === 'Hâm nóng giòn' ||
+                (!item.servingStyle && isHot);
+              const imgUrl = getItemImage(item.productId, productName, item.imageUrl);
 
               return (
-                <div
-                  key={step.key}
-                  style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}
-                >
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      background: isDone
-                        ? '#047857'
-                        : isCurrent
-                        ? isReady
-                          ? '#059669'
-                          : '#2c1810'
-                        : '#ede7e3',
-                      color: isDone || isCurrent ? '#ffffff' : '#786c67',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 13,
-                      fontWeight: 800,
-                      flexShrink: 0,
-                      boxShadow: isCurrent ? '0 0 0 4px rgba(44, 24, 16, 0.12)' : 'none',
-                    }}
-                  >
-                    {isDone ? (
-                      '✓'
-                    ) : isCurrent && step.key === 'PREPARING' ? (
-                      <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18 }}>
-                        autorenew
-                      </span>
-                    ) : isCurrent && step.key === 'READY' ? (
-                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                        notifications_active
-                      </span>
-                    ) : (
-                      idx + 1
+                <div key={item.id ?? idx} className={styles.itemCard}>
+                  <div className={styles.itemImageWrapper}>
+                    <Image
+                      src={imgUrl}
+                      alt={productName}
+                      fill
+                      unoptimized
+                      sizes="64px"
+                      className={styles.itemImage}
+                    />
+                  </div>
+
+                  <div className={styles.itemContent}>
+                    <h4 className={styles.itemTitle}>{productName}</h4>
+
+                    <div className={styles.attributesRow}>
+                      {isBakery ? (
+                        <span className={styles.attrBadge}>
+                          {isWarm ? (
+                            <>
+                              <Flame size={12} strokeWidth={2.2} className={styles.attrIcon} />
+                              <span>Hâm nóng</span>
+                            </>
+                          ) : (
+                            <>
+                              <Snowflake size={12} strokeWidth={2.2} className={styles.attrIcon} />
+                              <span>Dùng ngay</span>
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        <>
+                          <span className={styles.attrBadge}>Size {item.size || 'M'}</span>
+
+                          <span className={styles.attrBadge}>
+                            {isHot ? (
+                              <>
+                                <Flame size={12} strokeWidth={2.2} className={styles.attrIcon} />
+                                <span>Uống Nóng</span>
+                              </>
+                            ) : (
+                              <>
+                                <Snowflake size={12} strokeWidth={2.2} className={styles.attrIcon} />
+                                <span>Uống Lạnh</span>
+                              </>
+                            )}
+                          </span>
+
+                          {!isHot && (
+                            <span className={styles.attrBadge}>
+                              {formatIceLevel(item.iceLevel)}
+                            </span>
+                          )}
+
+                          <span className={styles.attrBadge}>
+                            {formatSugarLevel(item.sugarLevel)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    {item.toppings.length > 0 && (
+                      <div className={styles.toppingsColumn}>
+                        {item.toppings.map((t, tIdx) => (
+                          <div key={tIdx} className={styles.toppingItem}>
+                            <span className={styles.toppingPlus}>+</span>
+                            <span>{t}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {item.notes && (
+                      <div className={styles.itemNotes}>
+                        <strong>Ghi chú:</strong> {item.notes}
+                      </div>
                     )}
                   </div>
 
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: isCurrent ? 800 : 600,
-                        color: isCurrent || isDone ? '#2c1810' : '#887d77',
-                      }}
-                    >
-                      {step.label}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#786c67', marginTop: 2 }}>
-                      {step.desc}
-                    </div>
+                  <div className={styles.itemRight}>
+                    <span className={styles.itemPrice}>
+                      {formatVND(Number(item.unitPrice || 0) * Number(item.quantity || 1))}
+                    </span>
+                    <span className={styles.itemQty}>
+                      x{item.quantity} {isBakery ? 'phần' : 'ly'}
+                    </span>
                   </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </section>
 
-      {/* ── CHI TIẾT MÓN TRONG ĐƠN ── */}
-      {displayOrder.items && displayOrder.items.length > 0 && (
-        <section
-          style={{
-            background: '#ffffff',
-            borderRadius: 20,
-            border: '1px solid #e7e1dd',
-            padding: 16,
-            marginBottom: 18,
-          }}
-        >
-          <h3
-            style={{
-              fontSize: 15,
-              fontWeight: 800,
-              color: '#2c1810',
-              margin: '0 0 12px 0',
-            }}
-          >
-            Chi tiết thức uống ({displayOrder.items.length})
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {displayOrder.items.map((it, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: 14,
-                  paddingBottom: 8,
-                  borderBottom:
-                    i < (displayOrder.items?.length ?? 0) - 1
-                      ? '1px dashed #eee'
-                      : 'none',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700, color: '#2c1810' }}>
-                    {it.name}{' '}
-                    <span style={{ color: '#845326', fontWeight: 800 }}>
-                      ×{it.quantity}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#786c67', marginTop: 2 }}>
-                    Size {it.size || 'M'}
-                  </div>
-                </div>
-                <div style={{ fontWeight: 800, color: '#2c1810' }}>
-                  {(it.unitPrice * it.quantity).toLocaleString('vi-VN')} ₫
-                </div>
+          {/* Payment Summary */}
+          <div className={styles.totalsCard}>
+            <div className={styles.totalRow}>
+              <span>Tạm tính ({totalCups} món)</span>
+              <span className={styles.totalValue}>{formatVND(subtotal)}</span>
+            </div>
+
+            {discountAmount > 0 && (
+              <div className={styles.discountRow}>
+                <span>
+                  Khuyến mãi
+                  {discountCode && <span className={styles.voucherChip}>{discountCode}</span>}
+                </span>
+                <span>-{formatVND(discountAmount)}</span>
               </div>
-            ))}
+            )}
+
+            <div className={styles.totalRow}>
+              <span>Phí dịch vụ Express Bar</span>
+              <span className={styles.totalValue}>Miễn phí</span>
+            </div>
+
+            <div className={styles.totalRow}>
+              <span>Thuế VAT (0%)</span>
+              <span className={styles.totalValue}>0 ₫</span>
+            </div>
+
+            <div className={styles.finalTotalRow}>
+              <span className={styles.finalTotalLabel}>Tổng thanh toán</span>
+              <span className={styles.finalTotalValue}>{formatVND(finalTotal)}</span>
+            </div>
+
+            {!isCancelled && !isPending && (
+              <div className={styles.loyaltyRewardCard}>
+                <span>Điểm thưởng tích lũy đơn này:</span>
+                <span className={styles.loyaltyRewardPoints}>
+                  +{loyaltyPoints} Hạt Vàng BrewLite Club
+                </span>
+              </div>
+            )}
           </div>
-        </section>
-      )}
 
-      {/* ── TÓM TẮT THANH TOÁN ── */}
-      <section
-        style={{
-          background: '#ffffff',
-          borderRadius: 20,
-          border: '1px solid #e7e1dd',
-          padding: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8 }}>
-          <span style={{ color: '#786c67' }}>Tổng tiền thức uống:</span>
-          <span style={{ fontWeight: 700 }}>
-            {Number(displayOrder.totalAmount ?? 0).toLocaleString('vi-VN')} ₫
-          </span>
-        </div>
-
-        {Boolean(displayOrder.discountAmount && displayOrder.discountAmount > 0) && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 13,
-              marginBottom: 8,
-              color: '#047857',
-            }}
-          >
-            <span>Giảm giá voucher:</span>
-            <span>-{Number(displayOrder.discountAmount).toLocaleString('vi-VN')} ₫</span>
+          {/* Eco note */}
+          <div className={styles.ecoSection}>
+            <div className={styles.ecoRow}>
+              <span>Phục vụ trong 100% Cốc Bã Mía Sinh Học phân hủy tự nhiên.</span>
+            </div>
           </div>
-        )}
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: 16,
-            fontWeight: 800,
-            color: '#845326',
-            paddingTop: 8,
-            borderTop: '1px solid #f3ede9',
-          }}
-        >
-          <span>Thực thanh toán:</span>
-          <span>
-            {Number(displayOrder.finalAmount ?? displayOrder.totalAmount ?? 0).toLocaleString(
-              'vi-VN',
-            )}{' '}
-            ₫
-          </span>
         </div>
 
-        <div
-          style={{
-            marginTop: 8,
-            paddingTop: 8,
-            borderTop: '1px dashed #f0ece8',
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: 12,
-            color: '#786c67',
-          }}
-        >
-          <span>Hạt tích lũy nhận được:</span>
-          <span style={{ color: '#845326', fontWeight: 700 }}>
-            +{Math.floor(Number(displayOrder.finalAmount ?? displayOrder.totalAmount ?? 0) / 1000)} Hạt Vàng
-          </span>
-        </div>
-      </section>
+        {/* Action Buttons */}
+        <div className={styles.actionsWrapper}>
+          {isPending && (
+            <Link href={`/checkout?orderId=${orderId}`} className={styles.pendingPayBtn}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                payments
+              </span>
+              <span>Thanh toán đơn ngay ({formatVND(finalTotal)})</span>
+            </Link>
+          )}
 
-      {/* ── HÀNH ĐỘNG DƯỚI CÙNG ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {isPending && (
-          <Link
-            href={`/checkout?orderId=${orderId}`}
-            style={{
-              minHeight: 46,
-              borderRadius: 12,
-              background: '#845326',
-              color: '#ffffff',
-              fontSize: 14,
-              fontWeight: 700,
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-              payments
-            </span>
-            <span>Thanh toán đơn ngay</span>
+          <Link href="/menu" className={styles.primaryBtn}>
+            <Coffee size={18} strokeWidth={2.2} />
+            <span>Đặt thêm đơn mới</span>
           </Link>
-        )}
 
-        <Link
-          href="/menu"
-          style={{
-            minHeight: 46,
-            borderRadius: 12,
-            background: '#2c1810',
-            color: '#ffffff',
-            fontSize: 14,
-            fontWeight: 700,
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-            coffee
-          </span>
-          <span>Đặt thêm món khác</span>
-        </Link>
+          <div className={styles.secondaryActionsRow}>
+            <Link href="/menu" className={styles.secondaryBtnCompact}>
+              <Store size={15} strokeWidth={2.2} />
+              <span>Về Thực đơn</span>
+            </Link>
 
-        {cancelFeedback && (
-          <div
-            style={{
-              padding: '12px 14px',
-              backgroundColor: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              borderRadius: 12,
-              color: '#065f46',
-              fontSize: 13,
-              fontWeight: 600,
-              textAlign: 'center',
-            }}
-          >
-            {cancelFeedback}
+            <Link href="/orders" className={styles.secondaryBtnCompact}>
+              <History size={15} strokeWidth={2.2} />
+              <span>Lịch sử đơn</span>
+            </Link>
           </div>
-        )}
 
-        {isCancelEligible && (
-          <button
-            type="button"
-            onClick={handleCancelOrder}
-            disabled={isCancelling}
-            style={{
-              minHeight: 46,
-              borderRadius: 12,
-              backgroundColor: '#fff',
-              border: '1.5px solid #fca5a5',
-              color: '#dc2626',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: isCancelling ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-              cancel
-            </span>
-            <span>{isCancelling ? 'Đang hủy đơn...' : 'Hủy đơn hàng (5 phút cho phép)'}</span>
-          </button>
-        )}
+        </div>
       </div>
 
-      {/* ── FIXED MOBILE BOTTOM NAVIGATION BAR ── */}
-      <nav
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 50,
-          background: 'rgba(254, 248, 244, 0.95)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderTop: '1px solid rgba(231, 225, 221, 0.85)',
-          height: 64,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 480,
-            margin: '0 auto',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-around',
-            padding: '0 8px',
-          }}
-        >
-          <Link
-            href="/menu"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              color: '#6b5c56',
-              textDecoration: 'none',
-              fontSize: 11,
-              fontWeight: 500,
-              gap: 2,
-            }}
-          >
+      {/* Fixed 5-item Mobile Bottom Navigation Bar */}
+      <nav className={styles.bottomNav}>
+        <div className={styles.bottomNavInner}>
+          <Link href="/menu" className={styles.navItem}>
             <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
               coffee
             </span>
             <span>Thực đơn</span>
           </Link>
 
-          <Link
-            href="/cart"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              color: '#6b5c56',
-              textDecoration: 'none',
-              fontSize: 11,
-              fontWeight: 500,
-              gap: 2,
-              position: 'relative',
-            }}
-          >
-            <div style={{ position: 'relative' }}>
+          <Link href="/cart" className={styles.navItem} data-testid="cart-link">
+            <div className={styles.navIconWrap}>
               <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
                 shopping_cart
               </span>
               {totalCartCount > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -9,
-                    background: '#ba1a1a',
-                    color: '#fff',
-                    fontSize: 9,
-                    fontWeight: 800,
-                    minWidth: 16,
-                    height: 16,
-                    borderRadius: 9999,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0 3px',
-                  }}
-                >
-                  {totalCartCount}
-                </span>
+                <span className={styles.navBadge}>{totalCartCount}</span>
               )}
             </div>
             <span>Giỏ hàng</span>
           </Link>
 
-          <Link
-            href="/orders"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              color: '#2c1810',
-              textDecoration: 'none',
-              fontSize: 11,
-              fontWeight: 700,
-              gap: 2,
-            }}
-          >
+          <Link href="/orders" className={`${styles.navItem} ${styles.navItemActive}`}>
             <span
               className="material-symbols-outlined"
               style={{ fontSize: 22, fontVariationSettings: "'FILL' 1" }}
@@ -898,19 +849,14 @@ export default function OrderDetailPage({
             <span>Đơn hàng</span>
           </Link>
 
-          <Link
-            href="/menu"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              color: '#6b5c56',
-              textDecoration: 'none',
-              fontSize: 11,
-              fontWeight: 500,
-              gap: 2,
-            }}
-          >
+          <Link href="/promotions" className={styles.navItem}>
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+              confirmation_number
+            </span>
+            <span>Ưu đãi</span>
+          </Link>
+
+          <Link href="/account" className={styles.navItem}>
             <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
               account_circle
             </span>

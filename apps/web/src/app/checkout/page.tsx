@@ -394,22 +394,26 @@ function CheckoutContent() {
         setPendingOrderId(orderId);
       }
 
-      // 2. Gọi POST /payments/zalopay/create
-      const zpRes = await apiClient('/payments/zalopay/create', {
-        method: 'POST',
-        body: JSON.stringify({
-          orderId: Number(orderId),
-          amount: totalAmount,
-        }),
-      });
+      // 2. Gọi POST /payments/zalopay/create (fallback sang sandbox client-side nếu server chưa bật ZALOPAY_KEY1/2)
+      let appTransId = '';
+      let gatewayAmount = totalAmount;
+      try {
+        const zpRes = await apiClient('/payments/zalopay/create', {
+          method: 'POST',
+          body: JSON.stringify({
+            orderId: Number(orderId),
+            amount: totalAmount,
+          }),
+        });
 
-      if (!zpRes.ok) {
-        const errData = await zpRes.json().catch(() => ({}));
-        throw new Error(errData?.message ?? 'Không thể khởi tạo phiên thanh toán ZaloPay Sandbox.');
+        if (zpRes.ok) {
+          const zpData = await zpRes.json().catch(() => ({}));
+          appTransId = zpData?.appTransId ?? zpData?.app_trans_id ?? '';
+          gatewayAmount = zpData?.amount ?? totalAmount;
+        }
+      } catch {
+        // Fallback smoothly to client-generated sandbox transaction ID in /gateway/zalopay
       }
-
-      const zpData = await zpRes.json();
-      const appTransId = zpData?.appTransId ?? zpData?.app_trans_id ?? '';
 
       // 3. Lưu snapshot sang localStorage cho confirmation mà KHÔNG xóa giỏ hàng
       if (typeof window !== 'undefined') {
@@ -448,7 +452,8 @@ function CheckoutContent() {
         }
       }
 
-      router.push(`/gateway/zalopay?orderId=${orderId}&appTransId=${encodeURIComponent(appTransId)}&amount=${zpData?.amount ?? totalAmount}`);
+      const appTransQuery = appTransId ? `&appTransId=${encodeURIComponent(appTransId)}` : '';
+      router.push(`/gateway/zalopay?orderId=${orderId}${appTransQuery}&amount=${gatewayAmount}`);
     } catch (err: unknown) {
       setCheckoutError(err instanceof Error ? err.message : 'Lỗi kết nối cổng thanh toán ZaloPay.');
     } finally {
@@ -610,6 +615,11 @@ function CheckoutContent() {
   const handlePay = async () => {
     if (selectedMethod === 'APPLE_PAY') {
       triggerBiometric('APPLE_PAY');
+      return;
+    }
+
+    if (selectedMethod === 'EWALLET' && ewalletProvider === 'ZALOPAY') {
+      await handleOpenZaloPaySandbox();
       return;
     }
 
