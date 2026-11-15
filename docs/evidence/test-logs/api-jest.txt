@@ -1,0 +1,134 @@
+node.exe : (node:26868) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors 
+that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:26868) [D...ulnerabilities.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PASS src/customers/customers.controller.spec.ts (16.983 s)
+PASS src/auth/auth-api.spec.ts (5.623 s)
+PASS src/orders/orders.controller.spec.ts
+PASS src/auth/auth-profile.spec.ts
+[31m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [31m  ERROR[39m [38;5;3m[PaymentsService] [39m[31m[ZaloPay 
+Callback] Chữ ký MAC không hợp lệ (Tampered Data)[39m
+[31m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [31m  ERROR[39m [38;5;3m[PaymentsService] [39m[31m[ZaloPay 
+Callback] Gian lận số tiền! Số tiền callback (null) không khớp đơn #77 (110000)[39m
+[31m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [31m  ERROR[39m [38;5;3m[PaymentsService] [39m[31m[ZaloPay 
+Callback] Gian lận số tiền! Số tiền callback (50000) không khớp đơn #77 (110000)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn #77 thanh toán thành công qua ZaloPay (zp_trans_id: 12345678)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn hàng #77 đã được thanh toán trước đó (PAID) (Idempotent)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn hàng #77 đã được thanh toán trước đó (PREPARING) (Idempotent)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn hàng #77 đã được thanh toán trước đó (READY) (Idempotent)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn hàng #77 đã được thanh toán trước đó (COMPLETED) (Idempotent)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Bản ghi payment đã tồn tại (P2002) cho đơn #77[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn #77 thanh toán thành công qua ZaloPay (zp_trans_id: 12345678)[39m
+[33m[Nest] 26868  - [39m11/15/2026, 3:15:35 PM [33m   WARN[39m [38;5;3m[PaymentsService] [39m[33m[ZaloPay Callback] Đơn hàng #77 đã bị hủy hoặc hết hạn, từ chối cập nhật trạng thái PAID[39m
+PASS src/payments/payments.controller.spec.ts (8.556 s)
+PASS src/customers/customers.service.spec.ts
+PASS src/products/products.controller.spec.ts
+PASS src/inventory/inventory.service.spec.ts
+[31m[Nest] 26868  - [39m11/15/2026, 3:15:52 PM [31m  ERROR[39m [38;5;3m[PaymentsService] [39m[31m[ZaloPay 
+Callback] app_trans_id (#99) không khớp embed_data.orderId (#12)[39m
+PASS src/audit-fixes.spec.ts
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "brewlite", schema "public" at "localhost:5435"
+
+Applying migration `20261111000000_init_bom_schema`
+Applying migration `20261115000000_add_token_version_and_order_voucher_snapshot`
+
+Database reset successful
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261111000000_init_bom_schema/
+    └─ migration.sql
+  └─ 20261115000000_add_token_version_and_order_voucher_snapshot/
+    └─ migration.sql
+
+Running generate... (Use --skip-generate to skip the generators)
+[2K[1A[2K[GRunning generate... - Prisma Client
+[2K[1A[2K[G✔ Generated Prisma Client (v5.22.0) to .\..\..\node_modules\@prisma\client in 27
+9ms
+
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:52 PM [32m    LOG[39m [38;5;3m[ZaloPayService] [39m[32m[ZaloPay] Gửi yêu cầu tạo đơn #12 (app_trans_id: 261115_12_779224, amount: 50000)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:15:52 PM [32m    LOG[39m [38;5;3m[ZaloPayService] [39m[32m[ZaloPay] Kết quả tạo đơn #12: {"return_code":1,"order_url":"https://sb.zalo/pay","zp_trans_token":"tok"}[39m
+PASS src/integration/orders-payments.int.spec.ts (22.576 s)
+PASS src/users/users.service.spec.ts
+PASS src/health/health.controller.spec.ts
+PASS src/orders/orders.service.spec.ts
+PASS src/auth/auth.service.spec.ts
+PASS src/integration/security-concurrency.int.spec.ts (7.19 s)
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:33 PM [32m    LOG[39m [38;5;3m[MockPaymentService] [39m[32m[MockPayment] Xử lý thanh toán: 85000 VNĐ qua EWALLET. simulateFailure=false[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:33 PM [32m    LOG[39m [38;5;3m[MockPaymentService] [39m[32m[MockPayment] Xử lý thanh toán: 85000 VNĐ qua BANK_CARD. simulateFailure=true[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:33 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Idempotency] Phat hien yeu cau trung lap voi key "idempotency-key-123". Tra ve ket qua giao dich cu.[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Idempotency] Phat hien yeu cau trung lap P2002 voi key "savepoint-key-race". Tra ve ket qua giao dich cu.[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #5: Cong 85 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #5 thanh toan thanh cong. Ma Payment: #101[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #5: Cong 85 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #5 thanh toan thanh cong. Ma Payment: #99[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #5: Cong 85 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #5 thanh toan thanh cong. Ma Payment: #99[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Idempotency] Phat hien yeu cau trung lap P2002 voi key "idempotency-key-race". Tra ve ket qua giao dich cu.[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #50: Cong 65 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #50 thanh toan thanh cong. Ma Payment: #501[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #53: Cong 60 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #53 thanh toan thanh cong. Ma Payment: #503[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #54: Cong 60 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #54 thanh toan thanh cong. Ma Payment: #504[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #56: Cong 60 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #56 thanh toan thanh cong. Ma Payment: #506[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #56: Cong 60 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #56 thanh toan thanh cong. Ma Payment: #506[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #8: Cong 85 Hat Vang cho User #1[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #8 thanh toan thanh cong. Ma Payment: #102[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #11 thanh toan thanh cong. Ma Payment: #104[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Gateway] Người dùng đã hủy giao dịch trên Cổng ZaloPay cho đơn hàng #25[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Gateway] Người dùng đã hủy giao dịch trên Cổng ZaloPay cho đơn hàng #28[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Gateway] Người dùng đã hủy giao dịch trên Cổng ZaloPay cho đơn hàng #26[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Gateway] Người dùng đã hủy giao dịch trên Cổng ZaloPay cho đơn hàng #27[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Bản ghi payment đã tồn tại (P2002) cho đơn #33[39m
+[33m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [33m   WARN[39m [38;5;3m[PaymentsService] [39m[33m[ZaloPay Callback] Đơn hàng #40 đã bị hủy hoặc hết hạn, từ chối cập nhật trạng thái PAID[39m
+[33m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [33m   WARN[39m [38;5;3m[PaymentsService] [39m[33m[ZaloPay Callback] Đơn hàng #41 đang ở trạng thái PAYMENT_FAILED, từ chối cập nhật trực tiếp sang PAID[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Bản ghi payment đã tồn tại (P2002) cho đơn #43[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn #43 thanh toán thành công qua ZaloPay (zp_trans_id: 88891)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn #44 thanh toán thành công qua ZaloPay (zp_trans_id: 88892)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Bản ghi payment đã tồn tại (P2002) cho đơn #45[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[ZaloPay Callback] Đơn #45 thanh toán thành công qua ZaloPay (zp_trans_id: 88893)[39m
+[33m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [33m   WARN[39m [38;5;3m[PaymentsService] [39m[33m[ZaloPay Callback] Đơn hàng #46 đã quá hạn thanh toán 15 phút, tự động hủy và hoàn kho.[39m
+[33m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [33m   WARN[39m [38;5;3m[PaymentsService] [39m[33m[Payment Failed] Don hang #700 thanh toan that bai. Ma Payment: #88[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #700: Cong 50 Hat Vang cho User #5[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:34 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #700 thanh toan thanh cong. Ma Payment: #88[39m
+PASS src/payments/payments.service.spec.ts
+[31m[Nest] 26868  - [39m11/15/2026, 3:16:35 PM [31m  ERROR[39m [38;5;3m[ExpireOrdersJob] [39m[31mFailed to 
+expire pending orders[39m
+[31m[Nest] 26868  - [39m11/15/2026, 3:16:35 PM [31m  ERROR[39m [38;5;3m[ExpireOrdersJob] [39m[31mError: DB 
+temporarily unavailable[39m
+PASS src/jobs/expire-orders.job.spec.ts
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:35 PM [32m    LOG[39m [38;5;3m[ExpireOrdersJob] [39m[32m[Auto-Expire 15m] Đơn hàng #100 (PENDING) đã tự động hủy do quá 15 phút chưa hoàn tất thanh toán. Đã hoàn trả nguyên liệu vào kho.[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:35 PM [32m    LOG[39m [38;5;3m[ExpireOrdersJob] [39m[32mExpired 1 pending order(s) older than 15 minutes and restored BOM stock.[39m
+PASS src/inventory/inventory-packaging.spec.ts
+PASS src/orders/API-T06.spec.ts
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:38 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Loyalty] Don #10: Cong 90 Hat Vang cho User #3[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:38 PM [32m    LOG[39m [38;5;3m[PaymentsService] [39m[32m[Payment Success] Don hang #10 thanh toan thanh cong. Ma Payment: #9[39m
+[33m[Nest] 26868  - [39m11/15/2026, 3:16:39 PM [33m   WARN[39m [38;5;3m[ZaloPayService] [39m[33mMissing ZALOPAY_KEY1 or ZALOPAY_KEY2 in production environment; ZaloPay endpoints will fail closed.[39m
+[33m[Nest] 26868  - [39m11/15/2026, 3:16:39 PM [33m   WARN[39m [38;5;3m[ZaloPayService] [39m[33mMissing ZALOPAY_KEY1 or ZALOPAY_KEY2 in production environment; ZaloPay endpoints will fail closed.[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:39 PM [32m    LOG[39m [38;5;3m[ZaloPayService] [39m[32m[ZaloPay] Gửi yêu cầu tạo đơn #999 (app_trans_id: 261115_999_568749, amount: 45000)[39m
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:39 PM [32m    LOG[39m [38;5;3m[ZaloPayService] [39m[32m[ZaloPay] Kết quả tạo đơn #999: {"return_code":1,"return_message":"Giao dịch thành công","sub_return_code":1,"sub_return_message":"Giao dịch thành công","order_url":"https://qcgateway.zalopay.vn/pay?token=test_token","zp_trans_token":"test_token","order_token":"test_token"}[39m
+PASS src/payments/zalopay.service.spec.ts
+PASS src/orders/API-T09.spec.ts
+PASS src/config/env.validation.spec.ts
+PASS src/orders/API-T07.spec.ts
+PASS src/orders/API-T08.spec.ts
+[32m[Nest] 26868  - [39m11/15/2026, 3:16:45 PM [32m    LOG[39m [38;5;3m[OrdersService] [39m[32m[Auto-Expire 15m] Đơn hàng #20 (PAYMENT_FAILED) đã tự động hủy do quá 15 phút chưa hoàn tất thanh toán. Đã hoàn trả nguyên liệu vào kho.[39m
+PASS src/orders/API-T04.spec.ts
+PASS src/orders/API-T05.spec.ts
+PASS src/auth/jwt-secret.spec.ts
+
+Test Suites: 27 passed, 27 total
+Tests:       400 passed, 400 total
+Snapshots:   0 total
+Time:        106.858 s, estimated 1066 s
+Ran all test suites.

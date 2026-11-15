@@ -43,5 +43,5 @@ Tài liệu ghi nhận phản hồi thực tế của nhóm 6 thành viên sau m
 | :--- | :--- | :--- | :--- |
 | Lỗi `npm ci` trong Docker API build | Đồng bộ khóa `apps/api/package-lock.json` và kiểm thử Docker build trước khi merge `main` | Mã Gia Vỹ | **Đã áp dụng** (`99a3085`) |
 | CORS Vercel ↔ Render & ZaloPay Sandbox trên Production | Hỗ trợ wildcard `CORS_ORIGIN` trong API, fallback điều hướng `/gateway/zalopay` và tài liệu hóa biến `ALLOW_SANDBOX_CONFIRM` trong `docs/deployment.md` | Mã Gia Vỹ | **Đã áp dụng** (`9ae3da4`, `c044be5`) |
-| Lệch hạ tầng thật vs `deployment.puml` & thiếu bằng chứng cuối kỳ | Bắt buộc có bước rà soát chéo docs/diagram/README/evidence trước khi gắn tag phát hành (`v1.0.0`); đồng bộ đầy đủ trong PR cuối | Quách Kỳ Minh, Dương Quang Khôi, Mã Gia Vỹ | **Đã hoàn thành** (`v1.0.0`) |
+| Lệch hạ tầng thật vs `deployment.puml` & thiếu bằng chứng cuối kỳ | Bắt buộc có bước rà soát chéo docs/diagram/README/evidence trước khi gắn tag phát hành (`v1.0.0`); đồng bộ đầy đủ trong PR cuối | Quách Kỳ Minh, Mã Gia Vỹ | **Đã hoàn thành** (`v1.0.0`) |
 | Khác biệt môi trường test giữa máy cá nhân & CI | Chạy test qua `npm run test -w ...` tại root monorepo, dùng `docker-compose.yml` chuẩn và chạy `scripts/smoke-test.ps1` trực tiếp lên Production | Nguyễn Gia Thành, Nguyễn Thị Ý | **Đang duy trì** |

@@ -1,0 +1,80 @@
+
+> brewlite-web@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/SWE/BrewLite_project/apps/web[39m
+
+ [32m✓[39m src/lib/__tests__/middleware.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 244[2mms[22m[39m
+ [32m✓[39m src/components/staff/staff.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1947[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1f Staff Components (WEB-T18)[2m > [22mWEB-T18 tapping an item with recipe triggers onOpenRecipe with item data [33m812[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1f Staff Components (WEB-T18)[2m > [22mWEB-T18 checklist toggles cup done and updates action progress during PREPARING [33m328[2mms[22m[39m
+ [32m✓[39m src/app/staff/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 2068[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1f Staff Page (/staff)[2m > [22mWEB-T17 page shows only PAID orders on the "Mới" tab, longest wait first [33m320[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1f Staff Page (/staff)[2m > [22mWEB-T17 transitions order via PATCH /orders/:id/status ({ status }) and surfaces backend error [33m1027[2mms[22m[39m
+ [32m✓[39m src/app/orders/__tests__/orders.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 3289[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1e — Mobile Order History Page (/orders)[2m > [22mrenders mobile layout with title, stats, and navigation bar [33m918[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1e — Mobile Order History Page (/orders)[2m > [22mdisplays the prominent Pickup Call Banner when an order is READY [33m428[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1e — Mobile Order History Page (/orders)[2m > [22mfilters orders by category tab (Tất cả, Đang thực hiện, Đã hoàn thành, Đã hủy) [33m1286[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1e — Mobile Order History Page (/orders)[2m > [22msoft-deletes cancelled orders and restores them via local storage [33m308[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1e — Mobile Order History Page (/orders)[2m > [22mallows cancelling PENDING and PAYMENT_FAILED orders, but NOT PAID orders [33m303[2mms[22m[39m
+ [32m✓[39m src/app/products/__tests__/product-detail.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 3785[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1c — Product Detail Page (/products/[id])[2m > [22mrenders product details and initial pricing correctly [33m1026[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1c — Product Detail Page (/products/[id])[2m > [22mupdates price dynamically when changing size from M to L [33m1156[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1c — Product Detail Page (/products/[id])[2m > [22mrenders all 5 sweetness options and updates selection correctly [33m358[2mms[22m[39m
+ [32m✓[39m src/app/admin/page.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 4652[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1g Admin Page (/admin) — Real API Integration[2m > [22mWEB-T19 authorizes ADMIN from fallback localStorage key (brewlite-auth-storage) [33m540[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1g Admin Page (/admin) — Real API Integration[2m > [22mWEB-T20 fetches all real endpoints, renders real dashboard metrics (0 when empty, never 18450000/142), and switches tabs [33m978[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1g Admin Page (/admin) — Real API Integration[2m > [22mWEB-T20 toggles product visibility via PATCH /products/:id/visibility and rolls back on failure [33m354[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1g Admin Page (/admin) — Real API Integration[2m > [22mWEB-T20 restocks ingredient via PATCH /inventory/ingredients/:id/restock ({ addAmount }) and rolls back on failure [33m302[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1g Admin Page (/admin) — Real API Integration[2m > [22mWEB-T20 creates product via POST /products using bottom sheet [33m500[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1g Admin Page (/admin) — Real API Integration[2m > [22mWEB-T20 Management tab toggles staff & voucher status and creates staff & voucher via real APIs [33m865[2mms[22m[39m
+   [33m[2m✓[22m[39m T5.1g Admin Page (/admin) — Real API Integration[2m > [22mWEB-T20 Management tab rolls back staff & voucher toggle and shows error toast when backend rejects [33m441[2mms[22m[39m
+ [32m✓[39m src/lib/use-barista-queue.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 203[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/cart-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/lib/api-client.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 98[2mms[22m[39m
+ [32m✓[39m src/hooks/__tests__/use-order-polling.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 196[2mms[22m[39m
+ [32m✓[39m src/lib/staff-orders.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/lib/format.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 62[2mms[22m[39m
+ [32m✓[39m src/app/account/__tests__/account.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 5121[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1g — Mobile Account Page (/account)[2m > [22mrenders mobile layout with header, profile card, diamond tier, and bottom navigation bar [33m1172[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1g — Mobile Account Page (/account)[2m > [22mrenders real vouchers with ticket stub format and validates empty cart before applying [33m945[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1g — Mobile Account Page (/account)[2m > [22mapplies voucher and navigates to /cart when cart has items [33m1010[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1g — Mobile Account Page (/account)[2m > [22mdisplays empty state notice and action button when user has no vouchers [33m410[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1g — Mobile Account Page (/account)[2m > [22mrefreshes loyalty points and displays success toast [33m534[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1g — Mobile Account Page (/account)[2m > [22mopens EditProfileModal when clicking Chỉnh sửa hồ sơ and updates state [33m758[2mms[22m[39m
+ [32m✓[39m src/app/checkout/__tests__/checkout.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 2742[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1d — Checkout & Idempotency Key Handling (WEB-T10..T13)[2m > [22m[WEB-T13-C] shows error and blocks navigation when POST /payments/zalopay/create fails [33m1779[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1d — Checkout & Idempotency Key Handling (WEB-T10..T13)[2m > [22m[WEB-T13-D] handles 0đ free-voucher order directly without calling /payments/zalopay/create [33m653[2mms[22m[39m
+ [32m✓[39m src/app/(auth)/__tests__/auth-ui.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 4582[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1b-UI — Mobile Login & Register UI Integration Tests[2m > [22m1. Login UI (/login)[2m > [22mrenders responsive mobile layout with inputs and submit button having minHeight >= 44px [33m910[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1b-UI — Mobile Login & Register UI Integration Tests[2m > [22m1. Login UI (/login)[2m > [22mdisplays error when email format is invalid [33m702[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1b-UI — Mobile Login & Register UI Integration Tests[2m > [22m1. Login UI (/login)[2m > [22mshows API error message when login fails with 401 [33m347[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1b-UI — Mobile Login & Register UI Integration Tests[2m > [22m2. Register UI (/register)[2m > [22mvalidates required full name [33m348[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1b-UI — Mobile Login & Register UI Integration Tests[2m > [22m3. Unified Auth Storage, /auth/* Routes & Playwright data-testids[2m > [22mrenders /auth/login and /auth/register with exact data-testids and allows Playwright register without confirmPassword [33m399[2mms[22m[39m
+ [32m✓[39m src/app/orders/[id]/confirmation/__tests__/confirmation.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1934[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1e — Order Confirmation Mobile UI (/orders/[id]/confirmation)[2m > [22mrenders confirmation page with order ID, status, and headline [33m644[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1e — Order Confirmation Mobile UI (/orders/[id]/confirmation)[2m > [22mrenders navigation buttons linking to /menu and /orders [33m581[2mms[22m[39m
+ [32m✓[39m src/app/promotions/__tests__/promotions.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 4446[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)[2m > [22mrenders mobile layout with header, member VIP card, and points pill [33m965[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)[2m > [22mrenders the 5-item mobile bottom navigation bar with Ưu đãi as active [33m315[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)[2m > [22mskips applying voucher when cart is empty and alerts user [33m923[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)[2m > [22mallows removing an applied voucher [33m342[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)[2m > [22mapplies manual promo code and redirects to /cart when cart has items [33m508[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)[2m > [22mswitches to "Đổi bằng Hạt Vàng" tab and redeems reward with points [33m762[2mms[22m[39m
+   [33m[2m✓[22m[39m Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)[2m > [22mshows error toast when attempting to redeem an item without enough points [33m321[2mms[22m[39m
+ [32m✓[39m src/app/cart/__tests__/cart-ui.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 4097[2mms[22m[39m
+   [33m[2m✓[22m[39m Mobile Cart Page UI (/cart)[2m > [22mrenders empty cart state when cart has no items [33m550[2mms[22m[39m
+   [33m[2m✓[22m[39m Mobile Cart Page UI (/cart)[2m > [22mrenders items with customization attributes and calculates subtotal [33m535[2mms[22m[39m
+   [33m[2m✓[22m[39m Mobile Cart Page UI (/cart)[2m > [22mincrements item quantity when clicking + button up to max 20 [33m967[2mms[22m[39m
+   [33m[2m✓[22m[39m Mobile Cart Page UI (/cart)[2m > [22mopens delete confirmation modal when clicking trash or minus at quantity 1 [33m540[2mms[22m[39m
+   [33m[2m✓[22m[39m Mobile Cart Page UI (/cart)[2m > [22mapplies promo code and shows discount correctly [33m401[2mms[22m[39m
+   [33m[2m✓[22m[39m Mobile Cart Page UI (/cart)[2m > [22mopens detailed ProductEditModal when clicking edit pencil and updates item attributes [33m781[2mms[22m[39m
+ [32m✓[39m src/app/menu/menu.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 774[2mms[22m[39m
+   [33m[2m✓[22m[39m T4.3 Menu UI[2m > [22mWEB-T03: retries the failed API request and shows products [33m354[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m19 passed[39m[22m[90m (19)[39m
+[2m      Tests [22m [1m[32m131 passed[39m[22m[90m (131)[39m
+[2m   Start at [22m 15:13:03
+[2m   Duration [22m 49.91s[2m (transform 16.91s, setup 0ms, collect 201.50s, tests 40.28s, environment 173.23s, prepare 30.41s)[22m
+
