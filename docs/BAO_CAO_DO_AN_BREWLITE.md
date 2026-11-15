@@ -177,10 +177,45 @@ Sơ đồ gồm **4 Tác nhân** (*Khách hàng*, *Nhân viên/Barista*, *Quản
 
 ### TASK 2.1. Sơ đồ Hoạt động (Activity Diagram)
 
-Sơ đồ hoạt động mô tả trọn vẹn luồng nghiệp vụ End-to-End với **5 Swimlanes** (*Khách hàng*, *Giao diện Web Next.js*, *Backend API NestJS*, *Cổng thanh toán ZaloPay*, *Cơ sở dữ liệu PostgreSQL*), thể hiện đầy đủ các nhánh quyết định và ngoại lệ: chưa đăng nhập, hết hàng BOM (`409 Conflict`), thanh toán thất bại, timeout 15 phút và luồng xử lý tại quầy KDS:
+Nhằm mô hình hóa đầy đủ hành vi động của hệ thống BrewLite theo cả góc nhìn toàn trình (*End-to-End*) và góc nhìn chi tiết theo từng phân hệ, nhóm xây dựng **Sơ đồ Hoạt động tổng hợp 5 Swimlanes** kết hợp hai sơ đồ phân hệ chi tiết (**Duyệt thực đơn – Giỏ hàng** và **Quầy pha chế Barista KDS – Ân hạn 5 phút**):
+
+#### 1. Bảng tổng hợp 6 giai đoạn nghiệp vụ End-to-End
+
+| STT | Giai đoạn | Phân làn xử lý chính | Trọng tâm kỹ thuật & Ngoại lệ |
+| :---: | :--- | :--- | :--- |
+| **1** | **Duyệt Thực đơn** | Khách hàng → Web → API → PostgreSQL | Truy cập `/menu`, hiển thị Skeleton loader, gọi `GET /products` lọc theo danh mục & trạng thái bán (`isActive`). |
+| **2** | **Tùy biến & Giỏ hàng** | Khách hàng ↔ Web (`Zustand`) | Khóa chọn nếu hết kho (`86`/BOM); tính giá động theo Size (`S/M/L`) + Topping + mức đá/đường; gom nhóm theo composite key & lưu `localStorage`. |
+| **3** | **Đặt đơn (Pha 1: `PENDING`)** | Web → API → PostgreSQL | Kiểm tra JWT Bearer (giữ nguyên giỏ nếu cần đăng nhập); gắn `Idempotency-Key` (UUIDv4); `SELECT ... FOR UPDATE` giới hạn `<= 5` đơn chờ; giữ kho BOM bằng Optimistic Locking (`version + 1`), trả `409 Conflict` nếu thiếu nguyên liệu. |
+| **4** | **Thanh toán (Pha 2: ZaloPay / Mock)** | ZaloPay ↔ Khách ↔ Web ↔ API | Hiển thị QR / `/gateway/zalopay`, đếm ngược giữ kho 15 phút & polling 3s; xác thực Webhook IPN `HMAC-SHA256` chuyển `PAID`, tạo `Payment`, cộng điểm Hạt Vàng (`1.000đ = 1đ`). Nếu lỗi → `PAYMENT_FAILED` giữ kho đến hết 15 phút để thử lại. |
+| **5** | **Hủy đơn 5 phút & Hết hạn 15 phút** | Khách ↔ Web → API / Cron | Cho phép hủy trong 5 phút Grace Period (trước khi `PREPARING`) để hoàn 100% kho BOM & thu hồi điểm; quá 15 phút chưa thanh toán thì `ExpireOrdersJob` tự hủy & hoàn kho. |
+| **6** | **Pha chế KDS & Giao nhận** | Barista KDS (`/staff`) ↔ API ↔ Khách | Barista nhận đơn `PAID` kèm công thức BOM, chuyển `PREPARING → READY → COMPLETED` qua State Machine guard `assertTransition`. |
+
+#### 2. Sơ đồ Hoạt động Toàn trình End-to-End (5 Swimlanes)
+
+<div align="center">
 
 ![Sơ đồ Hoạt động End-to-End BrewLite](diagrams/activity-checkout.png)  
-*Hình 2.1: Sơ đồ Hoạt động luồng Đặt hàng, Thanh toán và Pha chế End-to-End (`docs/diagrams/activity-checkout.png`).*
+*Hình 2.1: Sơ đồ Hoạt động toàn trình luồng Đặt hàng, Thanh toán và Pha chế End-to-End với 5 Swimlanes (`docs/diagrams/activity-checkout.png`).*
+
+</div>
+
+#### 3. Sơ đồ Hoạt động Chi tiết Phân hệ Thực đơn & Giỏ hàng
+
+<div align="center">
+
+![Sơ đồ Hoạt động Duyệt Thực đơn và Giỏ hàng](diagrams/activity-menu-cart.png)  
+*Hình 2.2: Sơ đồ Hoạt động chi tiết luồng Duyệt thực đơn, Tùy biến Size/Topping và Quản lý Giỏ hàng (`docs/diagrams/activity-menu-cart.png`).*
+
+</div>
+
+#### 4. Sơ đồ Hoạt động Chi tiết Phân hệ Quầy Pha Chế KDS & Hủy đơn 5 phút
+
+<div align="center">
+
+![Sơ đồ Hoạt động Quầy pha chế Barista KDS](diagrams/activity-kds.png)  
+*Hình 2.3: Sơ đồ Hoạt động chi tiết Quầy pha chế Barista KDS, kiểm soát chuyển trạng thái và hoàn kho BOM khi hủy đơn trong 5 phút Grace Period (`docs/diagrams/activity-kds.png`).*
+
+</div>
 
 ---
 
@@ -188,8 +223,12 @@ Sơ đồ hoạt động mô tả trọn vẹn luồng nghiệp vụ End-to-End 
 
 Sơ đồ trình tự mô tả tương tác giữa 5 lifeline tối thiểu (`Customer → Next.js UI → NestJS API → Database PostgreSQL → Payment Service`), làm rõ kiểm tra JWT, Transaction 2 pha, Optimistic Locking, nhánh `alt` thanh toán thành công/thất bại và cơ chế `Idempotency-Key`:
 
+<div align="center">
+
 ![Sơ đồ Trình tự Đặt hàng và Thanh toán](diagrams/sequence-checkout.png)  
-*Hình 2.2: Sơ đồ Trình tự luồng Đặt hàng và Thanh toán (`docs/diagrams/sequence-checkout.png`).*
+*Hình 2.4: Sơ đồ Trình tự luồng Đặt hàng và Thanh toán (`docs/diagrams/sequence-checkout.png`).*
+
+</div>
 
 ---
 
@@ -197,8 +236,12 @@ Sơ đồ trình tự mô tả tương tác giữa 5 lifeline tối thiểu (`Cu
 
 #### 1. Sơ đồ Lớp miền
 
+<div align="center">
+
 ![Sơ đồ Lớp miền BrewLite](diagrams/class.png)  
-*Hình 2.3: Sơ đồ Lớp miền hệ thống BrewLite (`docs/diagrams/class.png`).*
+*Hình 2.5: Sơ đồ Lớp miền hệ thống BrewLite (`docs/diagrams/class.png`).*
+
+</div>
 
 #### 2. Bảng danh sách các lớp và Enum (`apps/api/prisma/schema.prisma`)
 
