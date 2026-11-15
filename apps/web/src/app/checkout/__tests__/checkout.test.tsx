@@ -1,14 +1,31 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import React from 'react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { useCartStore } from '../../../stores/cart-store';
 import { useAuthStore } from '../../../stores/auth-store';
 import { apiClient, getAuthToken } from '../../../lib/api-client';
+import CheckoutPage from '../page';
+
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockPush,
+  }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 describe('Task T5.1d — Checkout & Idempotency Key Handling (WEB-T10..T13)', () => {
   beforeEach(() => {
+    mockPush.mockClear();
     useCartStore.getState().clear();
     useAuthStore.getState().logout();
     window.localStorage.clear();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('[WEB-T10] unauthenticated user checkout redirects to login while strictly preserving cart items', async () => {
@@ -249,6 +266,95 @@ describe('Task T5.1d — Checkout & Idempotency Key Handling (WEB-T10..T13)', ()
 
     // Xóa giỏ hàng khi xác nhận thành công
     useCartStore.getState().clear();
+    expect(useCartStore.getState().items).toHaveLength(0);
+  });
+
+  it('[WEB-T13-C] shows error and blocks navigation when POST /payments/zalopay/create fails', async () => {
+    useAuthStore.getState().login('valid_jwt_token', { id: 1, email: 'customer@brewlite.vn' });
+    useCartStore.getState().addItem({
+      productId: 2,
+      name: 'Trà Đào Cam Sả',
+      size: 'M',
+      unitPrice: 45000,
+      quantity: 1,
+    });
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/inventory/pricing-config')) {
+        return Promise.resolve(new Response(JSON.stringify({ vouchers: [] }), { status: 200 }));
+      }
+      if (url.includes('/orders')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 301, status: 'PENDING' }), { status: 201 }),
+        );
+      }
+      if (url.includes('/payments/zalopay/create')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ message: 'Cổng ZaloPay đang bảo trì' }),
+            { status: 502 },
+          ),
+        );
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CheckoutPage />);
+
+    const payBtn = await screen.findByTestId('confirm-payment-button');
+    fireEvent.click(payBtn);
+
+    const errBox = await screen.findByTestId('payment-error');
+    expect(errBox.textContent).toContain('Cổng ZaloPay đang bảo trì');
+    expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/gateway/zalopay'));
+    expect(useCartStore.getState().items).toHaveLength(1);
+  });
+
+  it('[WEB-T13-D] handles 0đ free-voucher order directly without calling /payments/zalopay/create', async () => {
+    useAuthStore.getState().login('valid_jwt_token', { id: 1, email: 'customer@brewlite.vn' });
+    useCartStore.getState().addItem({
+      productId: 2,
+      name: 'Trà Đào Cam Sả',
+      size: 'M',
+      unitPrice: 45000,
+      quantity: 1,
+    });
+    useCartStore.setState({ appliedPromo: 'FREE100' });
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/inventory/pricing-config')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              vouchers: [{ code: 'FREE100', discountPercent: 100, minOrderAmount: 0 }],
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      if (url.includes('/orders')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 401, status: 'PAID', totalAmount: 0 }), { status: 201 }),
+        );
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CheckoutPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('confirm-payment-button').textContent).toContain('0 ₫');
+    });
+
+    fireEvent.click(screen.getByTestId('confirm-payment-button'));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/orders/401');
+    });
+    const calledUrls = fetchMock.mock.calls.map(([u]) => String(u));
+    expect(calledUrls.some((u) => u.includes('/payments/zalopay/create'))).toBe(false);
     expect(useCartStore.getState().items).toHaveLength(0);
   });
 });

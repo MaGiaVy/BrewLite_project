@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Tag, ChevronRight, ArrowRight, Sparkles } from 'lucide-react';
@@ -40,6 +40,13 @@ export default function AccountPage() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isRefreshingPoints, setIsRefreshingPoints] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const [vouchers, setVouchers] = useState<UserVoucher[]>([]);
 
@@ -122,7 +129,8 @@ export default function AccountPage() {
 
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMsg({ type, text });
-    setTimeout(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
       setToastMsg((curr) => (curr?.text === text ? null : curr));
     }, 3200);
   };

@@ -89,7 +89,7 @@ export default function AdminPortalPage() {
   const [customerList, setCustomerList] = useState<CustomerUserItem[]>([]);
   const [voucherList, setVoucherList] = useState<VoucherItem[]>([]);
   const [recentOrders, setRecentOrders] = useState<RecentOrderRow[]>([]);
-  const [chartOrders, setChartOrders] = useState<RecentOrderRow[]>([]);
+  const [chartOrders, setChartOrders] = useState<RecentOrderRow[] | undefined>(undefined);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(EMPTY_DASHBOARD);
 
   // Toast
@@ -599,7 +599,7 @@ export default function AdminPortalPage() {
     return (
       <div className={styles.pageContainer}>
         <div className={styles.mobileShell} style={{ justifyContent: 'center', alignItems: 'center' }}>
-          <p className="text-xs text-[#78716C]">Đang kiểm tra quyền quản trị...</p>
+          <p className={styles.authCheckingText}>Đang kiểm tra quyền quản trị...</p>
         </div>
       </div>
     );
@@ -618,7 +618,7 @@ export default function AdminPortalPage() {
             <div className={styles.logoWrap}>
               <BrewLiteLogo height={30} />
             </div>
-            <div>
+            <div className={styles.brandTextWrap}>
               <p className={styles.brandTitle}>BREWLITE PREMIER</p>
               <h1 className={styles.storeSubtitle}>
                 Quản lý Cửa hàng <span className={styles.openBadge}>● Mở ca</span>
@@ -738,8 +738,8 @@ export default function AdminPortalPage() {
           >
             <span>{toast.msg}</span>
             <span
-              className={`text-xs font-mono ${
-                toast.kind === 'error' ? 'text-[#f87171]' : 'text-[#d4af37]'
+              className={`${styles.toastTag} ${
+                toast.kind === 'error' ? styles.toastTagError : styles.toastTagSuccess
               }`}
             >
               {toast.kind === 'error' ? 'LỖI' : 'OK'}
@@ -756,7 +756,7 @@ export default function AdminPortalPage() {
           isSubmitting={isSubmitting}
           onSubmit={handleSubmitProduct}
         >
-          <div className="space-y-3">
+          <div className={styles.stackMd}>
             <div className={styles.inputGroup}>
               <label htmlFor="product-name-input" className={styles.inputLabel}>
                 Tên món đồ uống / bánh
@@ -839,7 +839,7 @@ export default function AdminPortalPage() {
             }
           }}
         >
-          <div className="space-y-3">
+          <div className={styles.stackMd}>
             <div className={styles.inputGroup}>
               <label htmlFor="ingredient-select" className={styles.inputLabel}>
                 Chọn nguyên liệu
@@ -883,7 +883,7 @@ export default function AdminPortalPage() {
           isSubmitting={isSubmitting}
           onSubmit={handleSubmitStaff}
         >
-          <div className="space-y-3">
+          <div className={styles.stackMd}>
             <div className={styles.inputGroup}>
               <label htmlFor="staff-name-input" className={styles.inputLabel}>
                 Họ và tên nhân viên
@@ -948,7 +948,7 @@ export default function AdminPortalPage() {
           isSubmitting={isSubmitting}
           onSubmit={handleSubmitVoucher}
         >
-          <div className="space-y-3">
+          <div className={styles.stackMd}>
             <div className={styles.inputGroup}>
               <label htmlFor="voucher-code-input" className={styles.inputLabel}>
                 Mã voucher

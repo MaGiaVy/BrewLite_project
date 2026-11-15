@@ -974,8 +974,9 @@ export default function OrderListPage() {
               const cfg = STATUS_CONFIG[ord.status] ?? STATUS_CONFIG['COMPLETED'];
               const isReady = ord.status === 'READY';
               const isPending = ord.status === 'PENDING';
-              const isCancelled =
-                ord.status === 'CANCELLED' || ord.status === 'PAYMENT_FAILED';
+              const isPaymentFailed = ord.status === 'PAYMENT_FAILED';
+              const isCancellable = isPending || isPaymentFailed;
+              const isCancelled = ord.status === 'CANCELLED';
               const payMethod = ord.payments?.[0]?.method ?? 'CASHLESS';
 
               return (
@@ -1107,7 +1108,7 @@ export default function OrderListPage() {
 
                   {/* Action Buttons */}
                   <div className={styles.cardActionsRow}>
-                    {isPending ? (
+                    {isCancellable ? (
                       <>
                         <button
                           type="button"
@@ -1126,7 +1127,7 @@ export default function OrderListPage() {
                           >
                             payments
                           </span>
-                          <span>Thanh toán</span>
+                          <span>{isPaymentFailed ? 'Thanh toán lại' : 'Thanh toán'}</span>
                         </Link>
                       </>
                     ) : isCancelled ? (

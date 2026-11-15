@@ -20,6 +20,19 @@ interface AdminMenuSectionProps {
   onOpenCreateModal: () => void;
 }
 
+function isBakeryProduct(item: ProductItem): boolean {
+  if (item.category === 'bakery') return true;
+  const lower = item.name.toLowerCase();
+  return (
+    lower.includes('bánh') ||
+    lower.includes('pain') ||
+    lower.includes('croissant') ||
+    lower.includes('cruffin') ||
+    lower.includes('cheesecake') ||
+    lower.includes('tiramisu')
+  );
+}
+
 export function AdminMenuSection({
   products,
   onToggleStatus,
@@ -36,14 +49,14 @@ export function AdminMenuSection({
   });
 
   return (
-    <div className="space-y-3.5">
+    <div className={styles.sectionStack}>
       {/* Header & Add Button */}
-      <div className="flex justify-between items-center px-1">
+      <div className={styles.sectionHeaderRow}>
         <div>
-          <h2 className="text-sm font-bold text-[#1C1917] m-0">
+          <h2 className={styles.sectionTitle}>
             Thực đơn món ({products.length})
           </h2>
-          <p className="text-[11px] text-[#78716C] m-0">
+          <p className={styles.sectionSubtitle}>
             Chạm công tắc để bật / tắt bán tức thì
           </p>
         </div>
@@ -59,22 +72,21 @@ export function AdminMenuSection({
       </div>
 
       {/* Search Bar */}
-      <div className="relative">
+      <div className={styles.searchWrap}>
         <input
           type="text"
           placeholder="Tìm tên món ăn, đồ uống..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className={styles.textInput}
-          style={{ width: '100%', paddingLeft: '38px' }}
+          className={`${styles.textInput} ${styles.searchInput}`}
         />
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#78716C]">
+        <div className={styles.searchIconWrap}>
           <SearchIcon size={18} />
         </div>
       </div>
 
       {/* Category Pills */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+      <div className={styles.categoryPillsRow}>
         {[
           { id: 'all', label: 'Tất cả' },
           { id: 'vietnamese', label: 'Phin Việt Nam' },
@@ -85,16 +97,9 @@ export function AdminMenuSection({
           <button
             key={cat.id}
             type="button"
-            className={styles.secondaryBtn}
-            style={{
-              padding: '6px 12px',
-              fontSize: '11px',
-              minHeight: '38px',
-              backgroundColor:
-                selectedCategory === cat.id ? '#1C1917' : '#FAF6F0',
-              color: selectedCategory === cat.id ? '#FFFFFF' : '#1C1917',
-              borderColor: selectedCategory === cat.id ? '#1C1917' : '#EBE3D5',
-            }}
+            className={`${styles.secondaryBtn} ${styles.categoryPill} ${
+              selectedCategory === cat.id ? styles.categoryPillActive : ''
+            }`.trim()}
             onClick={() => setSelectedCategory(cat.id)}
           >
             {cat.label}
@@ -103,14 +108,15 @@ export function AdminMenuSection({
       </div>
 
       {/* Product Cards Stack (Mobile-First) */}
-      <div className="space-y-2.5">
+      <div className={styles.stackSm}>
         {filtered.length === 0 ? (
-          <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
+          <div className={`${styles.card} ${styles.emptyCard}`}>
             Không tìm thấy món ăn nào phù hợp
           </div>
         ) : (
           filtered.map((item) => {
             const isSelling = item.isActive !== false && !item.isSoldOutManual;
+            const unitLabel = isBakeryProduct(item) ? 'phần' : 'ly';
 
             return (
               <div key={item.id} className={styles.itemCard} data-testid={`product-card-${item.id}`}>
@@ -139,16 +145,12 @@ export function AdminMenuSection({
                   </button>
                 </div>
 
-                <div className="pt-2 border-t border-[#EBE3D5] flex justify-between items-center text-[10px]">
-                  <span
-                    className={
-                      isSelling ? 'text-[#059669] font-bold' : 'text-[#DC2626] font-bold'
-                    }
-                  >
+                <div className={styles.itemFooterRow}>
+                  <span className={isSelling ? styles.statusSelling : styles.statusPaused}>
                     {isSelling ? '● Đang mở bán' : '○ Tạm ngưng bán'}
                   </span>
-                  <span className="text-[#78716C]">
-                    Ước tính tồn: ~{item.availableServings ?? 0} ly
+                  <span className={styles.stockEstimate}>
+                    Ước tính tồn: ~{item.availableServings ?? 0} {unitLabel}
                   </span>
                 </div>
               </div>

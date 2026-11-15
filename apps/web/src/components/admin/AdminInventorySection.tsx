@@ -25,13 +25,13 @@ export function AdminInventorySection({
   onOpenAddModal,
 }: AdminInventorySectionProps) {
   return (
-    <div className="space-y-3.5">
-      <div className="flex justify-between items-center px-1">
+    <div className={styles.sectionStack}>
+      <div className={styles.sectionHeaderRow}>
         <div>
-          <h2 className="text-sm font-bold text-[#1C1917] m-0">
+          <h2 className={styles.sectionTitle}>
             Kho nguyên liệu BOM ({ingredients.length})
           </h2>
-          <p className="text-[11px] text-[#78716C] m-0">
+          <p className={styles.sectionSubtitle}>
             Kiểm soát tồn kho định lượng công thức
           </p>
         </div>
@@ -47,9 +47,9 @@ export function AdminInventorySection({
       </div>
 
       {/* Ingredient Card Stack */}
-      <div className="space-y-3">
+      <div className={styles.stackMd}>
         {ingredients.length === 0 ? (
-          <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
+          <div className={`${styles.card} ${styles.emptyCard}`}>
             Chưa có nguyên liệu nào trong kho
           </div>
         ) : (
@@ -74,33 +74,33 @@ export function AdminInventorySection({
             return (
               <div
                 key={ing.id}
-                className={`${styles.itemCard} ${isAlert ? 'border-red-200 bg-red-50/40' : ''}`}
+                className={`${styles.itemCard} ${isAlert ? styles.itemCardAlert : ''}`.trim()}
                 data-testid={`ingredient-card-${ing.id}`}
               >
                 <div className={styles.itemHeaderRow}>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xs font-bold text-[#1C1917] m-0">
+                    <div className={styles.ingTitleRow}>
+                      <h3 className={styles.ingName}>
                         {ing.name}
                       </h3>
                       {isAlert && (
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#EF4444] text-white">
+                        <span className={styles.alertPill}>
                           CẦN NHẬP
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-[#78716C] font-mono">
+                    <span className={styles.ingCodeText}>
                       Mã: {ing.code} • Đơn vị: {ing.unit}
                     </span>
                   </div>
 
-                  <div className="text-right">
+                  <div className={styles.ingRightCol}>
                     <div
-                      className={`text-sm font-bold font-mono ${isAlert ? 'text-[#DC2626]' : 'text-[#059669]'}`}
+                      className={`${styles.ingStockValue} ${isAlert ? styles.ingStockAlert : styles.ingStockOk}`}
                     >
                       {ing.stock} {ing.unit}
                     </div>
-                    <span className="text-[9px] text-[#78716C]">
+                    <span className={styles.ingMinText}>
                       Tối thiểu: {ing.minThreshold} {ing.unit}
                     </span>
                   </div>
@@ -115,14 +115,13 @@ export function AdminInventorySection({
                 </div>
 
                 {/* Quick Add Action */}
-                <div className="pt-2 border-t border-[#EBE3D5] flex justify-between items-center">
-                  <span className="text-[10px] text-[#78716C]">
+                <div className={styles.itemFooterRow}>
+                  <span className={styles.stockEstimate}>
                     Tình trạng: {isAlert ? 'Thiếu hàng' : 'Đảm bảo'}
                   </span>
                   <button
                     type="button"
-                    className={styles.secondaryBtn}
-                    style={{ padding: '6px 12px', minHeight: '38px', fontSize: '11px' }}
+                    className={`${styles.secondaryBtn} ${styles.quickStockBtn}`}
                     onClick={() => onQuickStockIn(ing.id, quickAmount)}
                     data-testid={`quick-stockin-${ing.id}`}
                   >

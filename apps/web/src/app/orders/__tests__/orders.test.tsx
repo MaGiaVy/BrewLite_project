@@ -288,4 +288,50 @@ describe('Task T5.1e — Mobile Order History Page (/orders)', () => {
       expect(mockPush).toHaveBeenCalledWith('/login?redirect=%2Forders');
     });
   });
+
+  it('allows cancelling PENDING and PAYMENT_FAILED orders, but NOT PAID orders', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 501,
+                status: 'PENDING',
+                totalAmount: 45000,
+                createdAt: new Date().toISOString(),
+                items: [{ productId: 1, name: 'Cà Phê Sữa', size: 'M', quantity: 1, unitPrice: 45000 }],
+              },
+              {
+                id: 502,
+                status: 'PAYMENT_FAILED',
+                totalAmount: 50000,
+                createdAt: new Date().toISOString(),
+                items: [{ productId: 2, name: 'Matcha Latte', size: 'M', quantity: 1, unitPrice: 50000 }],
+              },
+              {
+                id: 503,
+                status: 'PAID',
+                totalAmount: 35000,
+                createdAt: new Date().toISOString(),
+                items: [{ productId: 3, name: 'Cà Phê Đen', size: 'M', quantity: 1, unitPrice: 35000 }],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<OrderListPage />);
+
+    expect(await screen.findByText('#BL-501')).toBeTruthy();
+    expect(screen.getByText('#BL-502')).toBeTruthy();
+    expect(screen.getAllByText('#BL-503').length).toBeGreaterThanOrEqual(1);
+
+    // Only PENDING (#501) and PAYMENT_FAILED (#502) render the "Hủy đơn" button; PAID (#503) does not
+    const cancelButtons = screen.getAllByRole('button', { name: 'Hủy đơn' });
+    expect(cancelButtons).toHaveLength(2);
+  });
 });

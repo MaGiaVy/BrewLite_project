@@ -428,7 +428,7 @@ export default function PromotionsPage() {
       {/* ── 3. Manual Voucher Code Input Bar ── */}
       <section className={styles.inputCard}>
         <h3 className={styles.inputTitle}>
-          <Tag size={14} className="text-[#845326]" />
+          <Tag size={14} style={{ color: '#845326' }} />
           <span>Nhập mã khuyến mãi hoặc voucher</span>
         </h3>
         <form onSubmit={handleManualApply} className={styles.inputRow}>
@@ -559,7 +559,7 @@ export default function PromotionsPage() {
         <section className={styles.vouchersList}>
           <div className={styles.redeemOverview}>
             <div className={styles.redeemOverviewLeft}>
-              <Sparkles size={16} className="text-[#845326]" />
+              <Sparkles size={16} style={{ color: '#845326' }} />
               <span>Quy đổi: 1.000₫ thanh toán = 1 Hạt Vàng</span>
             </div>
             <span style={{ fontWeight: 800, color: '#845326' }}>{points} Hạt khả dụng</span>

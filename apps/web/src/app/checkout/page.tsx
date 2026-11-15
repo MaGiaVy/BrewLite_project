@@ -339,6 +339,116 @@ function CheckoutContent() {
     }, 1200);
   };
 
+  const saveOrderSnapshot = (
+    orderId: string,
+    status: 'PENDING' | 'PAID',
+    paymentMethodLabel: string,
+  ) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const snapshot = {
+        id: orderId,
+        items: items.map((it, idx) => ({
+          id: idx + 1,
+          productId: it.productId,
+          productName: it.name,
+          name: it.name,
+          size: it.size,
+          toppings: it.toppingNames || [],
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          imageUrl: it.imageUrl,
+          temperature: it.temperature,
+          servingStyle: it.servingStyle,
+          iceLevel: it.iceLevel,
+          sugarLevel: it.sugarLevel,
+          notes: it.notes,
+          isBakery: it.isBakery,
+        })),
+        discountCode: voucherApplied ? voucherCode.trim() : null,
+        discountAmount,
+        subtotal,
+        totalAmount,
+        finalAmount: totalAmount,
+        paymentMethod: paymentMethodLabel,
+        createdAt: new Date().toISOString(),
+        status,
+      };
+      localStorage.setItem(`order_details_${orderId}`, JSON.stringify(snapshot));
+      localStorage.setItem(
+        `order_customizations_${orderId}`,
+        JSON.stringify(
+          items.map((it) => ({
+            productId: it.productId,
+            productName: it.name,
+            temperature: it.temperature,
+            servingStyle: it.servingStyle,
+            iceLevel: it.iceLevel,
+            sugarLevel: it.sugarLevel,
+            notes: it.notes,
+            isBakery: it.isBakery,
+          })),
+        ),
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  const ensureOrderCreated = async (
+    currentKey: string,
+  ): Promise<{ orderId: string; status?: string }> => {
+    if (pendingOrderId) {
+      return { orderId: pendingOrderId };
+    }
+
+    const orderPayload = {
+      items: items.map((it) => ({
+        productId: Number(it.productId),
+        productName: it.name,
+        size: it.size,
+        sugarLevel: it.sugarLevel,
+        iceLevel: it.iceLevel,
+        temperature: it.temperature,
+        notes: it.notes,
+        toppings:
+          it.toppingNames && it.toppingNames.length > 0
+            ? it.toppingNames
+            : (it.toppingIds ?? []),
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+      })),
+      ...(voucherApplied && voucherCode.trim() ? { discountCode: voucherCode.trim() } : {}),
+    };
+
+    const orderRes = await apiClient('/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderPayload),
+      headers: {
+        'Idempotency-Key': currentKey,
+      },
+    });
+
+    if (!orderRes.ok) {
+      const errData = await orderRes.json().catch(() => ({}));
+      const msg = Array.isArray(errData?.message)
+        ? errData.message.join(', ')
+        : errData?.message;
+      throw new Error(msg || 'Tạo đơn hàng không thành công.');
+    }
+
+    const orderData = await orderRes.json();
+    const createdId = String(orderData?.id ?? orderData?.orderId ?? `ord-${Date.now()}`);
+    setPendingOrderId(createdId);
+    return { orderId: createdId, status: orderData?.status };
+  };
+
+  const finalizeDirectPaidOrder = (orderId: string, paymentMethodLabel: string) => {
+    saveOrderSnapshot(orderId, 'PAID', paymentMethodLabel);
+    clear();
+    router.push(`/orders/${orderId}`);
+  };
+
   // Mở Cổng Sandbox ZaloPay Web
   const handleOpenZaloPaySandbox = async () => {
     if (items.length === 0 && !pendingOrderId) {
@@ -351,106 +461,53 @@ function CheckoutContent() {
       return;
     }
 
+    // Đơn 0đ (voucher miễn phí 100%) -> xác nhận trực tiếp theo luồng 0đ, không mở ZaloPay Sandbox
+    if (totalAmount <= 0) {
+      await processPaymentBackend('EWALLET');
+      return;
+    }
+
     const currentKey = getOrCreateIdempotencyKey();
     setIsSubmitting(true);
     setCheckoutError(null);
 
     try {
-      let orderId = pendingOrderId;
-
       // 1. Tạo đơn hàng nếu chưa có
-      if (!orderId) {
-        const orderPayload = {
-          items: items.map((it) => ({
-            productId: Number(it.productId),
-            productName: it.name,
-            size: it.size,
-            sugarLevel: it.sugarLevel,
-            iceLevel: it.iceLevel,
-            temperature: it.temperature,
-            notes: it.notes,
-            toppings: (it.toppingNames && it.toppingNames.length > 0) ? it.toppingNames : (it.toppingIds ?? []),
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-          })),
-          ...(voucherApplied && voucherCode.trim() ? { discountCode: voucherCode.trim() } : {}),
-        };
-
-        const orderRes = await apiClient('/orders', {
-          method: 'POST',
-          body: JSON.stringify(orderPayload),
-          headers: {
-            'Idempotency-Key': currentKey,
-          },
-        });
-
-        if (!orderRes.ok) {
-          const errData = await orderRes.json().catch(() => ({}));
-          throw new Error(errData?.message ?? 'Tạo đơn hàng không thành công.');
-        }
-
-        const orderData = await orderRes.json();
-        orderId = String(orderData?.id ?? orderData?.orderId ?? `ord-${Date.now()}`);
-        setPendingOrderId(orderId);
+      const { orderId, status: createdStatus } = await ensureOrderCreated(currentKey);
+      if (createdStatus === 'PAID') {
+        finalizeDirectPaidOrder(orderId, 'Ví ZaloPay');
+        return;
       }
 
-      // 2. Gọi POST /payments/zalopay/create (fallback sang sandbox client-side nếu server chưa bật ZALOPAY_KEY1/2)
-      let appTransId = '';
-      let gatewayAmount = totalAmount;
-      try {
-        const zpRes = await apiClient('/payments/zalopay/create', {
-          method: 'POST',
-          body: JSON.stringify({
-            orderId: Number(orderId),
-            amount: totalAmount,
-          }),
-        });
+      // 2. Gọi POST /payments/zalopay/create (không nuốt lỗi HTTP/network)
+      const zpRes = await apiClient('/payments/zalopay/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          orderId: Number(orderId),
+          amount: totalAmount,
+        }),
+      });
 
-        if (zpRes.ok) {
-          const zpData = await zpRes.json().catch(() => ({}));
-          appTransId = zpData?.appTransId ?? zpData?.app_trans_id ?? '';
-          gatewayAmount = zpData?.amount ?? totalAmount;
-        }
-      } catch {
-        // Fallback smoothly to client-generated sandbox transaction ID in /gateway/zalopay
+      const zpData = await zpRes.json().catch(() => ({}));
+      if (!zpRes.ok) {
+        const errMsg = Array.isArray(zpData?.message)
+          ? zpData.message.join(', ')
+          : zpData?.message;
+        throw new Error(
+          errMsg || `Không thể khởi tạo cổng thanh toán ZaloPay (HTTP ${zpRes.status}).`,
+        );
       }
+
+      if (zpData?.status === 'PAID') {
+        finalizeDirectPaidOrder(orderId, 'Ví ZaloPay');
+        return;
+      }
+
+      const appTransId = zpData?.appTransId ?? zpData?.app_trans_id ?? '';
+      const gatewayAmount = zpData?.amount ?? totalAmount;
 
       // 3. Lưu snapshot sang localStorage cho confirmation mà KHÔNG xóa giỏ hàng
-      if (typeof window !== 'undefined') {
-        try {
-          const snapshot = {
-            id: orderId,
-            items: items.map((it, idx) => ({
-              id: idx + 1,
-              productId: it.productId,
-              productName: it.name,
-              name: it.name,
-              size: it.size,
-              toppings: it.toppingNames || [],
-              quantity: it.quantity,
-              unitPrice: it.unitPrice,
-              imageUrl: it.imageUrl,
-              temperature: it.temperature,
-              servingStyle: it.servingStyle,
-              iceLevel: it.iceLevel,
-              sugarLevel: it.sugarLevel,
-              notes: it.notes,
-              isBakery: it.isBakery,
-            })),
-            discountCode: voucherApplied ? voucherCode.trim() : null,
-            discountAmount,
-            subtotal,
-            totalAmount,
-            finalAmount: totalAmount,
-            paymentMethod: 'Ví ZaloPay',
-            createdAt: new Date().toISOString(),
-            status: 'PENDING',
-          };
-          localStorage.setItem(`order_details_${orderId}`, JSON.stringify(snapshot));
-        } catch {
-          // ignore
-        }
-      }
+      saveOrderSnapshot(orderId, 'PENDING', 'Ví ZaloPay');
 
       const appTransQuery = appTransId ? `&appTransId=${encodeURIComponent(appTransId)}` : '';
       router.push(`/gateway/zalopay?orderId=${orderId}${appTransQuery}&amount=${gatewayAmount}`);
@@ -479,44 +536,21 @@ function CheckoutContent() {
 
     const effectiveMethod = overrideMethod || selectedMethod;
     const backendMethod = effectiveMethod === 'BANK_CARD' || effectiveMethod === 'APPLE_PAY' ? 'BANK_CARD' : 'EWALLET';
+    const paymentMethodLabel =
+      effectiveMethod === 'BANK_CARD'
+        ? 'Thẻ ngân hàng'
+        : effectiveMethod === 'APPLE_PAY'
+          ? 'Apple Pay'
+          : ewalletProvider === 'ZALOPAY'
+            ? 'Ví ZaloPay'
+            : 'VietQR Pro';
 
     try {
-      let orderId = pendingOrderId;
-
       // 1. Tạo đơn hàng nếu chưa có
-      if (!orderId) {
-        const orderPayload = {
-          items: items.map((it) => ({
-            productId: Number(it.productId),
-            productName: it.name,
-            size: it.size,
-            sugarLevel: it.sugarLevel,
-            iceLevel: it.iceLevel,
-            temperature: it.temperature,
-            notes: it.notes,
-            toppings: (it.toppingNames && it.toppingNames.length > 0) ? it.toppingNames : (it.toppingIds ?? []),
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-          })),
-          ...(voucherApplied && voucherCode.trim() ? { discountCode: voucherCode.trim() } : {}),
-        };
-
-        const orderRes = await apiClient('/orders', {
-          method: 'POST',
-          body: JSON.stringify(orderPayload),
-          headers: {
-            'Idempotency-Key': currentKey,
-          },
-        });
-
-        if (!orderRes.ok) {
-          const errData = await orderRes.json().catch(() => ({}));
-          throw new Error(errData?.message ?? 'Tạo đơn hàng không thành công.');
-        }
-
-        const orderData = await orderRes.json();
-        orderId = String(orderData?.id ?? orderData?.orderId ?? `ord-${Date.now()}`);
-        setPendingOrderId(orderId);
+      const { orderId, status: createdStatus } = await ensureOrderCreated(currentKey);
+      if (createdStatus === 'PAID') {
+        finalizeDirectPaidOrder(orderId, paymentMethodLabel);
+        return;
       }
 
       // 2. Thực hiện thanh toán với Idempotency Key
@@ -533,8 +567,11 @@ function CheckoutContent() {
 
       if (!paymentRes.ok) {
         const payData = await paymentRes.json().catch(() => ({}));
+        const errMsg = Array.isArray(payData?.message)
+          ? payData.message.join(', ')
+          : payData?.message;
         throw new Error(
-          payData?.message ?? 'Giao dịch thanh toán không thành công. Giỏ hàng của bạn vẫn được giữ nguyên để thử lại.',
+          errMsg || 'Giao dịch thanh toán không thành công. Giỏ hàng của bạn vẫn được giữ nguyên để thử lại.',
         );
       }
 
@@ -543,68 +580,8 @@ function CheckoutContent() {
         throw new Error(payResult?.message ?? 'Cổng thanh toán phản hồi: Giao dịch thất bại.');
       }
 
-      // 3. Thanh toán thành công -> Lưu snapshot và customizations vào localStorage cho Confirmation
-      if (typeof window !== 'undefined') {
-        try {
-          const snapshot = {
-            id: orderId,
-            items: items.map((it, idx) => ({
-              id: idx + 1,
-              productId: it.productId,
-              productName: it.name,
-              name: it.name,
-              size: it.size,
-              toppings: it.toppingNames || [],
-              quantity: it.quantity,
-              unitPrice: it.unitPrice,
-              imageUrl: it.imageUrl,
-              temperature: it.temperature,
-              servingStyle: it.servingStyle,
-              iceLevel: it.iceLevel,
-              sugarLevel: it.sugarLevel,
-              notes: it.notes,
-              isBakery: it.isBakery,
-            })),
-            discountCode: voucherApplied ? voucherCode.trim() : null,
-            discountAmount,
-            subtotal,
-            totalAmount,
-            finalAmount: totalAmount,
-            paymentMethod:
-              selectedMethod === 'BANK_CARD'
-                ? 'Thẻ ngân hàng'
-                : selectedMethod === 'APPLE_PAY'
-                  ? 'Apple Pay'
-                  : ewalletProvider === 'ZALOPAY'
-                    ? 'Ví ZaloPay'
-                    : 'VietQR Pro',
-            createdAt: new Date().toISOString(),
-            status: 'PAID',
-          };
-          localStorage.setItem(`order_details_${orderId}`, JSON.stringify(snapshot));
-          localStorage.setItem(
-            `order_customizations_${orderId}`,
-            JSON.stringify(
-              items.map((it) => ({
-                productId: it.productId,
-                productName: it.name,
-                temperature: it.temperature,
-                servingStyle: it.servingStyle,
-                iceLevel: it.iceLevel,
-                sugarLevel: it.sugarLevel,
-                notes: it.notes,
-                isBakery: it.isBakery,
-              })),
-            ),
-          );
-        } catch {
-          // ignore
-        }
-      }
-
-      // XÓA GIỎ HÀNG và chuyển sang trang đơn hàng
-      clear();
-      router.push(`/orders/${orderId}`);
+      // 3. Thanh toán thành công -> Lưu snapshot, xóa giỏ hàng và chuyển trang đơn hàng
+      finalizeDirectPaidOrder(orderId, paymentMethodLabel);
     } catch (err: unknown) {
       setCheckoutError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra khi thanh toán.');
     } finally {
@@ -613,6 +590,11 @@ function CheckoutContent() {
   };
 
   const handlePay = async () => {
+    if (totalAmount <= 0) {
+      await processPaymentBackend();
+      return;
+    }
+
     if (selectedMethod === 'APPLE_PAY') {
       triggerBiometric('APPLE_PAY');
       return;

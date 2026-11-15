@@ -1,4 +1,5 @@
 import React, { useId, useMemo } from 'react';
+import styles from './admin.module.css';
 
 export interface RevenueSparklineOrder {
   id?: number;
@@ -53,7 +54,7 @@ function buildSmoothBezierPath(points: Array<{ x: number; y: number }>): string 
 export function RevenueSparkline({ orders = [], className = '' }: RevenueSparklineProps) {
   const gradId = useId();
 
-  const { points, dayNames, maxVal, minVal } = useMemo(() => {
+  const { points, dayNames } = useMemo(() => {
     const now = new Date();
     const days: Array<{ label: string; dateStr: string; total: number }> = [];
 
@@ -67,9 +68,11 @@ export function RevenueSparkline({ orders = [], className = '' }: RevenueSparkli
       days.push({ label, dateStr: dateKey, total: 0 });
     }
 
-    // Accumulate valid non-cancelled orders
+    // Accumulate valid paid/active/completed orders
     orders.forEach((o) => {
-      if (o.status === 'CANCELLED') return;
+      if (o.status === 'CANCELLED' || o.status === 'PAYMENT_FAILED' || o.status === 'PENDING') {
+        return;
+      }
       const oDate = typeof o.createdAt === 'string' ? toLocalDateKey(o.createdAt) : '';
       const bucket = days.find((b) => b.dateStr === oDate);
       if (bucket) {
@@ -79,7 +82,6 @@ export function RevenueSparkline({ orders = [], className = '' }: RevenueSparkli
 
     const values = days.map((d) => d.total);
     const rawMax = Math.max(...values, 0);
-    const rawMin = Math.min(...values, 0);
 
     // Provide a pleasant aesthetic baseline even if data is 0 or flat
     const safeMax = rawMax > 0 ? rawMax * 1.15 : 100000;
@@ -102,8 +104,6 @@ export function RevenueSparkline({ orders = [], className = '' }: RevenueSparkli
     return {
       points: pts,
       dayNames: days.map((d) => d.label),
-      maxVal: rawMax,
-      minVal: rawMin,
     };
   }, [orders]);
 
@@ -119,9 +119,9 @@ export function RevenueSparkline({ orders = [], className = '' }: RevenueSparkli
   const todayPoint = points[points.length - 1];
 
   return (
-    <div className={`mt-2.5 pt-1 ${className}`} data-testid="revenue-sparkline">
-      <div className="relative w-full h-[52px]">
-        <svg viewBox="0 0 320 60" fill="none" className="w-full h-full overflow-visible">
+    <div className={`${styles.sparklineRoot} ${className}`.trim()} data-testid="revenue-sparkline">
+      <div className={styles.sparklineCanvas}>
+        <svg viewBox="0 0 320 60" fill="none" className={styles.sparklineSvg}>
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#C68B59" stopOpacity="0.32" />
@@ -188,11 +188,11 @@ export function RevenueSparkline({ orders = [], className = '' }: RevenueSparkli
       </div>
 
       {/* Weekday Axis Labels */}
-      <div className="flex items-center justify-between text-[9px] font-semibold text-[#78716C] mt-1 px-1">
+      <div className={styles.sparklineAxis}>
         {dayNames.map((name, idx) => (
           <span
             key={idx}
-            className={idx === dayNames.length - 1 ? 'font-bold text-[#1C1917]' : ''}
+            className={idx === dayNames.length - 1 ? styles.sparklineAxisToday : styles.sparklineAxisLabel}
           >
             {name}
           </span>

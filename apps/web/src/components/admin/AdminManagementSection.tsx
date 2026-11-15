@@ -56,16 +56,12 @@ export function AdminManagementSection({
   const [subTab, setSubTab] = useState<'staff' | 'customers' | 'vouchers'>('staff');
 
   return (
-    <div className="space-y-3.5">
+    <div className={styles.sectionStack}>
       {/* Sub Tabs */}
-      <div className="flex gap-2 p-1 rounded-xl bg-[#FAF6F0] border border-[#EBE3D5]">
+      <div className={styles.subTabsBar}>
         <button
           type="button"
-          className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
-          style={{
-            backgroundColor: subTab === 'staff' ? '#1C1917' : 'transparent',
-            color: subTab === 'staff' ? '#FFFFFF' : '#78716C',
-          }}
+          className={`${styles.subTabBtn} ${subTab === 'staff' ? styles.subTabBtnActive : ''}`.trim()}
           onClick={() => setSubTab('staff')}
           data-testid="subtab-staff"
         >
@@ -73,11 +69,7 @@ export function AdminManagementSection({
         </button>
         <button
           type="button"
-          className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
-          style={{
-            backgroundColor: subTab === 'customers' ? '#1C1917' : 'transparent',
-            color: subTab === 'customers' ? '#FFFFFF' : '#78716C',
-          }}
+          className={`${styles.subTabBtn} ${subTab === 'customers' ? styles.subTabBtnActive : ''}`.trim()}
           onClick={() => setSubTab('customers')}
           data-testid="subtab-customers"
         >
@@ -85,11 +77,7 @@ export function AdminManagementSection({
         </button>
         <button
           type="button"
-          className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
-          style={{
-            backgroundColor: subTab === 'vouchers' ? '#1C1917' : 'transparent',
-            color: subTab === 'vouchers' ? '#FFFFFF' : '#78716C',
-          }}
+          className={`${styles.subTabBtn} ${subTab === 'vouchers' ? styles.subTabBtnActive : ''}`.trim()}
           onClick={() => setSubTab('vouchers')}
           data-testid="subtab-vouchers"
         >
@@ -99,9 +87,9 @@ export function AdminManagementSection({
 
       {/* Sub Tab: Staff */}
       {subTab === 'staff' && (
-        <div className="space-y-3">
-          <div className="flex justify-between items-center px-1">
-            <span className="text-xs font-bold text-[#78716C]">
+        <div className={styles.stackMd}>
+          <div className={styles.sectionHeaderRow}>
+            <span className={styles.subHeaderLabel}>
               Đội ngũ Barista & Thu ngân
             </span>
             <button
@@ -116,7 +104,7 @@ export function AdminManagementSection({
           </div>
 
           {staffList.length === 0 ? (
-            <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
+            <div className={`${styles.card} ${styles.emptyCard}`}>
               Chưa có nhân viên nào
             </div>
           ) : (
@@ -146,8 +134,8 @@ export function AdminManagementSection({
                       />
                     </button>
                   </div>
-                  <div className="pt-2 border-t border-[#EBE3D5] text-[10px]">
-                    <span className={active ? 'text-[#059669] font-bold' : 'text-[#DC2626] font-bold'}>
+                  <div className={styles.itemFooterRow}>
+                    <span className={active ? styles.statusSelling : styles.statusPaused}>
                       {active ? '● Đang làm việc' : '○ Đã khóa tài khoản'}
                     </span>
                   </div>
@@ -160,9 +148,9 @@ export function AdminManagementSection({
 
       {/* Sub Tab: Customers */}
       {subTab === 'customers' && (
-        <div className="space-y-2.5">
+        <div className={styles.stackSm}>
           {customerList.length === 0 ? (
-            <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
+            <div className={`${styles.card} ${styles.emptyCard}`}>
               Chưa có khách hàng nào
             </div>
           ) : (
@@ -172,7 +160,7 @@ export function AdminManagementSection({
               const active = c.isActive !== false;
               return (
                 <div key={c.id} className={styles.itemCard} data-testid={`customer-card-${c.id}`}>
-                  <div className="flex justify-between items-center gap-3">
+                  <div className={styles.customerRow}>
                     <div>
                       <h3 className={styles.itemName}>
                         {c.fullName || c.email.split('@')[0]}
@@ -180,7 +168,7 @@ export function AdminManagementSection({
                       <span className={styles.itemSubtext}>
                         {c.email} • {orderTotal} đơn
                       </span>
-                      <div className="text-xs font-bold text-[#9C6644] mt-1">
+                      <div className={styles.customerPoints}>
                         {points} hạt vàng
                       </div>
                     </div>
@@ -207,9 +195,9 @@ export function AdminManagementSection({
 
       {/* Sub Tab: Vouchers */}
       {subTab === 'vouchers' && (
-        <div className="space-y-3">
-          <div className="flex justify-between items-center px-1">
-            <span className="text-xs font-bold text-[#78716C]">
+        <div className={styles.stackMd}>
+          <div className={styles.sectionHeaderRow}>
+            <span className={styles.subHeaderLabel}>
               Mã khuyến mãi & Giảm giá
             </span>
             <button
@@ -224,7 +212,7 @@ export function AdminManagementSection({
           </div>
 
           {voucherList.length === 0 ? (
-            <div className={`${styles.card} text-center py-6 text-xs text-[#78716C]`}>
+            <div className={`${styles.card} ${styles.emptyCard}`}>
               Chưa có mã voucher nào
             </div>
           ) : (
@@ -232,11 +220,11 @@ export function AdminManagementSection({
               <div key={v.id} className={styles.itemCard} data-testid={`voucher-card-${v.id}`}>
                 <div className={styles.itemHeaderRow}>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-[#1C1917] text-white">
+                    <div className={styles.voucherHeaderRow}>
+                      <span className={styles.voucherCodeBadge}>
                         {v.code}
                       </span>
-                      <span className="text-xs font-bold text-[#9C6644]">
+                      <span className={styles.voucherPercentText}>
                         Giảm {v.discountPercent}%
                       </span>
                     </div>

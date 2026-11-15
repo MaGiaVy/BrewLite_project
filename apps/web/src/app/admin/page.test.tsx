@@ -584,4 +584,38 @@ describe('T5.1g Admin Page (/admin) — Real API Integration', () => {
       expect(screen.getByText('Không thể cập nhật voucher lúc này')).toBeTruthy();
     });
   });
+
+  it('WEB-T20 displays "phần" unit for bakery items and "ly" for drinks in Menu tab', async () => {
+    setAdminSession();
+    createAdminApiMock({
+      products: [
+        {
+          id: 1,
+          name: 'Cà phê Sữa',
+          description: 'Cà phê phin',
+          basePrice: 35000,
+          category: 'vietnamese',
+          isActive: true,
+          availableServings: 12,
+        },
+        {
+          id: 9,
+          name: 'Pain au Chocolat',
+          description: 'Bánh sừng bò nhân sô-cô-la',
+          basePrice: 42000,
+          category: 'bakery',
+          isActive: true,
+          availableServings: 8,
+        },
+      ],
+    });
+
+    render(<AdminPage />);
+    fireEvent.click(screen.getByTestId('tab-menu'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('product-card-1').textContent).toContain('~12 ly');
+      expect(screen.getByTestId('product-card-9').textContent).toContain('~8 phần');
+    });
+  });
 });
