@@ -57,7 +57,9 @@ export class ZaloPayService {
     this.key1 = process.env.ZALOPAY_KEY1 || (isProd ? '' : SANDBOX_DEFAULT_KEY1);
     this.key2 = process.env.ZALOPAY_KEY2 || (isProd ? '' : SANDBOX_DEFAULT_KEY2);
     this.createEndpoint =
-      process.env.ZALOPAY_CREATE_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/create';
+      process.env.ZALOPAY_CREATE_ENDPOINT ||
+      process.env.ZALOPAY_ENDPOINT ||
+      'https://sb-openapi.zalopay.vn/v2/create';
     this.queryEndpoint =
       process.env.ZALOPAY_QUERY_ENDPOINT || 'https://sb-openapi.zalopay.vn/v2/query';
     this.callbackUrl =
@@ -109,8 +111,16 @@ export class ZaloPayService {
     const { orderId, amount, description, appUser = 'brewlite_customer' } = params;
     const appTransId = this.generateAppTransId(orderId);
     const appTime = Date.now();
+    const redirectBase =
+      process.env.ZALOPAY_REDIRECT_URL?.trim() ||
+      process.env.WEB_URL?.trim() ||
+      (process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*'
+        ? process.env.CORS_ORIGIN.split(',')[0]?.trim()
+        : undefined) ||
+      'http://localhost:3000';
+    const normalizedRedirectBase = redirectBase.replace(/\/+$/, '');
     const embedData = JSON.stringify({
-      redirecturl: `http://localhost:3000/order-confirmation?orderId=${orderId}`,
+      redirecturl: `${normalizedRedirectBase}/order-confirmation?orderId=${orderId}`,
       orderId,
     });
     const item = JSON.stringify([]);

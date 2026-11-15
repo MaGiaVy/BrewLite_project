@@ -480,75 +480,61 @@ describe('InventoryService — Sprint 4 (Admin BOM Warehouse, Full CRUD & Optimi
     });
   });
 
-  describe('FE-I4 — getDashboardStats expires stale >15m PENDING/PAYMENT_FAILED orders', () => {
-    it('cancels stale >15m PENDING orders via $transaction before reading recentOrders', async () => {
-      const staleOrder = {
-        id: 501,
-        status: 'PENDING',
-        discountCode: null,
-        voucherDeducted: false,
-        createdAt: new Date(Date.now() - 16 * 60 * 1000),
-        items: [{ productId: 1, size: 'M', toppings: [], quantity: 1 }],
-      };
-
-      const mockTx = {
-        order: {
-          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        },
-        inventoryLog: {
-          findMany: jest.fn().mockResolvedValue([
+  describe('M-09 — getDashboardStats read-only accuracy, no take:1000 truncation, full COGS', () => {
+    it('does not run expirePendingOrders or $transaction during GET /inventory/dashboard and computes topping + packaging COGS', async () => {
+      mockPrisma.$transaction = jest.fn();
+      mockPrisma.order.findMany.mockResolvedValueOnce([
+        {
+          id: 501,
+          status: 'PAID',
+          totalAmount: 55000,
+          discountAmount: 5000,
+          createdAt: new Date(),
+          items: [
             {
-              ingredientId: 1,
-              ingredientName: 'Robusta',
-              unit: 'g',
-              changeAmount: -25,
+              productId: 1,
+              productName: 'Cà phê Sữa Đá',
+              size: 'M',
+              toppings: ['Trân châu trắng'],
+              quantity: 1,
+              unitPrice: 60000,
             },
-          ]),
-          create: jest.fn().mockResolvedValue({}),
+          ],
+          user: null,
         },
-        ingredient: {
-          update: jest.fn().mockResolvedValue({
-            id: 1,
-            name: 'Robusta',
-            unit: 'g',
-            stock: 1025,
-          }),
-        },
-      };
-
-      mockPrisma.$transaction = jest.fn(async (cb: any) => cb(mockTx));
-      mockPrisma.order.findMany
-        .mockResolvedValueOnce([staleOrder])
-        .mockResolvedValueOnce([
-          {
-            id: 501,
-            status: 'CANCELLED',
-            totalAmount: 45000,
-            createdAt: staleOrder.createdAt,
-            items: [],
-            user: null,
-          },
-        ]);
-      mockPrisma.ingredient.findMany.mockResolvedValue([]);
+      ]);
+      mockPrisma.ingredient.findMany.mockResolvedValue([
+        { id: 10, code: 'PKG_STRAW_BOBA', name: 'Ống hút Boba', unit: 'ống', stock: 100, minThreshold: 10, costPerUnit: 500 },
+        { id: 11, code: 'PKG_BAG_T', name: 'Túi chữ T', unit: 'chiếc', stock: 100, minThreshold: 10, costPerUnit: 300 },
+        { id: 12, code: 'PKG_TISSUE', name: 'Khăn giấy', unit: 'tờ', stock: 100, minThreshold: 10, costPerUnit: 100 },
+      ]);
       mockPrisma.storeSetting.findMany.mockResolvedValue([]);
       mockPrisma.discountCode.findMany.mockResolvedValue([]);
       mockPrisma.inventoryLog.findMany.mockResolvedValue([]);
-      mockPrisma.recipe.findMany = jest.fn().mockResolvedValue([]);
+      mockPrisma.recipe.findMany = jest.fn().mockResolvedValue([
+        { productId: 1, size: 'M', amount: 10, ingredient: { costPerUnit: 1000 } },
+      ]);
+      mockPrisma.toppingRecipe = {
+        findMany: jest.fn().mockResolvedValue([
+          { toppingId: 'boba', toppingName: 'Trân châu trắng', amount: 20, ingredient: { costPerUnit: 100 } },
+        ]),
+      };
+      mockPrisma.product = {
+        findMany: jest.fn().mockResolvedValue([{ id: 1, category: 'vietnamese' }]),
+      };
 
       const stats = await service.getDashboardStats();
 
-      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockTx.order.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 501, status: 'PENDING' },
-          data: expect.objectContaining({ status: 'CANCELLED' }),
-        }),
-      );
-      expect(mockTx.ingredient.update).toHaveBeenCalled();
-      expect(stats.recentOrders[0].status).toBe('CANCELLED');
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(stats.totalRevenue).toBe(55000);
+      expect((stats as any).totalGrossRevenue).toBe(60000);
+      expect((stats as any).totalDiscountAmount).toBe(5000);
+      // 10*1000 (recipe) + 20*100 (topping) + 500 (straw boba) + 300 (bag_t) + 100 (tissue) = 12900
+      expect(stats.totalCogsSold).toBe(12900);
+      expect(stats.totalGrossProfit).toBe(55000 - 12900);
     });
 
-    it('returns full 7-day chartOrders (>50) and full stats while capping recentOrders at 50', async () => {
+    it('returns full 7-day chartOrders (>50) without take:1000 cap while capping recentOrders at 50', async () => {
       const now = Date.now();
       const orders = Array.from({ length: 65 }, (_, idx) => ({
         id: idx + 1,
@@ -594,9 +580,10 @@ describe('InventoryService — Sprint 4 (Admin BOM Warehouse, Full CRUD & Optimi
       expect(mockPrisma.order.findMany).toHaveBeenLastCalledWith(
         expect.objectContaining({
           where: { createdAt: { gte: expect.any(Date) } },
-          take: 1000,
         }),
       );
+      const findManyArg = mockPrisma.order.findMany.mock.calls.at(-1)[0];
+      expect(findManyArg).not.toHaveProperty('take');
       expect(stats.recentOrders).toHaveLength(50);
       expect((stats as any).chartOrders).toHaveLength(65);
       expect(stats.totalRevenue).toBe(65 * 50000);

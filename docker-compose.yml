@@ -28,11 +28,20 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-brewlite}:${POSTGRES_PASSWORD:-brewlite_password}@db:5432/${POSTGRES_DB:-brewlite}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-brewlite-super-secret-jwt-key-2026-sgu}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set (min 16 chars, not a default placeholder)}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       MOCK_PAYMENT_MODE: ${MOCK_PAYMENT_MODE:-success}
+      ALLOW_MOCK_PAYMENT: ${ALLOW_MOCK_PAYMENT:-true}
       ALLOW_SANDBOX_CONFIRM: ${ALLOW_SANDBOX_CONFIRM:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      ZALOPAY_APP_ID: ${ZALOPAY_APP_ID:-}
+      ZALOPAY_KEY1: ${ZALOPAY_KEY1:-}
+      ZALOPAY_KEY2: ${ZALOPAY_KEY2:-}
+      ZALOPAY_ENDPOINT: ${ZALOPAY_ENDPOINT:-https://sb-openapi.zalopay.vn/v2/create}
+      ZALOPAY_QUERY_ENDPOINT: ${ZALOPAY_QUERY_ENDPOINT:-https://sb-openapi.zalopay.vn/v2/query}
+      ZALOPAY_CALLBACK_URL: ${ZALOPAY_CALLBACK_URL:-}
+      ZALOPAY_REDIRECT_URL: ${ZALOPAY_REDIRECT_URL:-}
     ports:
       - "${API_PORT:-3001}:3001"
     healthcheck:

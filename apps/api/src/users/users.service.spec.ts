@@ -489,7 +489,7 @@ describe('UsersService — Staff & Admin User Management', () => {
       expect(result.success).toBe(true);
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 16 },
-        data: { isActive: false },
+        data: { isActive: false, tokenVersion: { increment: 1 } },
       });
     });
   });

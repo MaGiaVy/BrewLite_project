@@ -54,7 +54,7 @@ export class UsersService {
         createdAt: true,
       },
     });
-    if (!user) {
+    if (!user || user.role === Role.CUSTOMER) {
       throw new NotFoundException(`Không tìm thấy nhân viên với ID ${id}`);
     }
     return user;
@@ -118,7 +118,7 @@ export class UsersService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) {
+    if (!user || user.role === Role.CUSTOMER) {
       throw new NotFoundException(`Không tìm thấy nhân viên với ID ${id}`);
     }
 
@@ -160,6 +160,17 @@ export class UsersService {
           'Không thể thay đổi vai trò của tài khoản Quản trị viên (Admin)',
         );
       }
+      if (currentAdminId !== user.id) {
+        throw new ForbiddenException(
+          'Chỉ chính tài khoản Quản trị viên đó mới được chỉnh sửa thông tin cá nhân.',
+        );
+      }
+    }
+
+    if (dto.role === Role.CUSTOMER) {
+      throw new BadRequestException(
+        'Không thể chuyển vai trò nhân viên thành CUSTOMER qua endpoint quản lý nhân sự.',
+      );
     }
 
     // Chính sách Single Root Admin: không cho phép thăng cấp bất kỳ tài khoản nào lên ADMIN
@@ -193,6 +204,13 @@ export class UsersService {
     if (dto.password) {
       updateData.passwordHash = await bcrypt.hash(dto.password, 10);
     }
+    if (
+      dto.password ||
+      dto.isActive === false ||
+      (dto.role !== undefined && dto.role !== user.role)
+    ) {
+      updateData.tokenVersion = { increment: 1 };
+    }
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -223,7 +241,7 @@ export class UsersService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) {
+    if (!user || user.role === Role.CUSTOMER) {
       throw new NotFoundException(`Không tìm thấy nhân viên với ID ${id}`);
     }
 
@@ -235,7 +253,10 @@ export class UsersService {
 
     return this.prisma.user.update({
       where: { id },
-      data: { isActive },
+      data: {
+        isActive,
+        ...(!isActive ? { tokenVersion: { increment: 1 } } : {}),
+      },
       select: {
         id: true,
         email: true,
@@ -253,7 +274,7 @@ export class UsersService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) {
+    if (!user || user.role === Role.CUSTOMER) {
       throw new NotFoundException(`Không tìm thấy nhân viên với ID ${id}`);
     }
 
@@ -272,7 +293,7 @@ export class UsersService {
       // Nếu có ràng buộc dữ liệu (đơn hàng, audits...), chuyển sang vô hiệu hóa tài khoản
       await this.prisma.user.update({
         where: { id },
-        data: { isActive: false },
+        data: { isActive: false, tokenVersion: { increment: 1 } },
       });
       return {
         success: true,

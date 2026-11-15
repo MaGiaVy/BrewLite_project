@@ -18,7 +18,6 @@ export type { RequiredIngredientItem };
 
 const POINTS_PER_VND = 1000;
 const ORDER_PAYMENT_TTL_MS = 15 * 60 * 1000; // SRS v4.3 AC-05.4: 15 minutes
-const PAID_CANCEL_GRACE_MS = 5 * 60 * 1000; // SRS v4.3 AC-13.2: 5-minute grace period
 const MAX_INGREDIENT_LOCK_RETRIES = 3;
 
 @Injectable()
@@ -106,6 +105,10 @@ export class OrdersService {
       fetchGlobalSizePricing(this.prisma),
     ]);
 
+    const activeToppingRecipes = Array.isArray(toppingRecipes)
+      ? toppingRecipes.filter((tr: any) => tr?.isActive !== false)
+      : [];
+
     const productMap = new Map<number, any>(
       products.map((p: any) => [p.id, p]),
     );
@@ -144,24 +147,38 @@ export class OrdersService {
 
       let toppingSum = 0;
       if (Array.isArray(item.toppings) && item.toppings.length > 0) {
+        const isBakeryProduct = matchedProduct.category === 'bakery';
         for (const topStr of item.toppings) {
-          if (!topStr || !topStr.trim()) continue;
-          const lowerTop = topStr.toLowerCase().trim();
-          // Prefer exact match before substring fallback; `.find` prices each selected topping once across multi-ingredient BOM rows
-          const matchedTopping =
-            toppingRecipes.find(
-              (tr: any) =>
-                tr.toppingId?.toLowerCase() === lowerTop ||
-                tr.toppingName?.toLowerCase() === lowerTop,
-            ) ??
-            toppingRecipes.find(
-              (tr: any) =>
-                tr.toppingName?.toLowerCase().includes(lowerTop) ||
-                lowerTop.includes(tr.toppingName?.toLowerCase()),
+          const cleanTop = typeof topStr === 'string' ? topStr.trim() : '';
+          if (!cleanTop) {
+            throw new BadRequestException('Tên topping không được để trống');
+          }
+          const lowerTop = cleanTop.toLowerCase();
+          // C-01: Exact match only across active toppings (no substring fallback, no 8000đ fallback)
+          const matchedTopping = activeToppingRecipes.find(
+            (tr: any) =>
+              tr.toppingId?.toLowerCase() === lowerTop ||
+              tr.toppingName?.toLowerCase() === lowerTop,
+          );
+          if (!matchedTopping) {
+            throw new BadRequestException(
+              `Topping "${cleanTop}" không tồn tại hoặc hiện đã ngừng phục vụ.`,
             );
-          toppingSum += matchedTopping
-            ? Number(matchedTopping.price ?? 8000)
-            : 8000;
+          }
+          const isBakeryTopping = Boolean(
+            matchedTopping.toppingId?.toLowerCase().startsWith('bakery_'),
+          );
+          if (isBakeryProduct && !isBakeryTopping) {
+            throw new BadRequestException(
+              `Topping "${matchedTopping.toppingName}" không áp dụng cho món bánh ngọt "${matchedProduct.name}".`,
+            );
+          }
+          if (!isBakeryProduct && isBakeryTopping) {
+            throw new BadRequestException(
+              `Topping bánh ngọt "${matchedTopping.toppingName}" không áp dụng cho đồ uống "${matchedProduct.name}".`,
+            );
+          }
+          toppingSum += Number(matchedTopping.price ?? 0);
         }
       }
 
@@ -196,6 +213,9 @@ export class OrdersService {
         let discountAmount = 0;
         let appliedDiscountCode: string | null = null;
         let voucherDeducted = false;
+        let voucherDiscountPercent: number | null = null;
+        let voucherMinOrderAmount: number | null = null;
+        let voucherMaxDiscountAmount: number | null = null;
 
         if (dto.discountCode && dto.discountCode.trim()) {
           const code = dto.discountCode.trim().toUpperCase();
@@ -250,11 +270,20 @@ export class OrdersService {
 
             const rate = Number(personalVoucher.discountPercent || 0) / 100;
             const rawDiscount = Math.round(rawSubtotal * rate);
-            const maxCap = personalVoucher.maxDiscountAmount
-              ? Number(personalVoucher.maxDiscountAmount)
-              : Infinity;
+            const maxCap =
+              personalVoucher.maxDiscountAmount !== null &&
+              personalVoucher.maxDiscountAmount !== undefined
+                ? Number(personalVoucher.maxDiscountAmount)
+                : Infinity;
             discountAmount = Math.min(rawDiscount, maxCap, rawSubtotal);
             appliedDiscountCode = code;
+            voucherDiscountPercent = Number(personalVoucher.discountPercent || 0);
+            voucherMinOrderAmount = Number(personalVoucher.minOrderAmount || 0);
+            voucherMaxDiscountAmount =
+              personalVoucher.maxDiscountAmount !== null &&
+              personalVoucher.maxDiscountAmount !== undefined
+                ? Number(personalVoucher.maxDiscountAmount)
+                : null;
 
             const voucherModel = tx.userVoucher ?? (this.prisma as any).userVoucher;
             if (voucherModel?.updateMany) {
@@ -309,11 +338,20 @@ export class OrdersService {
               }
               const rate = Number(dbVoucher.discountPercent || 0) / 100;
               const rawDiscount = Math.round(rawSubtotal * rate);
-              const maxCap = dbVoucher.maxDiscountAmount
-                ? Number(dbVoucher.maxDiscountAmount)
-                : Infinity;
+              const maxCap =
+                dbVoucher.maxDiscountAmount !== null &&
+                dbVoucher.maxDiscountAmount !== undefined
+                  ? Number(dbVoucher.maxDiscountAmount)
+                  : Infinity;
               discountAmount = Math.min(rawDiscount, maxCap, rawSubtotal);
               appliedDiscountCode = code;
+              voucherDiscountPercent = Number(dbVoucher.discountPercent || 0);
+              voucherMinOrderAmount = Number(dbVoucher.minOrderAmount || 0);
+              voucherMaxDiscountAmount =
+                dbVoucher.maxDiscountAmount !== null &&
+                dbVoucher.maxDiscountAmount !== undefined
+                  ? Number(dbVoucher.maxDiscountAmount)
+                  : null;
 
               if (tx.discountCode?.update) {
                 await tx.discountCode.update({
@@ -440,10 +478,18 @@ export class OrdersService {
 
         const newOrder = await tx.order.create({
           data: {
+            ...(totalAmount === 0 ? { status: OrderStatus.PAID } : {}),
             totalAmount,
             discountCode: appliedDiscountCode,
             discountAmount,
             voucherDeducted,
+            ...(appliedDiscountCode
+              ? {
+                  voucherDiscountPercent,
+                  voucherMinOrderAmount,
+                  voucherMaxDiscountAmount,
+                }
+              : {}),
             userId,
             ...(normalizedKey
               ? {
@@ -614,9 +660,16 @@ export class OrdersService {
           ? this.prisma.recipe.findMany({ include: { ingredient: true } })
           : Promise.resolve([]),
         this.prisma.toppingRecipe
-          ? this.prisma.toppingRecipe.findMany({ include: { ingredient: true } })
+          ? this.prisma.toppingRecipe.findMany({
+              where: { isActive: true },
+              include: { ingredient: true },
+            })
           : Promise.resolve([]),
       ]);
+
+    const activeToppingRecipes = Array.isArray(allToppingRecipes)
+      ? allToppingRecipes.filter((tr: any) => tr?.isActive !== false)
+      : [];
 
     const orders = [...(activeOrders ?? []), ...(completedOrders ?? [])];
 
@@ -647,14 +700,16 @@ export class OrdersService {
 
         if (Array.isArray(item.toppings)) {
           for (const topStr of item.toppings) {
-            const lowerTop = topStr.toLowerCase();
-            const matchedTops = allToppingRecipes.filter(
+            const lowerTop =
+              typeof topStr === 'string' ? topStr.trim().toLowerCase() : '';
+            if (!lowerTop) continue;
+            const matchedTops = activeToppingRecipes.filter(
               (tr: any) =>
-                tr.toppingId.toLowerCase() === lowerTop ||
-                tr.toppingName.toLowerCase().includes(lowerTop) ||
-                lowerTop.includes(tr.toppingName.toLowerCase()),
+                tr.toppingId?.toLowerCase() === lowerTop ||
+                tr.toppingName?.toLowerCase() === lowerTop,
             );
             for (const tr of matchedTops) {
+              if (!tr.ingredient) continue;
               toppingBreakdown.push({
                 toppingName: tr.toppingName,
                 ingredientName: tr.ingredient.name,
@@ -711,22 +766,16 @@ export class OrdersService {
 
       if (isCustomerCancel) {
         if (order.status === OrderStatus.PAID) {
-          // SRS v4.3 AC-13.2: khách hàng chỉ được tự hủy đơn PAID trong 5 phút Grace Period trước khi pha chế
-          const paidTimestamp = (order as any).updatedAt ?? (order as any).createdAt;
-          if (
-            paidTimestamp &&
-            Date.now() - new Date(paidTimestamp).getTime() > PAID_CANCEL_GRACE_MS
-          ) {
-            throw new BadRequestException(
-              'Đã quá thời gian 5 phút cho phép tự hủy đơn hàng đã thanh toán. Vui lòng liên hệ nhân viên quầy.',
-            );
-          }
-        } else if (
+          throw new BadRequestException(
+            'Đơn hàng đã thanh toán không thể tự hủy. Vui lòng liên hệ nhân viên quầy để được hỗ trợ.',
+          );
+        }
+        if (
           order.status !== OrderStatus.PENDING &&
           order.status !== OrderStatus.PAYMENT_FAILED
         ) {
           throw new BadRequestException(
-            'Chỉ có thể hủy đơn hàng đang ở trạng thái Chờ thanh toán (PENDING), Thanh toán thất bại (PAYMENT_FAILED) hoặc Đã thanh toán (PAID) trong 5 phút.',
+            'Chỉ có thể hủy đơn hàng đang ở trạng thái Chờ thanh toán (PENDING) hoặc Thanh toán thất bại (PAYMENT_FAILED).',
           );
         }
       }

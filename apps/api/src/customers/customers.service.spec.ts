@@ -158,7 +158,7 @@ describe('CustomersService — Admin Customer Management API', () => {
   });
 
   describe('createCustomer', () => {
-    it('tạo khách hàng mới thành công với điểm Hạt Vàng luôn = 0 và mật khẩu mặc định 123456', async () => {
+    it('tạo khách hàng mới thành công với điểm Hạt Vàng luôn = 0 và mật khẩu hợp lệ (>= 6 ký tự)', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.user.create.mockImplementation(({ data }: any) =>
         Promise.resolve({
@@ -176,6 +176,7 @@ describe('CustomersService — Admin Customer Management API', () => {
         email: '  NewCustomer@Example.COM  ',
         fullName: '  Lê Thị B  ',
         phone: '  0912345678  ',
+        password: 'StrongPass123',
       };
 
       const result = await service.createCustomer(dto);
@@ -201,6 +202,28 @@ describe('CustomersService — Admin Customer Management API', () => {
       expect(result.loyaltyPoints).toBe(0);
       expect(result.email).toBe('newcustomer@example.com');
       expect(result.fullName).toBe('Lê Thị B');
+    });
+
+    it('M-03: từ chối tạo khách hàng khi thiếu mật khẩu hoặc mật khẩu < 6 ký tự (không fallback 123456)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createCustomer({
+          email: 'nopass@example.com',
+          fullName: 'No Pass',
+          password: '   ',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.createCustomer({
+          email: 'short@example.com',
+          fullName: 'Short Pass',
+          password: '12345',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
     it('tạo khách hàng mới với mật khẩu riêng được cấp', async () => {
@@ -239,6 +262,7 @@ describe('CustomersService — Admin Customer Management API', () => {
         service.createCustomer({
           email: 'duplicate@example.com',
           fullName: 'Trùng Email',
+          password: 'Password123',
         }),
       ).rejects.toThrow(BadRequestException);
 
@@ -385,7 +409,7 @@ describe('CustomersService — Admin Customer Management API', () => {
 
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 3 },
-        data: { isActive: false },
+        data: { isActive: false, tokenVersion: { increment: 1 } },
         select: expect.any(Object),
       });
       expect(result.isActive).toBe(false);
@@ -455,10 +479,10 @@ describe('CustomersService — Admin Customer Management API', () => {
       });
       // Không được xóa vật lý
       expect(prisma.user.delete).not.toHaveBeenCalled();
-      // Khóa tài khoản
+      // Khóa tài khoản và vô hiệu hóa token hiện tại
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 20 },
-        data: { isActive: false },
+        data: { isActive: false, tokenVersion: { increment: 1 } },
       });
       expect(result).toEqual({
         success: true,

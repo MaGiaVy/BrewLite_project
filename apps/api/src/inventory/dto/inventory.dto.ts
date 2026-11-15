@@ -156,9 +156,13 @@ export class UpdateIngredientDto {
 
 export class UpsertRecipeDto {
   @IsInt()
+  @Min(1)
+  @Max(2147483647)
   productId!: number;
 
   @IsInt()
+  @Min(1)
+  @Max(2147483647)
   ingredientId!: number;
 
   @IsString()
@@ -170,6 +174,7 @@ export class UpsertRecipeDto {
 
   @IsNumber()
   @Min(0.01, { message: 'Định lượng tiêu hao phải lớn hơn 0' })
+  @Max(1000000, { message: 'Định lượng tiêu hao không hợp lệ' })
   amount!: number;
 }
 
@@ -183,6 +188,7 @@ export class UpdateRecipeDto {
 
   @IsNumber()
   @Min(0.01, { message: 'Định lượng tiêu hao phải lớn hơn 0' })
+  @Max(1000000, { message: 'Định lượng tiêu hao không hợp lệ' })
   amount!: number;
 }
 
@@ -199,8 +205,9 @@ export class CreateToppingRecipeDto {
   @IsString()
   subtext?: string;
 
-  @IsNumber()
+  @IsInt({ message: 'Giá topping phải là số nguyên (VND)' })
   @Min(0)
+  @Max(100000000)
   price!: number;
 
   @IsOptional()
@@ -208,10 +215,13 @@ export class CreateToppingRecipeDto {
   isActive?: boolean;
 
   @IsInt()
+  @Min(1)
+  @Max(2147483647)
   ingredientId!: number;
 
   @IsNumber()
   @Min(0.01)
+  @Max(1000000)
   amount!: number;
 }
 
@@ -225,8 +235,9 @@ export class UpdateToppingRecipeDto {
   subtext?: string;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt({ message: 'Giá topping phải là số nguyên (VND)' })
   @Min(0)
+  @Max(100000000)
   price?: number;
 
   @IsOptional()
@@ -236,20 +247,24 @@ export class UpdateToppingRecipeDto {
   @IsOptional()
   @IsNumber()
   @Min(0.01)
+  @Max(1000000)
   amount?: number;
 }
 
 export class UpdateSizePricingDto {
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100000000)
   sizeS!: number;
 
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100000000)
   sizeM!: number;
 
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100000000)
   sizeL!: number;
 }
 
@@ -268,13 +283,15 @@ export class CreateVoucherDto {
   discountPercent!: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100000000)
   minOrderAmount?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100000000)
   maxDiscountAmount?: number;
 
   @IsOptional()
@@ -298,13 +315,15 @@ export class UpdateVoucherDto {
   discountPercent?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100000000)
   minOrderAmount?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
+  @Max(100000000)
   maxDiscountAmount?: number;
 
   @IsOptional()

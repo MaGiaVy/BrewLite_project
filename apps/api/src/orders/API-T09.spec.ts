@@ -2,8 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { OrderStatus, Role } from '@prisma/client';
 import { OrdersService } from './orders.service';
 
-describe('API-T09 — PAID order cancellation (5m grace period)', () => {
-  it('cancels PAID order within grace period, restores BOM stock and revokes loyalty points', async () => {
+describe('API-T09 — PAID order cancellation policy (Phần 4.1)', () => {
+  it('allows STAFF/ADMIN to cancel PAID order before PREPARING, restores BOM stock and revokes loyalty points', async () => {
     const ingredientUpdate = jest.fn().mockResolvedValue({ id: 10, name: 'Cà phê hạt', unit: 'g', stock: 140 });
     const userUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
     const orderFindInTx = jest.fn().mockResolvedValue({
@@ -20,6 +20,9 @@ describe('API-T09 — PAID order cancellation (5m grace period)', () => {
           updatedAt: new Date(),
           items: [{ productId: 1, size: 'M', toppings: [], quantity: 2 }],
         }),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ id: 99, fullName: 'Staff Quầy' }),
       },
       $transaction: jest.fn((callback: any) => callback({
         order: {
@@ -38,7 +41,7 @@ describe('API-T09 — PAID order cancellation (5m grace period)', () => {
     };
 
     const result = await new OrdersService(prisma).updateOrderStatus(
-      30, OrderStatus.CANCELLED, 5, Role.CUSTOMER,
+      30, OrderStatus.CANCELLED, 99, Role.STAFF,
     );
 
     expect(result.status).toBe(OrderStatus.CANCELLED);
@@ -52,7 +55,7 @@ describe('API-T09 — PAID order cancellation (5m grace period)', () => {
     });
   });
 
-  it('rejects CUSTOMER cancelling PAID order after the 5-minute grace period', async () => {
+  it('rejects CUSTOMER cancelling PAID order at any time (must contact Staff/Admin)', async () => {
     const prisma: any = {
       order: {
         findUnique: jest.fn().mockResolvedValue({
@@ -61,7 +64,7 @@ describe('API-T09 — PAID order cancellation (5m grace period)', () => {
           version: 0,
           status: OrderStatus.PAID,
           totalAmount: 50000,
-          updatedAt: new Date(Date.now() - 6 * 60 * 1000),
+          updatedAt: new Date(),
           items: [],
         }),
       },

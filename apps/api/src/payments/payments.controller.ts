@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   Post,
   Query,
   Request,
@@ -15,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ParseInt32Pipe } from '../common/pipes/parse-int32.pipe';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentsService } from './payments.service';
 
@@ -61,7 +61,7 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   createZaloPayOrder(
     @Request() req: AuthRequest,
-    @Body('orderId', ParseIntPipe) orderId: number,
+    @Body('orderId', ParseInt32Pipe) orderId: number,
   ) {
     return this.paymentsService.createZaloPayOrder(
       orderId,
@@ -81,7 +81,7 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   getZaloPayStatus(
     @Request() req: AuthRequest,
-    @Param('orderId', ParseIntPipe) orderId: number,
+    @Param('orderId', ParseInt32Pipe) orderId: number,
     @Query('appTransId') appTransId?: string,
   ) {
     return this.paymentsService.getZaloPayStatus(
@@ -97,7 +97,7 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   confirmZaloPayOrder(
     @Request() req: AuthRequest,
-    @Body('orderId', new ParseIntPipe({ optional: true })) orderId?: number | string,
+    @Body('orderId', new ParseInt32Pipe({ optional: true })) orderId?: number | string,
     @Body('appTransId') appTransId?: string,
   ) {
     this.assertSandboxConfirmAllowed(
@@ -122,7 +122,7 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   cancelZaloPayOrder(
     @Request() req: AuthRequest,
-    @Body('orderId', ParseIntPipe) orderId: number,
+    @Body('orderId', ParseInt32Pipe) orderId: number,
   ) {
     this.assertSandboxConfirmAllowed(
       'Hủy thanh toán Sandbox bị vô hiệu hóa trên môi trường Production.',

@@ -67,7 +67,12 @@ export class CustomersService {
       throw new BadRequestException('Email này đã được sử dụng');
     }
 
-    const rawPassword = dto.password?.trim() ? dto.password.trim() : '123456';
+    const rawPassword = dto.password?.trim();
+    if (!rawPassword || rawPassword.length < 6) {
+      throw new BadRequestException(
+        'Mật khẩu khách hàng bắt buộc phải có ít nhất 6 ký tự',
+      );
+    }
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
     return this.prisma.user.create({
@@ -104,6 +109,7 @@ export class CustomersService {
       phone?: string | null;
       isActive?: boolean;
       passwordHash?: string;
+      tokenVersion?: { increment: number };
     } = {};
 
     if (dto.fullName !== undefined) {
@@ -116,10 +122,18 @@ export class CustomersService {
 
     if (dto.isActive !== undefined) {
       data.isActive = dto.isActive;
+      if (dto.isActive === false) {
+        data.tokenVersion = { increment: 1 };
+      }
     }
 
-    if (dto.password && dto.password.trim()) {
-      data.passwordHash = await bcrypt.hash(dto.password.trim(), 10);
+    if (dto.password !== undefined) {
+      const trimmedPassword = dto.password.trim();
+      if (trimmedPassword.length < 6) {
+        throw new BadRequestException('Mật khẩu mới phải có ít nhất 6 ký tự');
+      }
+      data.passwordHash = await bcrypt.hash(trimmedPassword, 10);
+      data.tokenVersion = { increment: 1 };
     }
 
     // RÀNG BUỘC SỐNG CÒN: Tuyệt đối không cho phép sửa loyaltyPoints
@@ -146,7 +160,10 @@ export class CustomersService {
 
     return this.prisma.user.update({
       where: { id },
-      data: { isActive },
+      data: {
+        isActive,
+        ...(!isActive ? { tokenVersion: { increment: 1 } } : {}),
+      },
       select: {
         id: true,
         email: true,
@@ -179,7 +196,7 @@ export class CustomersService {
 
     await this.prisma.user.update({
       where: { id },
-      data: { isActive: false },
+      data: { isActive: false, tokenVersion: { increment: 1 } },
     });
 
     return {

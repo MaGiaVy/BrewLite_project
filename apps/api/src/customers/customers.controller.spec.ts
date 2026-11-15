@@ -58,6 +58,7 @@ describe('CustomersController', () => {
     const dto: CreateCustomerDto = {
       email: 'a@b.com',
       fullName: 'A B',
+      password: 'Password123!',
     };
     service.createCustomer.mockResolvedValue({ id: 1, ...dto });
     await controller.createCustomer(dto);

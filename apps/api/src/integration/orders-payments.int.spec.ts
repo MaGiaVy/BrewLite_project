@@ -158,7 +158,10 @@ runIntegrationSuite('orders and payments integration', () => {
       request(app.getHttpServer()).post('/orders').set(auth).send(orderBody(productId)),
     ]);
 
-    expect(responses.map((response: any) => response.status).sort()).toEqual([201, 409]);
+    const statuses = responses.map((response: any) => response.status).sort();
+    expect(statuses[0]).toBe(201);
+    expect([400, 409]).toContain(statuses[1]);
+    expect(await prisma.order.count()).toBe(1);
     expect((await prisma.ingredient.findUnique({ where: { id: ingredientId } }))?.stock).toBe(0);
   });
 

@@ -1,9 +1,10 @@
-import { IsBoolean, IsEnum, IsInt, IsOptional, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
 
 export class CreatePaymentDto {
   @IsInt({ message: 'Mã đơn hàng orderId phải là số nguyên' })
   @Min(1, { message: 'Mã đơn hàng orderId phải lớn hơn hoặc bằng 1' })
+  @Max(2147483647, { message: 'Mã đơn hàng orderId vượt quá giới hạn INT4' })
   orderId!: number;
 
   @IsEnum(PaymentMethod, {

@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Request,
@@ -17,6 +16,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { ToggleStatusDto } from '../common/dto/toggle-status.dto';
+import { ParseInt32Pipe } from '../common/pipes/parse-int32.pipe';
 import { UsersService } from './users.service';
 
 @Controller('staff')
@@ -31,7 +31,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  getStaffById(@Param('id', ParseIntPipe) id: number) {
+  getStaffById(@Param('id', ParseInt32Pipe) id: number) {
     return this.usersService.getStaffById(id);
   }
 
@@ -42,7 +42,7 @@ export class UsersController {
 
   @Patch(':id')
   updateStaff(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseInt32Pipe) id: number,
     @Body() dto: UpdateStaffDto,
     @Request() req: any,
   ) {
@@ -51,7 +51,7 @@ export class UsersController {
 
   @Patch(':id/status')
   toggleStaffStatus(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseInt32Pipe) id: number,
     @Body() dto: ToggleStatusDto,
     @Request() req: any,
   ) {
@@ -59,7 +59,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  deleteStaff(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+  deleteStaff(@Param('id', ParseInt32Pipe) id: number, @Request() req: any) {
     return this.usersService.deleteStaff(id, req.user?.userId);
   }
 }

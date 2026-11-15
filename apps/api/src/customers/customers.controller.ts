@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   UseGuards,
@@ -17,6 +16,7 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { ToggleStatusDto } from '../common/dto/toggle-status.dto';
+import { ParseInt32Pipe } from '../common/pipes/parse-int32.pipe';
 
 @Controller('admin/customers')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -30,7 +30,7 @@ export class CustomersController {
   }
 
   @Get(':id')
-  getCustomerById(@Param('id', ParseIntPipe) id: number) {
+  getCustomerById(@Param('id', ParseInt32Pipe) id: number) {
     return this.customersService.getCustomerById(id);
   }
 
@@ -41,7 +41,7 @@ export class CustomersController {
 
   @Patch(':id')
   updateCustomer(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseInt32Pipe) id: number,
     @Body() dto: UpdateCustomerDto,
   ) {
     return this.customersService.updateCustomer(id, dto);
@@ -49,14 +49,14 @@ export class CustomersController {
 
   @Patch(':id/status')
   toggleCustomerStatus(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseInt32Pipe) id: number,
     @Body() dto: ToggleStatusDto,
   ) {
     return this.customersService.toggleCustomerStatus(id, dto.isActive);
   }
 
   @Delete(':id')
-  deleteCustomer(@Param('id', ParseIntPipe) id: number) {
+  deleteCustomer(@Param('id', ParseInt32Pipe) id: number) {
     return this.customersService.deleteCustomer(id);
   }
 }

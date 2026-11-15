@@ -345,7 +345,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('chặn khách hàng thường tự hủy đơn khi đơn đang pha chế (PREPARING) hoặc đã quá 5 phút grace period sau PAID (ném BadRequestException)', async () => {
+    it('chặn khách hàng thường tự hủy đơn khi đơn đang pha chế (PREPARING) hoặc đã thanh toán (PAID) (ném BadRequestException)', async () => {
       prisma.order.findUnique.mockResolvedValue({
         id: 107,
         userId: 1,
@@ -357,12 +357,12 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
         service.updateOrderStatus(107, OrderStatus.CANCELLED, 1, Role.CUSTOMER),
       ).rejects.toThrow(BadRequestException);
 
-      // Quá 5 phút Grace Period kể từ khi PAID -> chặn hủy
+      // Đơn đã thanh toán (PAID): khách hàng không được tự hủy dù vừa thanh toán
       prisma.order.findUnique.mockResolvedValue({
         id: 108,
         userId: 1,
         status: OrderStatus.PAID,
-        updatedAt: new Date(Date.now() - 6 * 60 * 1000),
+        updatedAt: new Date(),
         items: [],
       });
 
@@ -371,7 +371,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('[SRS AC-13.2] cho phép khách hàng hủy đơn PAID trong vòng 5 phút grace period và hoàn kho + thu hồi điểm Loyalty', async () => {
+    it('[SRS AC-13.2] cho phép STAFF/ADMIN hủy đơn PAID trước khi pha chế (PREPARING) và hoàn kho + thu hồi điểm Loyalty', async () => {
       const now = new Date();
       prisma.order.findUnique.mockResolvedValue({
         id: 110,
@@ -407,7 +407,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       };
       prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
 
-      const res = await service.updateOrderStatus(110, OrderStatus.CANCELLED, 1, Role.CUSTOMER);
+      const res = await service.updateOrderStatus(110, OrderStatus.CANCELLED, 99, Role.STAFF);
       expect(res.status).toBe(OrderStatus.CANCELLED);
       expect(mockTx.user.updateMany).toHaveBeenCalledWith({
         where: { id: 1, loyaltyPoints: { gte: 50 } },
@@ -1000,7 +1000,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
         {
           items: [
             { productId: 1, productName: 'Cà phê Đen', size: 'M', toppings: [], quantity: 2, unitPrice: 29000 },
-            { productId: 1, productName: 'Cà phê Đen', size: 'M', toppings: ['Trân châu trắng'], quantity: 1, unitPrice: 37000 },
+            { productId: 1, productName: 'Cà phê Đen', size: 'M', toppings: ['Trân châu trắng giòn'], quantity: 1, unitPrice: 37000 },
             { productId: 8, productName: 'Bánh Pain', size: 'ALL', toppings: [], quantity: 1, unitPrice: 39000 },
           ],
         },

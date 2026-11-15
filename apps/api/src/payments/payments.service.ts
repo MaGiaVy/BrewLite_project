@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -53,6 +54,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional()
+    @Inject(MockGatewayService)
     private readonly mockGatewayService: MockGatewayService | MockPaymentService | any = new MockGatewayService(),
     @Optional() private readonly zaloPayService?: ZaloPayService,
     @Optional() private readonly mockPaymentService?: MockPaymentService,
@@ -653,7 +655,10 @@ export class PaymentsService {
         };
       });
     } catch (err: any) {
-      if (err?.code === 'P2002' && idempotencyKey) {
+      if (
+        (err?.code === 'P2002' || err instanceof ConflictException) &&
+        idempotencyKey
+      ) {
         const existingPayment = await this.prisma.payment.findUnique({
           where: { idempotencyKey },
           include: { order: true },
@@ -664,10 +669,12 @@ export class PaymentsService {
               'Idempotency-Key da duoc su dung cho mot don hang khac.',
             );
           }
-          this.logger.log(
-            `[Idempotency] Phat hien yeu cau trung lap P2002 sau rollback voi key "${idempotencyKey}". Tra ve ket qua giao dich cu.`,
-          );
-          return this.buildIdempotentPaymentResponse(existingPayment);
+          if (existingPayment.status === PaymentStatus.SUCCESS) {
+            this.logger.log(
+              `[Idempotency] Phat hien yeu cau trung lap sau rollback/race voi key "${idempotencyKey}". Tra ve ket qua giao dich cu.`,
+            );
+            return this.buildIdempotentPaymentResponse(existingPayment);
+          }
         }
       }
       throw err;
@@ -786,6 +793,12 @@ export class PaymentsService {
       }
     }
 
+    if (order.totalAmount <= 0) {
+      throw new BadRequestException(
+        `Đơn hàng #${orderId} có giá trị 0đ nên không cần tạo giao dịch ZaloPay.`,
+      );
+    }
+
     return await this.zaloPayService.createOrder({
       orderId: order.id,
       amount: order.totalAmount,
@@ -809,14 +822,14 @@ export class PaymentsService {
       const dataJson = JSON.parse(body.data);
       const { app_trans_id, amount, zp_trans_id, embed_data } = dataJson;
 
-      let orderId: number | null = null;
+      let embedOrderId: number | null = null;
       if (embed_data) {
         try {
           const parsed = JSON.parse(embed_data);
-          if (parsed.orderId) {
+          if (parsed.orderId !== undefined && parsed.orderId !== null) {
             const parsedId = Number(parsed.orderId);
             if (Number.isInteger(parsedId) && parsedId > 0) {
-              orderId = parsedId;
+              embedOrderId = parsedId;
             }
           }
         } catch {
@@ -824,9 +837,18 @@ export class PaymentsService {
         }
       }
 
-      if (!orderId) {
-        orderId = this.extractOrderIdFromAppTransId(app_trans_id);
+      const appTransOrderId = this.extractOrderIdFromAppTransId(app_trans_id);
+      if (embedOrderId && appTransOrderId && embedOrderId !== appTransOrderId) {
+        this.logger.error(
+          `[ZaloPay Callback] app_trans_id (#${appTransOrderId}) không khớp embed_data.orderId (#${embedOrderId})`,
+        );
+        return {
+          return_code: 0,
+          return_message: 'app_trans_id does not match embed_data orderId',
+        };
       }
+
+      const orderId = embedOrderId ?? appTransOrderId;
 
       if (!orderId) {
         this.logger.error(
@@ -857,7 +879,11 @@ export class PaymentsService {
         return { return_code: 1, return_message: 'Order already processed' };
       }
 
-      if (!amount || Number(amount) !== order.totalAmount) {
+      const parsedAmount =
+        amount === undefined || amount === null || amount === ''
+          ? NaN
+          : Number(amount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount !== order.totalAmount) {
         this.logger.error(
           `[ZaloPay Callback] Gian lận số tiền! Số tiền callback (${amount}) không khớp đơn #${orderId} (${order.totalAmount})`,
         );
@@ -909,7 +935,7 @@ export class PaymentsService {
         }
 
         if (alreadyProcessedStatuses.includes(txOrder.status)) {
-          return { return_code: 1, return_message: 'success' };
+          return { return_code: 1, return_message: 'Order already processed' };
         }
 
         if (
@@ -1197,6 +1223,7 @@ export class PaymentsService {
       throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
     }
 
+    // Sandbox cancel remains owner-only (BE-C1); Staff/Admin cancel customer PAID orders via PATCH /orders/:id/status
     this.assertCanAccessOrder(
       order,
       userId,

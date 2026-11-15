@@ -132,6 +132,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: (user as any).tokenVersion ?? 0,
     };
     const accessToken = this.jwtService.sign(payload);
 
@@ -171,6 +172,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: (user as any).tokenVersion ?? 0,
     };
     const accessToken = this.jwtService.sign(payload);
 
@@ -232,6 +234,7 @@ export class AuthService {
         fullName: dto.fullName?.trim(),
         phone: dto.phone?.trim(),
         passwordHash: newPasswordHash,
+        ...(newPasswordHash ? { tokenVersion: { increment: 1 } } : {}),
       },
       select: {
         id: true,
@@ -250,7 +253,7 @@ export class AuthService {
 
   async getUserVouchers(userId: number) {
     return (this.prisma as any).userVoucher.findMany({
-      where: { userId },
+      where: { userId, quantity: { gt: 0 } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -282,52 +285,51 @@ export class AuthService {
       throw new NotFoundException('User không tồn tại');
     }
 
-    let catalogEntry: VoucherCatalogItem | undefined;
+    if (voucherCode === undefined || voucherCode === null) {
+      throw new BadRequestException('Vui lòng chọn mã voucher hợp lệ để đổi thưởng');
+    }
+
+    const rawCode =
+      typeof voucherCode === 'string' ? voucherCode : voucherCode.code;
+
+    if (!rawCode || typeof rawCode !== 'string' || !rawCode.trim()) {
+      throw new BadRequestException('Mã voucher đổi thưởng không hợp lệ');
+    }
+
+    const cleanCode = rawCode.trim().toUpperCase();
+    const catalogEntry: VoucherCatalogItem | undefined = VOUCHER_CATALOG[cleanCode];
     let dbVoucher: any = null;
-    let cleanCode: string | null = null;
     let effectivePointsToDeduct = points;
 
-    if (voucherCode !== undefined && voucherCode !== null) {
-      const rawCode =
-        typeof voucherCode === 'string' ? voucherCode : voucherCode.code;
-
-      if (rawCode && typeof rawCode === 'string' && rawCode.trim()) {
-        cleanCode = rawCode.trim().toUpperCase();
-        catalogEntry = VOUCHER_CATALOG[cleanCode];
-
-        if (!catalogEntry && (this.prisma as any).discountCode?.findUnique) {
-          try {
-            dbVoucher = await (this.prisma as any).discountCode.findUnique({
-              where: { code: cleanCode },
-            });
-          } catch {
-            dbVoucher = null;
-          }
-        }
-
-        if (!catalogEntry && !dbVoucher) {
-          throw new BadRequestException('Mã voucher đổi thưởng không hợp lệ');
-        }
-
-        if (!catalogEntry && dbVoucher && dbVoucher.isActive === false) {
-          throw new BadRequestException(
-            'Mã voucher đổi thưởng hiện đang tạm ngưng áp dụng',
-          );
-        }
-
-        const requiredPoints = catalogEntry
-          ? catalogEntry.requiredPoints
-          : Math.max(1, Math.round(dbVoucher.discountPercent) || 10);
-
-        if (points < requiredPoints) {
-          throw new BadRequestException('Số Hạt Vàng không đủ để đổi mã này');
-        }
-
-        effectivePointsToDeduct = requiredPoints;
-      } else {
-        throw new BadRequestException('Mã voucher đổi thưởng không hợp lệ');
+    if ((this.prisma as any).discountCode?.findUnique) {
+      try {
+        dbVoucher = await (this.prisma as any).discountCode.findUnique({
+          where: { code: cleanCode },
+        });
+      } catch {
+        dbVoucher = null;
       }
     }
+
+    if (!catalogEntry && !dbVoucher) {
+      throw new BadRequestException('Mã voucher đổi thưởng không hợp lệ');
+    }
+
+    if (dbVoucher && dbVoucher.isActive === false) {
+      throw new BadRequestException(
+        'Mã voucher đổi thưởng hiện đang tạm ngưng áp dụng',
+      );
+    }
+
+    const requiredPoints = catalogEntry
+      ? catalogEntry.requiredPoints
+      : Math.max(1, Math.round(dbVoucher.discountPercent) || 10);
+
+    if (points < requiredPoints) {
+      throw new BadRequestException('Số Hạt Vàng không đủ để đổi mã này');
+    }
+
+    effectivePointsToDeduct = requiredPoints;
 
     if (user.loyaltyPoints < effectivePointsToDeduct) {
       throw new BadRequestException(
@@ -370,13 +372,12 @@ export class AuthService {
       let userVoucher = null;
       if (cleanCode) {
         const effectivePercent =
-          catalogEntry?.discountPercent ?? dbVoucher?.discountPercent ?? 10;
-        const effectiveMax =
-          catalogEntry?.maxDiscountAmount ??
-          dbVoucher?.maxDiscountAmount ??
-          null;
+          dbVoucher?.discountPercent ?? catalogEntry?.discountPercent ?? 10;
+        const effectiveMax = dbVoucher
+          ? (dbVoucher.maxDiscountAmount ?? null)
+          : (catalogEntry?.maxDiscountAmount ?? null);
         const effectiveMin =
-          catalogEntry?.minOrderAmount ?? dbVoucher?.minOrderAmount ?? 0;
+          dbVoucher?.minOrderAmount ?? catalogEntry?.minOrderAmount ?? 0;
 
         const existing = await tx.userVoucher.findUnique({
           where: {
@@ -414,7 +415,7 @@ export class AuthService {
       }
 
       const allVouchers = await tx.userVoucher.findMany({
-        where: { userId },
+        where: { userId, quantity: { gt: 0 } },
       });
 
       const qty = userVoucher ? userVoucher.quantity : 1;

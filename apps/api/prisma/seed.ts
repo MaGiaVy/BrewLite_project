@@ -699,9 +699,9 @@ async function main(): Promise<void> {
     },
     {
       code: 'WELCOME20',
-      description: 'Giảm 20% khách hàng mới',
+      description: 'Giảm 20% khách hàng mới (Đơn từ 50k)',
       discountPercent: 20,
-      minOrderAmount: 0,
+      minOrderAmount: 50000,
       maxDiscountAmount: 25000,
       isActive: true,
     },
@@ -737,7 +737,6 @@ async function main(): Promise<void> {
   await prisma.user.upsert({
     where: { email: 'admin@brewlite.vn' },
     update: {
-      passwordHash: adminHash,
       role: Role.ADMIN,
       fullName: 'Quản Lý Cửa Hàng (Admin)',
     },
@@ -755,7 +754,6 @@ async function main(): Promise<void> {
   await prisma.user.upsert({
     where: { email: '3124410414@sv.sgu.edu.vn' },
     update: {
-      passwordHash: adminHash,
       role: Role.ADMIN,
       fullName: 'Mã Gia Vỹ (Admin)',
       position: 'Quản Lý Cửa Hàng',
@@ -811,7 +809,6 @@ async function main(): Promise<void> {
     await prisma.user.upsert({
       where: { email: s.email },
       update: {
-        passwordHash: staffEasyHash,
         role: Role.STAFF,
         fullName: s.fullName,
         position: s.position,
@@ -834,7 +831,6 @@ async function main(): Promise<void> {
   await prisma.user.upsert({
     where: { email: 'staff@brewlite.vn' },
     update: {
-      passwordHash: staffEasyHash,
       role: Role.STAFF,
       fullName: 'Barista Trưởng Ca (Staff)',
       position: 'Barista Trưởng Ca',
@@ -856,7 +852,6 @@ async function main(): Promise<void> {
   await prisma.user.upsert({
     where: { email: 'khach@brewlite.vn' },
     update: {
-      passwordHash: khachHash,
       role: Role.CUSTOMER,
       fullName: 'Khách Hàng Thân Thiết',
       position: null,
@@ -877,7 +872,6 @@ async function main(): Promise<void> {
   await prisma.user.upsert({
     where: { email: 'test@example.com' },
     update: {
-      passwordHash: testHash,
       role: Role.CUSTOMER,
       position: null,
     },

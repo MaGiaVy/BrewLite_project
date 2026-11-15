@@ -36,6 +36,7 @@ export async function computeRequiredIngredients(
     }),
     tx.toppingRecipe
       ? tx.toppingRecipe.findMany({
+          where: { isActive: true },
           include: { ingredient: true },
         })
       : Promise.resolve([]),
@@ -62,6 +63,10 @@ export async function computeRequiredIngredients(
         })
       : Promise.resolve([]),
   ]);
+
+  const activeToppingRecipes = Array.isArray(toppingRecipes)
+    ? toppingRecipes.filter((tr: any) => tr?.isActive !== false)
+    : [];
 
   const productMap = new Map<number, any>(
     (products || []).map((p: any) => [p.id, p]),
@@ -118,48 +123,51 @@ export async function computeRequiredIngredients(
           r.ingredient?.code?.startsWith('ING_TIRAMISU'),
       );
 
+    const matchedTopsForItem: any[] = [];
+    if (Array.isArray(item.toppings) && item.toppings.length > 0) {
+      for (const topStr of item.toppings) {
+        const lowerTop =
+          typeof topStr === 'string' ? topStr.toLowerCase().trim() : '';
+        if (!lowerTop) continue;
+        // Exact match only (C-01): prevent substring collisions or inactive toppings
+        const matchedTops = activeToppingRecipes.filter(
+          (tr: any) =>
+            tr.toppingId?.toLowerCase() === lowerTop ||
+            tr.toppingName?.toLowerCase() === lowerTop,
+        );
+        for (const tr of matchedTops) {
+          matchedTopsForItem.push(tr);
+          addRequirement(tr.ingredient, tr.amount * item.quantity, true);
+        }
+      }
+    }
+
     if (isBakery) {
       totalPastries += item.quantity;
     } else {
       totalDrinkCups += item.quantity;
       const hasBoba =
-        Array.isArray(item.toppings) &&
-        item.toppings.some((topStr: string) => {
-          const low = topStr.toLowerCase();
+        matchedTopsForItem.some((tr: any) => {
+          const low = `${tr.toppingId || ''} ${tr.toppingName || ''}`.toLowerCase();
           return (
             low.includes('boba') ||
             low.includes('trân châu') ||
             low.includes('thạch')
           );
-        });
+        }) ||
+        (Array.isArray(item.toppings) &&
+          item.toppings.some((t: any) => {
+            const low = typeof t === 'string' ? t.toLowerCase().trim() : '';
+            return (
+              low.includes('boba') ||
+              low.includes('trân châu') ||
+              low.includes('thạch')
+            );
+          }));
       const strawCode = hasBoba ? 'PKG_STRAW_BOBA' : 'PKG_STRAW_BIO';
       const strawIng = auxPkgMap.get(strawCode);
       if (strawIng) {
         addRequirement(strawIng, item.quantity, false);
-      }
-    }
-
-    if (Array.isArray(item.toppings) && item.toppings.length > 0) {
-      for (const topStr of item.toppings) {
-        const lowerTop = topStr.toLowerCase().trim();
-        if (!lowerTop) continue;
-        // Prefer exact toppingId/toppingName match so similarly named toppings stay isolated across BOM rows
-        const exactTops = toppingRecipes.filter(
-          (tr: any) =>
-            tr.toppingId?.toLowerCase() === lowerTop ||
-            tr.toppingName?.toLowerCase() === lowerTop,
-        );
-        const matchedTops =
-          exactTops.length > 0
-            ? exactTops
-            : toppingRecipes.filter(
-                (tr: any) =>
-                  tr.toppingName?.toLowerCase().includes(lowerTop) ||
-                  lowerTop.includes(tr.toppingName?.toLowerCase()),
-              );
-        for (const tr of matchedTops) {
-          addRequirement(tr.ingredient, tr.amount * item.quantity, true);
-        }
       }
     }
   }
