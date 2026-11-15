@@ -1,202 +1,45 @@
-> **Thành viên thực hiện:** Huỳnh Tuấn Kiệt (Task 2.2 — Sequence Diagram)  
-# Tài Liệu Biểu Đồ Trình Tự Đặt Hàng & Thanh Toán 2 Pha (Checkout & Payment Sequence Diagram)
+# Biểu đồ Tuần tự Luồng Đặt hàng & Thanh toán (Checkout Sequence Diagram)
 
-Tài liệu này mô tả chi tiết kiến trúc quy trình đặt hàng và thanh toán (Checkout & Payment) của hệ thống **BrewLite**. Toàn bộ thiết kế được xây dựng đồng bộ với mã nguồn thực tế tại `apps/api/src/orders/orders.service.ts`, `apps/api/src/payments/payments.service.ts` và `apps/api/src/jobs/expire-orders.job.ts`. Biểu đồ nguồn tương ứng được lưu tại [`sequence-checkout.puml`](sequence-checkout.puml).
+## 1. Tổng quan Kiến trúc 2 Pha
 
----
+Quy trình Checkout của hệ thống **BrewLite** tách biệt thành **2 Pha độc lập (Two-Phase Checkout)** thông qua 5 thành phần cốt lõi (`Customer`, `Next.js Web`, `NestJS API`, `PostgreSQL`, `ZaloPay / Mock Payment`) để đảm bảo tính nhất quán tồn kho BOM và ngăn chặn thanh toán trùng lặp:
 
-## 1. Kiến Trúc Thanh Toán 2 Pha Riêng Biệt (Two-Phase Architecture)
+1. **Pha 1 (`POST /orders`)**: Xác thực JWT, kiểm tra `Idempotency-Key`, khóa dòng `User` kiểm tra `< 5` đơn chưa hoàn tất, tính lại tổng tiền (0% VAT), trừ lượt Voucher (`voucherDeducted = true`) và trừ kho nguyên liệu BOM bằng **Optimistic Locking (`version + 1`)** để tạo đơn hàng `PENDING` (TTL **15 phút**; hoặc `PAID` ngay nếu `totalAmount = 0`).
+2. **Pha 2 (`POST /payments` hoặc `POST /payments/zalopay/create`)**: Gọi cổng thanh toán ZaloPay / Mock Gateway (kèm `Idempotency-Key` hoặc IPN HMAC-SHA256 `key2`) để hoàn tất chuyển trạng thái `Order -> PAID`, ghi nhận `Payment(SUCCESS)` và cộng điểm Hạt Vàng (**1.000đ = 1 điểm**), hoặc chuyển `PAYMENT_FAILED` nếu thanh toán thất bại.
+3. **Theo dõi tiến độ (`/orders/:id`)**: Web polling `GET /orders/:id` mỗi **5 giây** (`useOrderPolling`) để đồng bộ trạng thái từ KDS quầy pha chế (`PAID -> PREPARING -> READY -> COMPLETED`).
 
-Để đảm bảo tính nhất quán dữ liệu kho hàng (BOM), ngăn chặn tranh chấp tài nguyên đồng thời và chống giả mạo số tiền (Anti-tampering / IDOR), hệ thống BrewLite tách biệt tuyệt đối quy trình mua hàng thành **2 PHA RIÊNG BIỆT**:
+* **Tệp nguồn PlantUML**: [sequence-checkout.puml](file:///D:/SWE/BrewLite_project/docs/diagrams/sequence-checkout.puml)
+* **Ảnh vector SVG**: [sequence-checkout.svg](file:///D:/SWE/BrewLite_project/docs/diagrams/sequence-checkout.svg)
+* **Ảnh PNG**: [sequence-checkout.png](file:///D:/SWE/BrewLite_project/docs/diagrams/sequence-checkout.png)
 
-```
-[Khách Hàng] 
-     │
-     ├──(Pha 1: POST /orders)────► [Tạo đơn PENDING, Trừ/Giữ kho BOM với Optimistic Lock]
-     │                                     │
-     │                          (Hết hạn 15 phút -> Tự hủy & hoàn kho)
-     │                                     │
-     └──(Pha 2: POST /payments)───► [Gửi Idempotency-Key, Chuyển sang PAID, Tích Hạt Vàng]
-```
+![Biểu đồ Tuần tự Checkout BrewLite](sequence-checkout.svg)
 
 ---
 
-## 2. Chi Tiết Pha 1: Tạo Đơn Hàng & Giữ Kho BOM (`POST /orders`)
+## 2. Chi tiết Các Bước & Cơ chế Bảo vệ Dữ liệu
 
-### 2.1. Hợp đồng dữ liệu (API Contract)
-- **Endpoint**: `POST /orders`
-- **Header**: `Authorization: Bearer <JWT>`
-- **Body (`CreateOrderDto`)**:
-  ```json
-  {
-    "items": [
-      {
-        "productId": 1,
-        "productName": "Cà Phê Muối Hoàng Gia",
-        "size": "L",
-        "toppings": ["Trân Châu Trắng"],
-        "quantity": 2,
-        "unitPrice": 45000
-      }
-    ],
-    "discountCode": "BREW10"
-  }
-  ```
+### 2.1. Kiểm tra Xác thực & Chống trùng lặp (`Idempotency-Key`)
+* Trước khi vào `/checkout`, `Next.js Web` kiểm tra JWT token (`7d`). Nếu chưa đăng nhập, chuyển hướng về `/auth/login?redirect=%2Fcheckout`.
+* Cả `POST /orders` và `POST /payments` đều hỗ trợ `Idempotency-Key` (UUIDv4) để chống double-click hoặc retry mạng. Nếu payload không khớp key cũ, API trả về `409 Conflict`.
 
-### 2.2. Trình tự xử lý nghiệp vụ
-1. **Tính tổng phụ (Subtotal)**:
-   - Server tự tính toán `rawSubtotal = sum(unitPrice * quantity)`. Tuyệt đối không nhận subtotal từ client.
-2. **Xác thực và áp dụng mã giảm giá (Voucher / Discount Code)**:
-   - Tra cứu trong cơ sở dữ liệu bảng `DiscountCode` hoặc voucher cá nhân `UserVoucher`.
-   - Kiểm tra trạng thái kích hoạt (`isActive`), điều kiện đơn tối thiểu (`minOrderAmount`), và giới hạn giảm tối đa (`maxDiscountAmount`).
-   - Nếu mã không tồn tại hoặc đơn không đủ giá trị tối thiểu -> Ném `BadRequestException(400)`.
-   - Áp dụng **0% VAT** và tính tổng thanh toán cuối cùng:
-     ```ts
-     const afterDiscount = Math.max(0, rawSubtotal - discountAmount);
-     const totalAmount = afterDiscount; // 0% VAT
-     ```
-3. **Thực thi trong Prisma Transaction (`$transaction`)**:
-   - **Tính toán BOM (Bill of Materials)**: Hàm `computeRequiredIngredients` truy xuất công thức món (`Recipe`) theo từng size sản phẩm (`M`, `L`, hoặc `ALL` cho bánh ngọt) và công thức topping (`ToppingRecipe`) để tính tổng định lượng từng nguyên vật liệu tiêu hao.
-   - **Kiểm tra tồn kho & Khóa lạc quan (Optimistic Locking)**:
-     - Với các nguyên liệu bắt buộc bán (`isRequiredForSale = true`): nếu `currentIng.stock < requiredAmount`, ném `BadRequestException(400)` báo hết nguyên liệu.
-     - Thực hiện trừ kho kèm điều kiện phiên bản:
-       ```ts
-       const updateRes = await tx.ingredient.updateMany({
-         where: {
-           id: currentIng.id,
-           version: currentIng.version,
-           stock: { gte: reqIng.requiredAmount },
-         },
-         data: {
-           stock: { decrement: reqIng.requiredAmount },
-           version: { increment: 1 },
-         },
-       });
-       if (updateRes.count === 0) {
-         throw new ConflictException('Xung đột đồng thời (Optimistic Lock) khi trừ kho nguyên vật liệu. Vui lòng thử lại.');
-       }
-       ```
-   - **Tạo bản ghi đơn hàng**: Tạo đơn hàng với trạng thái mặc định **`PENDING`** và `version: 0`. Lưu ý: Không trừ lượt voucher của người dùng tại thời điểm này để tránh thất thoát voucher nếu đơn không thanh toán thành công.
-4. **Phản hồi**: Trả về `orderId`, trạng thái `PENDING`, tổng tiền thực tế cần thanh toán. Đơn hàng giữ tồn kho BOM tối đa trong vòng **15 phút**.
+### 2.2. Phase 1: Tạo đơn `PENDING`, Trừ Voucher & Khóa kho BOM (`POST /orders`)
+* **Khóa hàng User & Giới hạn đơn chờ**: Thực thi `SELECT id FROM "User" WHERE id = :userId FOR UPDATE`, từ chối (`400 Bad Request`) nếu khách đang có `>= 5` đơn ở trạng thái `PENDING` / `PAYMENT_FAILED`.
+* **Tính giá & Trừ lượt Voucher**: Server tự tính tổng tiền từ giá sản phẩm/topping/voucher trong DB (0% VAT), **trừ ngay lượt `UserVoucher` / tăng `DiscountCode.usageCount` (`voucherDeducted = true`)** trong transaction để tránh dùng 1 mã cho nhiều đơn song song.
+* **BOM Optimistic Locking**: Tính tổng nguyên liệu (`Recipe` + `ToppingRecipe` + bao bì). Với nguyên liệu bắt buộc (`isRequiredForSale = true`), cập nhật `stock = stock - required, version = version + 1` với điều kiện `WHERE id = ... AND version = ... AND stock >= required` (tối đa **3 lần retry**).
+  * Thiếu nguyên liệu ở lần thử đầu -> trả `400 Bad Request` và rollback transaction.
+  * Cạnh tranh đồng thời vượt quá số lần retry -> trả `409 Conflict` và rollback transaction.
+* **TTL Thanh toán**: Giao diện `/checkout` và `/gateway/zalopay` hiển thị đếm ngược 5 phút cho người dùng, trong khi Backend áp dụng **TTL thực tế 15 phút** (`ORDER_PAYMENT_TTL_MS = 15 * 60 * 1000`).
 
----
+### 2.3. Phase 2: Xử lý Thanh toán (`ZaloPay / Mock`) & Thử lại
+* **ZaloPay Sandbox**: `POST /payments/zalopay/create` tạo giao dịch trên ZaloPay `v2/create` (HMAC-SHA256 `key1`) và điều hướng sang `/gateway/zalopay`. Kết quả được xác nhận qua webhook IPN `POST /payments/zalopay/callback` (xác thực HMAC-SHA256 `key2`), nút xác nhận sandbox (`/payments/zalopay/confirm`) hoặc fallback `GET /payments/zalopay/status/:orderId`.
+* **Mock Payment**: `POST /payments` (kèm `Idempotency-Key`) mô phỏng kết quả `PAID` hoặc `PAYMENT_FAILED` (trả HTTP `201`).
+* **Thanh toán thành công (`PAID`)**: Dùng CAS (`where: { id, status: activeStatus, version }`) chuyển `Order -> PAID`, tạo `Payment(SUCCESS)` và cộng `User.loyaltyPoints` theo công thức `Math.floor(paymentAmount / 1000)`.
+* **Thanh toán thất bại (`PAYMENT_FAILED`)**: Cập nhật `Order -> PAYMENT_FAILED` và **giữ nguyên kho BOM trong phạm vi 15 phút TTL** để khách hàng có thể bấm **"Thử lại"** (`PAYMENT_FAILED -> PENDING`).
 
-## 3. Chi Tiết Pha 2: Thanh Toán Đơn Hàng (`POST /payments` hoặc ZaloPay Gateway)
+### 2.4. Quy tắc Hủy đơn & Hết hạn Tự động (15 phút)
+* **Khách hàng tự hủy**: Chỉ áp dụng với đơn ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` qua `PATCH /orders/:id/status`. **Khách hàng không được tự hủy đơn đã `PAID`**; trường hợp cần hủy sau khi đã thanh toán phải do `STAFF` hoặc `ADMIN` thực hiện trước khi quầy bắt đầu pha (`PAID -> CANCELLED`).
+* **Tự động hết hạn (15 phút)**: `ExpireOrdersJob` (`@Cron('*/1 * * * *')`) quét các đơn `PENDING` / `PAYMENT_FAILED` quá 15 phút, chuyển sang `CANCELLED` và gọi `refundOrderResources` để hoàn kho BOM (`InventoryLog: REFUND`) cùng lượt Voucher đã trừ.
 
-### 3.1. Phương Án A: Cổng Thanh Toán Demo / Mock Gateway (`POST /payments`)
-
-- **Endpoint**: `POST /payments`
-- **Headers**:
-  - `Authorization: Bearer <JWT>`
-  - `Idempotency-Key: <UUID-v4>` (Khóa chống trùng lặp thanh toán)
-- **Body (`CreatePaymentDto`)**:
-  ```json
-  {
-    "orderId": 105,
-    "method": "EWALLET",
-    "simulateFailure": false
-  }
-  ```
-  *(Trong đó `method` thuộc enum `PaymentMethod`: `EWALLET` hoặc `BANK_CARD`.)*
-
-#### Quy trình xử lý tại Backend:
-1. **Kiểm tra Idempotency-Key**:
-   - Tra cứu bản ghi `Payment` theo `idempotencyKey`.
-   - Nếu khóa đã tồn tại và giao dịch trước có trạng thái **`SUCCESS`**: Trả về ngay kết quả giao dịch cũ với cờ `isIdempotent: true` (Không trừ tiền lần 2, không cộng điểm lần 2).
-   - Nếu giao dịch trước bị `FAILED`, hệ thống cho phép người dùng thử lại.
-2. **Xác thực quyền sở hữu & Tính hợp lệ của đơn hàng**:
-   - Tra cứu đơn hàng theo `orderId`.
-   - **Chống IDOR**: Kiểm tra `order.userId === req.user.userId`. Ném `ForbiddenException(403)` nếu truy cập trái phép.
-   - **Kiểm tra thời hạn thanh toán**: Đơn hàng phải ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` và thời gian khởi tạo không quá **15 phút (900.000 ms)**. Nếu quá hạn, hệ thống tự động hủy hoàn kho và ném `BadRequestException`.
-   - **Bảo mật giá tiền**: Số tiền thanh toán lấy trực tiếp từ `order.totalAmount` trong cơ sở dữ liệu.
-   - **State Machine Guard**: Kiểm tra chuyển trạng thái hợp lệ thông qua `assertTransition(order.status, 'PAID')`.
-3. **Thực thi trong Prisma Transaction (`$transaction`)**:
-   - Gọi `mockGatewayService.charge(...)` (endpoint `POST /payments` trả về HTTP `201 Created`; bị chặn `403 Forbidden` ở môi trường production nếu `ALLOW_MOCK_PAYMENT=false`).
-   - **Nếu thất bại**: Cập nhật đơn hàng sang `PAYMENT_FAILED`, tạo bản ghi Payment trạng thái `FAILED`, trả về HTTP `201 { success: false, status: 'PAYMENT_FAILED' }` và **tiếp tục giữ nguyên kho BOM** để khách thử lại.
-   - **Nếu thành công**:
-     - Cập nhật đơn hàng sang **`PAID`** bằng Optimistic Locking:
-       ```ts
-       const successResult = await tx.order.updateMany({
-         where: { id: currentOrder.id, version: currentOrder.version },
-         data: { status: OrderStatus.PAID, version: { increment: 1 } },
-       });
-       if (successResult.count === 0) {
-         throw new ConflictException('Đơn hàng đã bị thay đổi bởi một request khác.');
-       }
-       ```
-     - Tạo bản ghi `Payment` với trạng thái `SUCCESS` và lưu `idempotencyKey`.
-     - **Tích điểm Hạt Vàng (BrewLite Club)**: Tỷ lệ quy đổi chuẩn **1.000 VNĐ = 1 điểm**:
-       ```ts
-       const pointsEarned = Math.floor(paymentAmount / 1000);
-       if (pointsEarned > 0 && currentOrder.userId) {
-         await tx.user.update({
-           where: { id: currentOrder.userId },
-           data: { loyaltyPoints: { increment: pointsEarned } },
-         });
-       }
-       ```
-     - Trả về kết quả thanh toán thành công kèm số điểm Hạt Vàng vừa nhận.
-
----
-
-### 3.2. Phương Án B: Tích Hợp Cổng ZaloPay Sandbox
-
-1. **Khởi tạo giao dịch (`POST /payments/zalopay/create`)**:
-   - Backend gọi API ZaloPay Sandbox `v2/create` kèm chữ ký HMAC SHA256 Key 1.
-   - Trả về liên kết thanh toán (`orderUrl`), mã QR và mã giao dịch ứng dụng (`appTransId`).
-2. **Xử lý IPN Webhook (`POST /payments/zalopay/callback`)**:
-   - Máy chủ ZaloPay bắn thông báo thanh toán về server BrewLite.
-   - Backend giải mã và kiểm tra tính toàn vẹn qua chữ ký **MAC Key 2**:
-     ```ts
-     const isValid = this.zaloPayService.verifyCallback(body.data, body.mac);
-     if (!isValid) return { return_code: -1, return_message: 'mac not equal' };
-     ```
-   - Trích xuất `orderId`, kiểm tra nếu đơn đã `PAID` thì trả về ngay `{ return_code: 1, return_message: 'success' }` (Idempotent Callback).
-   - Nếu chưa thanh toán: Mở Transaction cập nhật trạng thái đơn thành `PAID`, tạo bản ghi `Payment` (với key `ZALOPAY_${zp_trans_id}`), và cộng điểm Hạt Vàng cho khách.
-3. **Cơ chế Polling dự phòng từ Frontend (`GET /payments/zalopay/status/:orderId`)**:
-   - Giao diện Client thực hiện polling định kỳ mỗi 3 giây nhằm xử lý trường hợp Webhook bị trễ hoặc khi đang chạy môi trường phát triển cục bộ (Localhost).
-
----
-
-## 4. Cơ Chế Tự Động Hoàn Kho & Timeout 15 Phút (Auto-Expiration)
-
-Hệ thống BrewLite thiết lập cơ chế giải phóng tồn kho tự động nhằm ngăn chặn tình trạng khách đặt giữ chỗ đơn hàng nhưng không thanh toán làm cạn kiệt nguyên liệu của cửa hàng.
-
-- **Cơ chế kích hoạt**: Tác vụ `ExpireOrdersJob` (`apps/api/src/jobs/expire-orders.job.ts`) chạy định kỳ mỗi **1 phút** bằng `@Cron('*/1 * * * *')`, gọi `expirePendingOrders(..., { timeoutMinutes: 15 })`.
-- **Thời hạn TTL (Time-To-Live)**: **15 phút (900.000 ms)** áp dụng cho đơn ở trạng thái `PENDING` hoặc `PAYMENT_FAILED`.
-- **Trình tự hoàn kho trong Transaction**:
-  1. Quét các đơn hàng `status IN ('PENDING', 'PAYMENT_FAILED')` có `createdAt <= now - 15 phút`.
-  2. Với mỗi đơn hết hạn, gọi `computeRequiredIngredients(order.items)` (qua `refundOrderResources`) để xác định đúng số lượng nguyên vật liệu và topping đã giữ.
-  3. Hoàn trả 100% nguyên liệu vào kho:
-     ```ts
-     await tx.ingredient.update({
-       where: { id: reqIng.ingredientId },
-       data: {
-         stock: { increment: reqIng.requiredAmount },
-         version: { increment: 1 },
-       },
-     });
-     ```
-  4. Cập nhật trạng thái đơn hàng sang **`CANCELLED`** (tăng `version + 1`).
-  5. Ghi log cảnh báo: `[Auto-Expire 15m] Đơn hàng #id đã tự động hủy do quá 15 phút chưa thanh toán. Đã hoàn trả nguyên liệu vào kho.`
-
----
-
-## 5. Luồng Hủy Đơn Hàng Đã Thanh Toán (`PAID`) & Thu Hồi Điểm Thưởng
-
-Trong trường hợp đơn hàng đã ở trạng thái `PAID` và được nhân viên hủy tại màn hình Barista KDS hoặc khách hàng yêu cầu hủy đơn hợp lệ (`PATCH /orders/:id/status` với `status: CANCELLED`):
-
-1. **State Machine Guard**: Xác thực bước chuyển trạng thái từ `PAID` -> `CANCELLED`.
-2. **Hoàn kho nguyên vật liệu BOM**: Tính toán lại định lượng món và tăng lại `stock` của các `Ingredient` tương ứng (đồng thời tăng `version` để chống stale data).
-3. **Thu hồi điểm Hạt Vàng**:
-   ```ts
-   const pointsToRevoke = Math.floor(order.totalAmount / 1000);
-   if (pointsToRevoke > 0) {
-     await tx.user.update({
-       where: { id: order.userId },
-       data: { loyaltyPoints: { decrement: pointsToRevoke } },
-     });
-   }
-   ```
-4. **Hoàn trả mã giảm giá cá nhân**: Nếu đơn hàng trước đó đã trừ số lượng mã cá nhân của khách (`voucherDeducted == true`), hệ thống tự động tăng lại `quantity` cho bản ghi `userVoucher`.
-5. Đơn hàng chuyển sang trạng thái `CANCELLED` hoàn tất.
+### 2.5. Theo dõi Đơn hàng (`/orders/:id`)
+* Sau khi thanh toán thành công, Web xóa giỏ hàng (`localStorage`) và chuyển sang `/orders/:id`.
+* Hook `useOrderPolling` gọi `GET /orders/:id` mỗi **5 giây** để cập nhật tiến độ 3 bước từ quầy KDS (`/staff` polling `GET /orders/barista/queue` mỗi **3 giây**): `PAID -> PREPARING -> READY -> COMPLETED`.

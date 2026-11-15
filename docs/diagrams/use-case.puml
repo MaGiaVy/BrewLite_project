@@ -1,124 +1,103 @@
 @startuml
 left to right direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Arial"
 skinparam defaultFontSize 12
-skinparam roundcorner 10
-skinparam shadowing false
-
+skinparam packageStyle rectangle
+skinparam ArrowColor #000000
 skinparam actor {
-    BackgroundColor #FFF9F5
-    BorderColor #2C1810
-    BorderThickness 1.5
-    FontColor #2C1810
-    FontStyle bold
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontColor #000000
 }
-
 skinparam usecase {
-    BackgroundColor #FFFFFF
-    BorderColor #845326
-    BorderThickness 1.2
-    ArrowColor #2C1810
-    ArrowThickness 1.2
-    FontColor #2C1810
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontColor #000000
 }
-
 skinparam rectangle {
-    BackgroundColor #FFFFFF
-    BorderColor #2C1810
-    BorderThickness 1.5
-    FontColor #2C1810
-    FontStyle bold
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontColor #000000
 }
 
-' Thành viên thực hiện: Mã Gia Vỹ (Task 1.2 - Use Case Tổng Quát)
-title SƠ ĐỒ USE CASE TỔNG QUÁT HỆ THỐNG BREWLITE\n(Nền tảng Đặt đồ uống & Thanh toán không tiền mặt)
+title Sơ đồ Use Case Tổng thể - Hệ thống BrewLite Coffee & Pastry
 
-' ==========================================
-' ACTORS BÊN TRÁI (Khách hàng)
-' ==========================================
-actor "Khách hàng" as Customer
+actor "Khách hàng\n(Customer)" as Customer
+actor "Nhân viên quầy\n(Staff / Barista)" as Staff
+actor "Quản trị viên\n(Admin)" as Admin
+actor "Cổng thanh toán\n(ZaloPay / Mock)" as Gateway
 
-' ==========================================
-' SYSTEM BOUNDARY
-' ==========================================
-rectangle "Hệ thống BrewLite (Next.js & NestJS)" {
+rectangle "Hệ thống BrewLite (Web Next.js & NestJS API)" {
+  package "Thực đơn & Giỏ hàng" {
+    usecase "UC-01: Xem thực đơn & Tìm kiếm món" as UC01
+    usecase "UC-02: Xem chi tiết món, Size & Topping" as UC02
+    usecase "UC-03: Quản lý giỏ hàng" as UC03
+  }
 
-    ' --- Nhóm Xác thực & Tài khoản ---
-    usecase "Đăng ký tài khoản" as UC_Register
-    usecase "Đăng nhập hệ thống" as UC_Login
-    usecase "Xác thực phân quyền (RBAC)" as UC_RBAC
+  package "Xác thực & Phân quyền" {
+    usecase "UC-04: Đăng ký tài khoản" as UC04
+    usecase "UC-05: Đăng nhập hệ thống" as UC05
+    usecase "UC-06: Xác thực & Phân quyền (RBAC)" as UC06
+  }
 
-    ' --- Nhóm Khách hàng (Menu, Giỏ hàng, Đặt đơn) ---
-    usecase "Xem thực đơn & tìm kiếm món" as UC_Menu
-    usecase "Xem chi tiết món & chọn Size, Topping" as UC_Detail
-    usecase "Quản lý giỏ hàng" as UC_Cart
-    usecase "Đặt hàng & Thanh toán" as UC_Checkout
-    usecase "Áp dụng mã giảm giá (Voucher)" as UC_Voucher
-    usecase "Tích lũy & dùng điểm thưởng" as UC_Loyalty
-    usecase "Xử lý thanh toán trực tuyến" as UC_Payment
-    usecase "Theo dõi tiến độ đơn thời gian thực" as UC_Track
-    usecase "Xem lịch sử đơn hàng" as UC_History
-    usecase "Hủy đơn hàng" as UC_Cancel
+  package "Đặt hàng, Thanh toán & Theo dõi" {
+    usecase "UC-07: Đặt hàng & Giữ kho BOM" as UC07
+    usecase "UC-08: Áp dụng mã giảm giá (Voucher)" as UC08
+    usecase "UC-09: Tích lũy & Đổi điểm thưởng" as UC09
+    usecase "UC-10: Xử lý thanh toán trực tuyến" as UC10
+    usecase "UC-11: Hủy đơn hàng & Hoàn kho" as UC11
+    usecase "UC-12: Theo dõi tiến độ đơn hàng" as UC12
+    usecase "UC-13: Xem lịch sử đơn hàng" as UC13
+  }
 
-    ' --- Nhóm Quầy pha chế (Staff KDS) ---
-    usecase "Tiếp nhận đơn hàng quầy pha chế (KDS)" as UC_StaffView
-    usecase "Cập nhật trạng thái pha chế" as UC_StaffUpdate
-
-    ' --- Nhóm Quản trị (Admin) ---
-    usecase "Quản lý danh mục & thực đơn món" as UC_AdminMenu
-    usecase "Quản lý định mức công thức (BOM)" as UC_AdminBOM
-    usecase "Quản lý & cảnh báo kho nguyên liệu" as UC_AdminInventory
-    usecase "Quản lý mã giảm giá (Voucher)" as UC_AdminVoucher
-    usecase "Xem báo cáo thống kê & doanh thu" as UC_AdminReport
-
-    ' Quan hệ Include & Extend
-    UC_Login ..> UC_RBAC : <<include>>
-    UC_Checkout ..> UC_Login : <<include>>
-    UC_Checkout ..> UC_Payment : <<include>>
-    UC_Checkout ..> UC_Loyalty : <<include>>
-    UC_Voucher ..> UC_Checkout : <<extend>>
+  package "Pha chế (KDS) & Quản trị" {
+    usecase "UC-14: Tiếp nhận hàng đợi pha chế (KDS)" as UC14
+    usecase "UC-15: Cập nhật trạng thái pha chế" as UC15
+    usecase "UC-16: Quản trị thực đơn, Kho & BOM" as UC16
+    usecase "UC-17: Xem báo cáo thống kê & Doanh thu" as UC17
+  }
 }
 
-' ==========================================
-' ACTORS BÊN PHẢI (Nhân viên, Quản trị viên, Cổng thanh toán)
-' ==========================================
-actor "Nhân viên (Barista)" as Staff
-actor "Quản trị viên (Admin)" as Admin
-actor "Cổng thanh toán (ZaloPay)" as PaymentGateway
+' Khách hàng
+Customer --> UC01
+Customer --> UC02
+Customer --> UC03
+Customer --> UC04
+Customer --> UC05
+Customer --> UC07
+Customer --> UC09
+Customer --> UC10
+Customer --> UC11
+Customer --> UC12
+Customer --> UC13
 
-' ==========================================
-' KẾT NỐI KHÁCH HÀNG (BÊN TRÁI)
-' ==========================================
-Customer --> UC_Register
-Customer --> UC_Login
-Customer --> UC_Menu
-Customer --> UC_Detail
-Customer --> UC_Cart
-Customer --> UC_Checkout
-Customer --> UC_Track
-Customer --> UC_History
-Customer --> UC_Cancel
+' Nhân viên quầy (Barista)
+Staff --> UC05
+Staff --> UC11
+Staff --> UC14
+Staff --> UC15
 
-' ==========================================
-' KẾT NỐI NHÂN VIÊN (BÊN PHẢI)
-' ==========================================
-Staff --> UC_Login
-Staff --> UC_StaffView
-Staff --> UC_StaffUpdate
+' Quản trị viên (Admin)
+Admin --> UC05
+Admin --> UC11
+Admin --> UC16
+Admin --> UC17
 
-' ==========================================
-' KẾT NỐI QUẢN TRỊ VIÊN (BÊN PHẢI)
-' ==========================================
-Admin --> UC_Login
-Admin --> UC_AdminMenu
-Admin --> UC_AdminBOM
-Admin --> UC_AdminInventory
-Admin --> UC_AdminVoucher
-Admin --> UC_AdminReport
+' Tác nhân ngoài
+UC10 -- Gateway
 
-' ==========================================
-' KẾT NỐI CỔNG THANH TOÁN (BÊN PHẢI)
-' ==========================================
-UC_Payment --> PaymentGateway
+' Quan hệ Include / Extend
+UC05 ..> UC06 : <<include>>
+UC08 ..> UC07 : <<extend>>
+UC07 ..> UC10 : <<include>>
+UC10 ..> UC09 : <<include>>
+
+note bottom of UC11
+  Khách hàng chỉ được hủy đơn PENDING / PAYMENT_FAILED.
+  Staff / Admin được phép hủy đơn PAID trước khi pha chế.
+end note
 
 @enduml

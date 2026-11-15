@@ -1,187 +1,144 @@
 @startuml deployment
-!theme plain
 ' Thành viên thực hiện: Quách Kỳ Minh (Task 3.2 - Deployment Diagram)
-' Cập nhật đồng bộ Production thực tế (Vercel + Render Docker + Supabase PostgreSQL): 2026-11-14
+' Đồng bộ Production (Vercel + Render Docker + Supabase PostgreSQL), Local Docker Compose, CI/CD
 title UML Deployment Diagram — Hệ Thống BrewLite (Production: Vercel + Render + Supabase)
 
+skinparam monochrome true
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
 skinparam DefaultFontName "Arial"
 skinparam DefaultFontSize 11
-skinparam RoundCorner 12
-skinparam Shadowing true
-
-skinparam node {
-    BackgroundColor #FFFFFF
-    BorderColor #2C1810
-    BorderThickness 1.5
-    FontColor #2C1810
-    FontStyle bold
-}
-
-skinparam artifact {
-    BackgroundColor #FFF9F5
-    BorderColor #D97736
-    BorderThickness 1.2
-}
-
-skinparam database {
-    BackgroundColor #F4ECE1
-    BorderColor #845326
-    BorderThickness 1.5
-    FontColor #2C1810
-}
-
-skinparam component {
-    BackgroundColor #FFFFFF
-    BorderColor #3B82F6
-    BorderThickness 1.2
-}
-
-skinparam note {
-    BackgroundColor #FEF3C7
-    BorderColor #D97706
-    FontSize 10
-}
+skinparam nodesep 35
+skinparam ranksep 45
+set namespaceSeparator none
 
 ' ==============================================================================
-' 1. THIẾT BỊ NGƯỜI DÙNG (CLIENT DEVICES)
+' 1. THIẾT BỊ NGƯỜI DÙNG (CLIENT) & CI/CD (GITHUB)
 ' ==============================================================================
 node "Thiết Bị Người Dùng\n<<device>>" as client_device {
     node "Trình Duyệt Web / PWA Mobile\n<<executionEnvironment>>" as client_browser {
-        artifact "BrewLite Web App (React 19 / Next.js 15.1 Client)\n[HTML5, TailwindCSS, Zustand Store, Idempotency-Key]" as spa_client
+        artifact "BrewLite Web App\n(React 19 / Next.js 15.1.6 Client)\n[TailwindCSS, Zustand, Idempotency-Key]" as spa_client
     }
 }
 
-' ==============================================================================
-' 2. MÔI TRƯỜNG LOCAL (DEVELOPMENT ENVIRONMENT)
-' ==============================================================================
-node "Môi Trường Local (Developer Workstation)\n<<device: Windows / macOS / Linux>>" as local_env {
-    node "Docker Desktop Engine (docker-compose.yml)\n<<virtualizationEngine>>" as docker_local {
-        node "Docker Bridge Network\n<<network>>" as local_net {
-            artifact "web\n<<container: Node 20+ Alpine>>\nNext.js 15.1 Standalone\nPort: ${WEB_PORT:-3000}:3000" as local_web
-            artifact "api\n<<container: Node 20+ Alpine>>\nNestJS 10.4 + Prisma 5.22\nPort: ${API_PORT:-3001}:3001" as local_api
-            database "db: postgres:16-alpine\n<<container: PostgreSQL 16>>\nPort: ${DB_PORT:-5432}:5432" as local_db {
-                storage "brewlite_pgdata\n<<volume>>" as local_vol
-            }
-        }
-    }
-    note bottom of local_env
-        <b>Cấu hình & Secrets Local:</b>
-        • File .env (tạo từ .env.example, không commit)
-        • Quản lý DB qua prisma migrate deploy & seed
-    end note
-}
-
-' ==============================================================================
-' 3. MÔI TRƯỜNG CI/CD (GITHUB INFRASTRUCTURE)
-' ==============================================================================
 node "Hạ Tầng CI/CD (GitHub Cloud)\n<<cloud>>" as ci_env {
-    node "GitHub Repository (MaGiaVy/BrewLite_project)\n<<vcs>>" as gh_repo {
-        artifact "Branch: main / Pull Requests / Tag v1.0.0\n[Monorepo: apps/web, apps/api, docs, tests]" as git_source
+    node "GitHub Repository\n(MaGiaVy/BrewLite_project) <<vcs>>" as gh_repo {
+        artifact "main / PRs / Tag v1.0.0\n[apps/web, apps/api, docs, tests, scripts]" as git_source
     }
 
     node "GitHub Actions Runner\n<<executionEnvironment: ubuntu-latest>>" as gh_runner {
-        component "CI Pipeline (.github/workflows/ci.yml)\n[PR -> main: npm ci, prisma generate, lint, test, build]" as ci_pipeline
-        component "CD Pipeline (.github/workflows/cd.yml)\n[workflow_dispatch: Gitleaks -> Build GHCR -> Deploy/Rollback]" as cd_pipeline
+        component "CI (.github/workflows/ci.yml)\n[PR -> main: lint, test, build]" as ci_pipeline
+        component "CD (.github/workflows/cd.yml)\n[publish-api | publish | deploy | rollback\nGitleaks v3 -> GHCR -> Deploy/Smoke]" as cd_pipeline
     }
 
-    node "GitHub Container Registry (GHCR - Tùy chọn)\n<<registry: ghcr.io>>" as ghcr_registry {
-        artifact "ghcr.io/.../brewlite-web:<tag>" as ghcr_web
-        artifact "ghcr.io/.../brewlite-api:<tag>" as ghcr_api
+    node "GitHub Container Registry (Optional)\n<<registry: ghcr.io>>" as ghcr_registry {
+        artifact "ghcr.io/<owner>/brewlite-web:<tag>\nghc.io/<owner>/brewlite-api:<tag>" as ghcr_images
     }
 
-    note bottom of ci_env
-        <b>Secrets & Bảo vệ mã nguồn:</b>
-        • Gitleaks scan lịch sử git trong cd.yml
+    note bottom of ghcr_registry
+        Secrets & Bảo vệ mã nguồn:
+        • Gitleaks v3 scan lịch sử git trong cd.yml
         • GITHUB_TOKEN, RENDER_API_KEY, DEPLOY_HOOKS
     end note
 }
 
 ' ==============================================================================
-' 4. MÔI TRƯỜNG PRODUCTION (VERCEL + RENDER + SUPABASE)
+' 2. MÔI TRƯỜNG PRODUCTION (VERCEL + RENDER + SUPABASE)
 ' ==============================================================================
-package "Môi Trường Production (HTTPS / TLS 1.3)" as prod_env {
+node "Môi Trường Production (HTTPS / TLS 1.3)" as prod_env {
     node "Production Frontend: Vercel Cloud\n<<cloud: Global Edge Network>>" as vercel_env {
-        node "Vercel Edge CDN & Reverse Proxy\n<<loadBalancer / edge>>" as vercel_edge {
-            component "TLS 1.3, Global Cache, Auto-Deploy from main\n[https://brew-lite-project.vercel.app]" as vercel_proxy
+        node "Vercel Edge CDN & Middleware\n<<loadBalancer / edge>>" as vercel_edge {
+            component "TLS 1.3, Edge RBAC (middleware.ts)\nAuto-Deploy from main\n[https://brew-lite-project.vercel.app]" as vercel_proxy
         }
-        node "Next.js 15.1 Hosting (apps/web)\n<<executionEnvironment>>" as prod_web_node {
-            artifact "BrewLite Frontend\n<<app: Next.js 15.1.6 / React 19>>" as prod_web_app
+        node "Next.js 15.1.6 Hosting (apps/web)\n<<executionEnvironment>>" as prod_web_node {
+            artifact "BrewLite Frontend\n<<app: Next.js Standalone / React 19>>" as prod_web_app
         }
         note bottom of vercel_env
-            <b>Vercel Environment Variables:</b>
+            Vercel Env Vars:
             • NEXT_PUBLIC_API_URL=https://brewlite-api-9viv.onrender.com
             • NEXT_PUBLIC_ENABLE_DEMO_TOOLS=false
         end note
     }
 
-    node "Production Backend: Render Cloud PaaS (Singapore)\n<<cloud: Docker Runtime Free>>" as render_env {
+    node "Production Backend: Render Cloud (Singapore)\n<<cloud: Docker Runtime>>" as render_env {
         node "Render Edge TLS Proxy\n<<loadBalancer / reverseProxy>>" as render_edge {
-            component "TLS 1.3 Termination & Auto-Deploy from main\n[https://brewlite-api-9viv.onrender.com]" as render_proxy
+            component "TLS 1.3 Termination & Auto-Deploy main\n[https://brewlite-api-9viv.onrender.com]" as render_proxy
         }
-        node "Docker Web Service: brewlite-api (apps/api)\n<<service: Container :3001>>" as prod_api_node {
-            artifact "brewlite-api Container\n<<container: Node Alpine (Dockerfile)>>" as prod_api_app {
-                component "NestJS 10.4 REST API + Prisma 5.22\n[Startup: prisma migrate deploy]" as nestjs_engine
+        node "Docker Web Service: brewlite-api\n<<service: Container :3001>>" as prod_api_node {
+            artifact "brewlite-api (apps/api/Dockerfile)\n<<container: Node 20 Alpine>>" as prod_api_app {
+                component "NestJS 10.4 REST API + Prisma 5.22\n[Entrypoint: migrate deploy + seed | ThrottlerGuard]" as nestjs_engine
             }
         }
         note bottom of prod_api_node
-            <b>Health Check & Logging:</b>
-            • GET /health -> status ok / db up
-            • stdout / stderr -> Render Logs (no secrets)
-            <b>Render Environment Secrets:</b>
-            • DATABASE_URL (Supabase SSL URI)
-            • JWT_SECRET, JWT_EXPIRES_IN
-            • CORS_ORIGIN (*.vercel.app wildcard)
-            • MOCK_PAYMENT_MODE, ALLOW_SANDBOX_CONFIRM
-            • ZALOPAY_APP_ID / KEY1 / KEY2
+            Health Check & Render Env Secrets:
+            • GET /health -> {"status":"ok","db":"up"} | 503
+            • DATABASE_URL (Supabase SSL), JWT_SECRET, JWT_EXPIRES_IN
+            • CORS_ORIGIN (*.vercel.app), MOCK_PAYMENT_MODE
+            • ALLOW_MOCK_PAYMENT, ALLOW_SANDBOX_CONFIRM
+            • ZALOPAY_APP_ID / KEY1 / KEY2 / ENDPOINT / CALLBACK_URL
         end note
     }
 
     node "Production Database: Supabase Cloud\n<<cloud: Managed PostgreSQL>>" as supabase_env {
         database "Supabase PostgreSQL 16\n<<database: Managed PostgreSQL>>" as prod_db_node {
-            storage "Managed SSD Storage & Daily Backups\n<<persistentStorage>>" as prod_disk
+            storage "Managed SSD Storage & Backups\n<<persistentStorage>>" as prod_disk
         }
         note bottom of supabase_env
-            <b>Bảo mật Cơ sở dữ liệu:</b>
-            • Kết nối qua TLS/SSL bắt buộc (sslmode=require)
-            • Chỉ Backend API nắm DATABASE_URL trên Render Env
-            • Không mở truy cập trực tiếp từ Frontend/Client
+            Bảo mật Cơ sở dữ liệu:
+            • TLS/SSL bắt buộc (sslmode=require)
+            • Chỉ Render API giữ DATABASE_URL
+            • Không mở truy cập từ Client
         end note
     }
 }
 
 ' ==============================================================================
-' 5. DỊCH VỤ THANH TOÁN BÊN THỨ BA (EXTERNAL SERVICES)
+' 3. DỊCH VỤ BÊN THỨ BA & MÔI TRƯỜNG LOCAL
 ' ==============================================================================
-node "Dịch Vụ Bên Thứ Ba (Third-Party Services)\n<<cloud>>" as ext_services {
+node "Dịch Vụ Thanh Toán Bên Thứ Ba\n<<cloud>>" as ext_services {
     node "Cổng Thanh Toán ZaloPay Sandbox\n<<gateway: sb-openapi.zalopay.vn>>" as zalopay_cloud {
         component "ZaloPay Sandbox Gateway API v2\n[Create Order, Query Status, Webhook Callback]" as zalopay_api
     }
 }
 
+node "Môi Trường Local (Developer Workstation)\n<<device: Windows / macOS / Linux>>" as local_env {
+    node "Docker Desktop (docker-compose.yml)\n<<executionEnvironment>>" as docker_local {
+        artifact "web (Node 20 Alpine)\nNext.js 15.1.6 Standalone\nPort: ${WEB_PORT:-3000}:3000" as local_web
+        artifact "api (Node 20 Alpine)\nNestJS 10.4 + Prisma 5.22\nPort: ${API_PORT:-3001}:3001" as local_api
+        database "db: postgres:16-alpine\nPort: ${DB_PORT:-5432}:5432" as local_db {
+            storage "brewlite_pgdata\n<<volume>>" as local_vol
+        }
+    }
+    note bottom of local_env
+        Cấu hình Local:
+        • File .env (từ .env.example, không commit)
+        • docker-entrypoint.sh: migrate deploy + seed
+    end note
+}
+
 ' ==============================================================================
 ' CÁC KẾT NỐI VÀ GIAO THỨC (PROTOCOLS & CONNECTIONS)
 ' ==============================================================================
-client_device -[hidden]down-> prod_env
-ci_env -[hidden]down-> prod_env
-local_env -[hidden]down-> ext_services
+client_device -[hidden]right-> ci_env
 prod_env -[hidden]down-> ext_services
+ext_services -[hidden]right-> local_env
 
-spa_client -[#0D9488,bold]-> vercel_edge : "1. HTTPS :443\n(Tải UI / SSR / Assets)"
-vercel_edge -[#0D9488]-> prod_web_app : "Serve Next.js App"
-spa_client -[#0D9488,bold]-> render_edge : "2. HTTPS :443 (CORS + JWT)\nREST API Calls tới brewlite-api"
-render_edge -[#0D9488]-> prod_api_app : "Reverse Proxy (:3001)"
+spa_client --> vercel_edge : "1. HTTPS :443\n(UI / SSR / Assets)"
+vercel_edge --> prod_web_app : "Serve Next.js App"
+spa_client --> render_edge : "2. HTTPS :443 (CORS + JWT)\nREST API tới brewlite-api"
+render_edge --> prod_api_app : "Reverse Proxy (:3001)"
 
-prod_api_app -[#B45309,bold]-> prod_db_node : "3. PostgreSQL over TLS/SSL (:5432 / :6543)\nPrisma Connection Pool (DATABASE_URL)"
-prod_api_app -[#D97736,dashed]-> zalopay_api : "4. HTTPS :443\n(HMAC-SHA256 Create/Status/Callback)"
+prod_api_app --> prod_db_node : "3. PostgreSQL over TLS/SSL (:5432 / :6543)\nPrisma Pool (DATABASE_URL)"
+prod_api_app ..> zalopay_api : "4. HTTPS :443\n(HMAC-SHA256 Create/Status/Callback)"
 
-git_source -[#6366F1]-> gh_runner : "PR / workflow_dispatch"
-git_source -[#0D9488]-> vercel_edge : "Push main -> Vercel Auto-Deploy"
-git_source -[#0D9488]-> render_edge : "Push main -> Render Docker Auto-Deploy"
-gh_runner -[#6366F1]-> ghcr_registry : "Push Docker Image\n(cd.yml GHCR - Optional)"
-ghcr_registry .[#6366F1].> prod_api_node : "Deploy Hook / Rollback Image (Optional)"
+git_source --> gh_runner : "PR / workflow_dispatch"
+git_source --> vercel_edge : "Push main -> Vercel Auto-Deploy"
+git_source --> render_edge : "Push main -> Render Auto-Deploy"
+gh_runner --> ghcr_registry : "Push Docker Images (cd.yml)"
+ghcr_registry ..> prod_api_node : "Deploy Hook / Rollback (Optional)"
 
-local_web -[#4B5563]-> local_api : "HTTP :3001"
-local_api -[#4B5563]-> local_db : "TCP :5432"
-spa_client .[#9CA3AF].> local_web : "Dev Test: http://localhost:3000"
+local_web --> local_api : "HTTP :3001"
+local_api --> local_db : "TCP :5432"
+spa_client ..> local_web : "Local Dev: http://localhost:3000"
 
 @enduml

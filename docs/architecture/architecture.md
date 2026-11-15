@@ -76,22 +76,23 @@ flowchart TB
 * **Quản lý trạng thái (State Management):**
   * `cart-store` (`apps/web/src/stores/cart-store.ts`): Sử dụng **Zustand** kết hợp middleware `persist` để lưu giỏ hàng vào `localStorage`. Hỗ trợ gộp dòng khi trùng `(productId, size, toppingIds)`, giới hạn số lượng $1\text{--}20$ mỗi dòng và tính tổng tạm tính (`selectTotal`).
   * `auth-store` (`apps/web/src/stores/auth-store.ts`): Lưu trữ trạng thái đăng nhập và `accessToken` JWT.
-* **Giao tiếp API & Xử lý lỗi (`apps/web/src/lib/api-client.ts`):**
+* **Giao tiếp API & Xử lý lỗi (`apps/web/src/lib/api-client.ts` & `apps/web/src/middleware.ts`):**
   * Tự động đính kèm header `Authorization: Bearer <token>` cho các endpoint yêu cầu xác thực.
   * Tự động sinh và giữ nguyên `Idempotency-Key` (bằng `crypto.randomUUID()`) khi người dùng bấm thanh toán hoặc thử lại (`Retry`) để tránh tạo đơn/trừ tiền kép.
-  * Khi nhận mã lỗi `401 Unauthorized` (JWT hết hạn), tự động xóa token, giữ nguyên giỏ hàng hiện tại và điều hướng về `/auth/login?redirect=<trang_hiện_tại>`.
+  * Khi nhận mã lỗi `401 Unauthorized` (JWT hết hạn), `apiClient` tự động xóa token & cookie `brewlite_session_role`, giữ nguyên giỏ hàng hiện tại và điều hướng về `/login?redirect=<trang_hiện_tại>` (trong khi `apps/web/src/middleware.ts` bảo vệ trước các route `/admin/*`, `/staff/*`, `/checkout/*`, `/account/*`, `/orders/*`, `/order-confirmation/*` và chuyển hướng tới `/auth/login?redirect=...` nếu thiếu cookie vai trò hợp lệ).
+* **Cấu hình Next.js (`apps/web/next.config.ts`):** Sử dụng `output: 'standalone'` để đóng gói tối ưu Docker image cho triển khai container (`apps/web/Dockerfile`).
 * **Theo dõi trạng thái đơn (`apps/web/src/hooks/use-order-polling.ts`):** Custom hook gọi định kỳ `GET /orders/:id` mỗi $5\text{ giây}$ kèm `AbortController`, tự động dừng khi đơn đạt trạng thái kết thúc (`COMPLETED` hoặc `CANCELLED`) hoặc khi component unmount.
 * **Biến môi trường phía Client:** `NEXT_PUBLIC_API_URL` trỏ tới địa chỉ Backend API (Local: `http://localhost:3001`, Production: URL Render của backend).
 
 ### 3.2 Backend (`apps/api`) — Kiến trúc Phân lớp theo Module (Modular Layered Architecture)
-Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến trúc phân lớp (`Controller` $\rightarrow$ `Service` $\rightarrow$ `Data Access / PrismaService`) và chia tách theo từng miền nghiệp vụ (Domain Modules) (xem [ADR-002](./adr/002-layered-modular-nestjs.md)):
+Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến trúc phân lớp (`Controller` $\rightarrow$ `Service` $\rightarrow$ `Data Access / PrismaService`) với `ValidationPipe` toàn cục (`whitelist: true`, `forbidNonWhitelisted: true`, `transform: true`), `PrismaExceptionFilter`, và `ThrottlerGuard` toàn cục (`120 req / 60s`), chia tách theo từng miền nghiệp vụ (Domain Modules) (xem [ADR-002](./adr/002-layered-modular-nestjs.md)):
 
 1. **Auth Module (`apps/api/src/auth`):**
-   * Xử lý đăng ký (`POST /auth/register`) và đăng nhập (`POST /auth/login`).
-   * Băm mật khẩu bằng `bcrypt`, cấp phát token JWT có thời hạn $7\text{ ngày}$.
+   * Xử lý đăng ký (`POST /auth/register`) và đăng nhập (`POST /auth/login`) với rate limit riêng `@Throttle` (`5 req / 60s`).
+   * Băm mật khẩu bằng `bcrypt`, cấp phát token JWT có thời hạn `JWT_EXPIRES_IN` (mặc định $7\text{ ngày}$) kèm `tokenVersion` để thu hồi phiên khi đổi mật khẩu hoặc khóa tài khoản.
    * Cung cấp `JwtAuthGuard` và `RolesGuard` để bảo vệ các route đặt đơn, thanh toán và cập nhật trạng thái đơn.
-   * **Mô hình Single Root Admin (`admin@brewlite.vn`):** Khóa cứng định danh Root Admin duy nhất, cấm tạo mới hoặc thăng cấp bất kỳ tài khoản nào khác lên role ADMIN (`403 Forbidden`).
-   * **Đồng bộ Session Role Cookie:** Đồng bộ cookie phiên `brewlite_session_role` song song với JWT để Next.js Edge Middleware bảo vệ các route `/admin/*` và `/staff/*` ngay từ tầng Edge.
+   * **Mô hình Single Root Admin (`admin@brewlite.vn`):** Khóa cứng định danh Root Admin duy nhất, cấm tạo mới hoặc thăng cấp bất kỳ tài khoản nào khác lên role `ADMIN`.
+   * **Đồng bộ Session Role Cookie:** Đồng bộ cookie phiên `brewlite_session_role` song song với JWT để Next.js Edge Middleware (`apps/web/src/middleware.ts`) bảo vệ các route `/admin/*`, `/staff/*` và các trang cần đăng nhập ngay từ tầng Edge.
 2. **Products Module (`apps/api/src/products`):**
    * Cung cấp danh sách thực đơn (`GET /products`) và chi tiết sản phẩm kèm danh sách topping (`GET /products/:id`), trả về `404 Not Found` nếu sản phẩm không tồn tại.
    * **Báo hết món tạm thời (`PATCH /products/:id/sold-out`):** Cho phép Barista (`STAFF`) và Quản trị viên (`ADMIN`) bật/tắt cờ `isSoldOutManual`.
@@ -101,7 +102,7 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
    * **Giới hạn chống spam đơn (Anti-Spam Rate Limit):** Mỗi khách hàng chỉ được phép có tối đa **5 đơn hàng** ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` cùng lúc; vượt quá sẽ bị từ chối với mã lỗi `400 Bad Request`.
    * **Tự động tính toán giá trị đơn:** Tự tính lại toàn bộ giá trị đơn hàng ở phía server theo công thức:
      $$\text{LineTotal} = (\text{Giá gốc} + \text{Phụ thu Size} + \sum \text{Giá Topping}) \times \text{Số lượng}$$
-     (Phụ thu Size: $S = +0\text{đ}$, $M = +5.000\text{đ}$, $L = +10.000\text{đ}$; không tính VAT).
+     (Phụ thu Size ưu tiên `Product.sizeUpchargeM` / `sizeUpchargeL` nếu được ghi đè riêng, mặc định lấy từ `StoreSetting` toàn quán: $S = +0\text{đ}$, $M = +5.000\text{đ}$, $L = +10.000\text{đ}$; món `bakery` = $0\text{đ}$; không tính VAT).
    * **Kiểm soát đồng thời (Optimistic Locking & BOM Stock Reservation):** Trừ và kiểm soát tồn kho `Ingredient` (BOM) lẫn `Order` bằng điều kiện `version = :version` đồng thời tăng `version + 1` (xem [ADR-006](./adr/006-optimistic-locking-idempotency.md) và [ADR-008](./adr/008-bom-schema-compatibility.md)). Ràng buộc `@@unique([userId, idempotencyKey])` chống trùng lặp đơn hàng từ client.
    * **Máy trạng thái đơn hàng (`apps/api/src/payments/state-machine.helper.ts`):** Hàm `assertTransition(from, to)` kiểm soát chặt chẽ các chuyển tiếp hợp lệ:
      * Luồng chính: `PENDING` $\rightarrow$ `PAID` $\rightarrow$ `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`.
@@ -116,7 +117,7 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
    * Khi thanh toán thất bại (`PAYMENT_FAILED`), đơn hàng vẫn giữ tồn kho BOM đã đặt trong giới hạn 15 phút để khách hàng có thể bấm thử lại ngay.
 5. **Inventory, Vouchers & Loyalty (`apps/api/src/inventory` & `apps/api/src/auth`, tích hợp trong `orders` & `payments`):**
    * Quản lý nguyên liệu (`Ingredient`), công thức BOM (`Recipe`, `ToppingRecipe`), cấu hình size (`GET /inventory/pricing-config`, `PATCH /inventory/size-pricing`), nhật ký kho (`InventoryLog`), mã giảm giá (`DiscountCode`) và đổi điểm lấy voucher (`POST /auth/redeem-points`, `GET /auth/vouchers`).
-   * **Server-Enforced Loyalty Redemption:** Điểm đổi voucher được server khóa cứng: 10 điểm = voucher 10.000đ, 20 điểm = voucher 20.000đ, 50 điểm = voucher 50.000đ (`requiredPoints`). Server tự áp đặt và trừ chính xác số điểm quy định, không phụ thuộc client.
+   * **Server-Enforced Loyalty Redemption (`VOUCHER_CATALOG` trong `auth.service.ts`):** Điểm đổi voucher và thông số giảm giá được server khóa cứng theo danh mục (`BREW10`: 10 điểm → giảm 10% tối đa 15.000đ; `BREWCOZY`: 15 điểm → giảm 15% tối đa 25.000đ; `BREW20`: 20 điểm → giảm 20% tối đa 25.000đ, đơn tối thiểu 60.000đ; `WELCOME20`: 20 điểm → giảm 20% tối đa 25.000đ, đơn tối thiểu 50.000đ; `BREW50`: 50 điểm → giảm 50% tối đa 60.000đ, đơn tối thiểu 120.000đ) hoặc mã đang `isActive` trong `DiscountCode` (`requiredPoints = max(1, round(discountPercent))`). Server tự tính và trừ chính xác số điểm quy định trong transaction atomic, không phụ thuộc tham số giảm giá từ client.
    * **Bảo vệ toàn vẹn lịch sử kho (Integrity Constraint):** Nghiêm cấm xóa nguyên liệu (`DELETE /inventory/ingredients/:id`) khi đã phát sinh `InventoryLog` hoặc công thức món liên quan, trả về mã lỗi `409 Conflict`.
    * Khi đơn hàng chuyển sang `PAID`, tự động cộng điểm tích lũy $\lfloor \text{totalAmount} / 1000 \rfloor$ vào `User.loyaltyPoints` trong cùng một transaction. Nếu đơn `PAID` bị hủy, hệ thống hoàn kho BOM và thu hồi lại số điểm đã cộng.
 6. **Admin Users & Customers (`apps/api/src/users` & `apps/api/src/customers`):**
@@ -130,7 +131,7 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
 * **Cơ chế Migration & Seed:**
   * Lịch sử thay đổi cấu trúc bảng được lưu vết đầy đủ trong `apps/api/prisma/migrations/`.
   * Dữ liệu mẫu (`apps/api/prisma/seed.ts`) được thiết kế có tính chất idempotent (`upsert`), khởi tạo $10\text{ sản phẩm}$ đồ uống/bánh ngọt, nguyên liệu (`Ingredient`), công thức BOM (`Recipe`, `ToppingRecipe`), cấu hình size và tài khoản mẫu 3 vai trò.
-  * Quá trình chạy migration trên môi trường production được thực thi tự động khi container API khởi động thông qua `prisma migrate deploy` (xem [ADR-007](./adr/007-migration-on-startup.md)).
+  * Quá trình chạy migration và seed trên môi trường container/production được thực thi tự động khi container API khởi động thông qua `apps/api/docker-entrypoint.sh` (`npx prisma migrate deploy` và `npx prisma db seed`, xem [ADR-007](./adr/007-migration-on-startup.md)).
 
 ### 3.4 Dịch vụ Thanh toán (`MockGatewayService` & `ZaloPayService`)
 * Đặt tại `apps/api/src/payments/mock-gateway.service.ts` và `apps/api/src/payments/zalopay.service.ts` (xem [ADR-005](./adr/005-mock-payment-service.md)).
@@ -145,7 +146,7 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
   * Thực hiện kiểm tra kết nối cơ sở dữ liệu (`SELECT 1` qua Prisma).
   * Trả về `200 OK` kèm `{ "status": "ok", "db": "up" }` khi hệ thống khỏe mạnh, hoặc `503 Service Unavailable` khi mất kết nối DB. Đặc tả API đầy đủ tại [`docs/api/openapi.yaml`](../api/openapi.yaml).
 * **Quản lý cấu hình (`apps/api/src/config/env.validation.ts`):**
-  * Kiểm tra tính hợp lệ của toàn bộ biến môi trường bắt buộc (`DATABASE_URL`, `JWT_SECRET`, `MOCK_PAYMENT_MODE`) cùng các biến tùy chọn (`PORT`, `ALLOW_MOCK_PAYMENT`, `ALLOW_SANDBOX_CONFIRM`, `ZALOPAY_*`) ngay tại thời điểm ứng dụng khởi động (fail-fast). Nếu thiếu biến quan trọng như `DATABASE_URL` hoặc `JWT_SECRET`, ứng dụng sẽ từ chối khởi động và báo lỗi rõ ràng.
+  * Kiểm tra tính hợp lệ của toàn bộ biến môi trường bắt buộc (`DATABASE_URL`, `JWT_SECRET` tối thiểu 16 ký tự, `MOCK_PAYMENT_MODE` $\in \{\text{success}, \text{failure}\}$) cùng các biến tùy chọn (`JWT_EXPIRES_IN`, `PORT`, `NODE_ENV`, `CORS_ORIGIN`, `ALLOW_MOCK_PAYMENT`, `ALLOW_SANDBOX_CONFIRM`, `ZALOPAY_APP_ID`, `ZALOPAY_KEY1`, `ZALOPAY_KEY2`, `ZALOPAY_ENDPOINT`, `ZALOPAY_CALLBACK_URL`) ngay tại thời điểm ứng dụng khởi động (fail-fast). Nếu thiếu biến quan trọng như `DATABASE_URL` hoặc `JWT_SECRET`, ứng dụng sẽ từ chối khởi động và báo lỗi rõ ràng.
 
 ### 3.6 Kiến trúc Phân tầng Kiểm thử (Testing Architecture)
 Hệ thống thiết lập 4 cấp độ kiểm thử rõ ràng theo kim tự tháp kiểm thử (Testing Pyramid):
@@ -185,7 +186,7 @@ Mọi quyết định kiến trúc trọng yếu của dự án đều được 
 5. **[ADR-005: Xây dựng Dịch vụ Thanh toán Mô phỏng (`MockGatewayService`)](./adr/005-mock-payment-service.md)** — Chủ động điều khiển kịch bản thanh toán (`success`, `failure`) song hành với ZaloPay Sandbox qua biến môi trường để kiểm thử toàn diện các nhánh nghiệp vụ.
 6. **[ADR-006: Kiểm soát đặt hàng đồng thời bằng Optimistic Locking và chống trùng lặp bằng Idempotency-Key](./adr/006-optimistic-locking-idempotency.md)** — Giải quyết bài toán bán vượt tồn kho (overselling) và thanh toán lặp hai lần.
 7. **[ADR-007: Thực thi Database Migration khi khởi động Container API](./adr/007-migration-on-startup.md)** — Bảo vệ cơ sở dữ liệu production và đảm bảo an toàn khi triển khai phiên bản mới.
-8. **[ADR-008: Tương thích Schema BOM 12 Bảng và Chuẩn Hóa Hợp Đồng API Monorepo](./adr/008-bom-schema-compatibility.md)** — Hợp nhất 12 model BOM, hợp đồng JSON `{ data }`, `0%` VAT và phân tách chu kỳ 15 phút TTL / 5 phút grace period.
+8. **[ADR-008: Tương thích Schema BOM 12 Bảng và Chuẩn Hóa Hợp Đồng API Monorepo](./adr/008-bom-schema-compatibility.md)** — Hợp nhất 12 model BOM, hợp đồng JSON `{ data }`, `0%` VAT, cơ chế hoàn kho 15 phút TTL và phân quyền hủy đơn.
 
 ---
 
@@ -195,8 +196,8 @@ Bảng dưới đây ánh xạ trực tiếp từng container/dịch vụ trong 
 
 | Thành phần / Container (trên Deployment Diagram) | Công nghệ / Nền tảng | Mục kiến trúc tương ứng | Thư mục / Tệp mã nguồn liên quan | Cổng & Giao thức |
 | :--- | :--- | :--- | :--- | :--- |
-| **`web` (Frontend Web App)** | Next.js 15.1.6 (App Router, React 19, TypeScript, TailwindCSS, Zustand) | Mục 2, Mục 3.1 (ADR-001, ADR-003) | • `apps/web/`<br>• `apps/web/src/app/{menu,cart,checkout,orders,staff,admin,account,promotions}/`<br>• `apps/web/src/stores/`<br>• `apps/web/Dockerfile` | • Local: `3000` (HTTP)<br>• Production (**Vercel**): `443` (HTTPS, `brew-lite-project.vercel.app`) |
-| **`api` (Backend API Container)** | NestJS 10.4 (TypeScript, Passport JWT, class-validator, Prisma Client) | Mục 2, Mục 3.2, Mục 3.5 (ADR-002, ADR-006, ADR-007, ADR-008) | • `apps/api/`<br>• `apps/api/src/{auth,products,orders,payments,inventory,customers,users,health,jobs,config}/`<br>• `docs/api/openapi.yaml`<br>• `apps/api/Dockerfile` | • Local: `3001` (HTTP)<br>• Production (**Render Singapore**): `443` (HTTPS $\rightarrow$ `:3001`, `brewlite-api-9viv.onrender.com`); Health check: `GET /health` |
+| **`web` (Frontend Web App)** | Next.js 15.1.6 (App Router, `output: 'standalone'`, React 19, TypeScript, TailwindCSS, Zustand) | Mục 2, Mục 3.1 (ADR-001, ADR-003) | • `apps/web/`<br>• `apps/web/src/app/{(auth)/login,(auth)/register,auth/login,auth/register,menu,products/[id],cart,checkout,orders,orders/[id],orders/[id]/confirmation,order-confirmation,gateway/zalopay,promotions,vouchers,account,profile,staff,admin}/`<br>• `apps/web/src/middleware.ts`, `apps/web/next.config.ts`<br>• `apps/web/src/stores/`, `apps/web/Dockerfile` | • Local: `3000` (HTTP)<br>• Production (**Vercel**): `443` (HTTPS, `brew-lite-project.vercel.app`) |
+| **`api` (Backend API Container)** | NestJS 10.4 (TypeScript, Passport JWT, class-validator, ThrottlerGuard, Prisma Client) | Mục 2, Mục 3.2, Mục 3.5 (ADR-002, ADR-006, ADR-007, ADR-008) | • `apps/api/`<br>• `apps/api/src/{auth,common,config,customers,health,inventory,jobs,orders,payments,prisma,products,users}/`<br>• `docs/api/openapi.yaml`<br>• `apps/api/Dockerfile`, `apps/api/docker-entrypoint.sh` | • Local: `3001` (HTTP)<br>• Production (**Render Singapore**): `443` (HTTPS $\rightarrow$ `:3001`, `brewlite-api-9viv.onrender.com`); Health check: `GET /health` |
 | **`MockGatewayService` & `ZaloPayService`** | NestJS Injectable Services (`MOCK_PAYMENT_MODE`, `HMAC-SHA256`) | Mục 2, Mục 3.4 (ADR-005) | • `apps/api/src/payments/mock-gateway.service.ts`<br>• `apps/api/src/payments/zalopay.service.ts`<br>• `apps/api/src/payments/payments.service.ts` | Gọi nội bộ / HTTPS tới ZaloPay Sandbox từ container `api` |
 | **`db` (Database Container / Managed PostgreSQL)** | PostgreSQL 16 (`postgres:16-alpine` local / **Supabase PostgreSQL** production) | Mục 2, Mục 3.3 (ADR-004, ADR-007, ADR-008) | • `apps/api/prisma/schema.prisma` (12 models)<br>• `apps/api/prisma/migrations/`<br>• `apps/api/prisma/seed.ts`<br>• `docker-compose.yml` | • Local: TCP `${DB_PORT:-5432}:5432`<br>• Production (**Supabase**): TCP `5432`/`6543` qua TLS/SSL (`sslmode=require`) |
 | **`tests` & `scripts` (Test Suites & Smoke)** | Playwright, Jest, Vitest & Shell/PowerShell Smoke Scripts | Mục 3.6 | • `apps/api/src/integration/`<br>• `tests/e2e/checkout.spec.ts`<br>• `scripts/smoke-test.{sh,ps1}` | Chạy trên local container, CI runner và kiểm thử hậu triển khai qua HTTPS |

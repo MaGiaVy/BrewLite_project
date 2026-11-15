@@ -120,18 +120,18 @@ Ngành dịch vụ cà phê thủ công (*Specialty Coffee*) tại đô thị đ
 | Mã | Tên yêu cầu | MoSCoW | Mô tả & Tiêu chí chấp nhận (Acceptance Criteria) tóm tắt |
 | :---: | :--- | :---: | :--- |
 | **FR-01** | Duyệt thực đơn & trạng thái món | `MUST` | `GET /products` (`200 OK`, ≥ 10 món); lọc danh mục client-side; Skeleton loading, Empty state; hiển thị badge *Hết hàng* khi hết BOM hoặc `isSoldOutManual = true`. |
-| **FR-02** | Chi tiết món & cá nhân hóa | `MUST` | Size S/M/L (hoặc `ALL` cho bánh ngọt); tối đa 4 Topping; mức đường/đá (`100%/70%/50%/0%`); tính giá động tức thì theo công thức `(basePrice + sizeUpcharge + ΣtoppingPrice) × qty`. |
-| **FR-03** | Quản lý giỏ hàng cục bộ | `MUST` | Zustand + `localStorage`; gộp món trùng `(productId, size, toppings)`; tăng/giảm số lượng (`1..100`), xóa món; tự tính tổng tiền; đồng bộ badge header. |
-| **FR-04** | Xác thực & phân quyền JWT RBAC | `MUST` | `POST /auth/register`, `POST /auth/login` (bcrypt 10 vòng, JWT 7 ngày); trùng email `409`, sai mật khẩu `401`, thiếu quyền `403`; khóa cứng Single Root Admin; Next.js Edge Middleware bảo vệ `/admin/*`, `/staff/*`. |
-| **FR-05** | Đặt đơn & giữ kho BOM đồng thời | `MUST` | `POST /orders` tạo đơn `PENDING`; khóa hàng User (`SELECT ... FOR UPDATE`), giới hạn ≤ 5 đơn chờ; Optimistic Locking `version` trả `409 Conflict` khi đụng độ; giữ kho tối đa 15 phút. |
+| **FR-02** | Chi tiết món & cá nhân hóa | `MUST` | Trang `/products/[id]` & Quick-Add: Size S/M/L (hoặc `ALL` cho bánh ngọt); tối đa 10 Topping; mức đường/đá (`100%/70%/50%/0%`); tính giá động theo `(basePrice + sizeUpcharge + ΣtoppingPrice) × qty`. |
+| **FR-03** | Quản lý giỏ hàng cục bộ | `MUST` | Zustand + `localStorage`; gom nhóm theo `lineId` (`productId-size-toppingIds`); chỉnh số lượng UI (`1..20`/dòng, DTO `1..50`/dòng, tối đa 50 dòng/đơn), xóa món; tự tính tổng tiền & đồng bộ badge header. |
+| **FR-04** | Xác thực & phân quyền JWT RBAC | `MUST` | `POST /auth/register`, `POST /auth/login` (`bcrypt` 10 vòng, JWT 7 ngày, `ThrottlerGuard` 5 req/60s); trùng email `409`, sai mật khẩu `401`, thiếu quyền `403`; khóa cứng Single Root Admin; Next.js Middleware bảo vệ `/admin/*`, `/staff/*`. |
+| **FR-05** | Đặt đơn & giữ kho BOM đồng thời | `MUST` | `POST /orders` tạo đơn `PENDING` (hoặc tự chốt `PAID` nếu `totalAmount = 0đ`); khóa hàng User (`SELECT ... FOR UPDATE`), giới hạn ≤ 5 đơn chờ; thiếu tồn kho ban đầu trả `400 Bad Request`, đụng độ Optimistic Locking `version` trả `409 Conflict`; giữ kho tối đa 15 phút. |
 | **FR-06** | Thanh toán Cashless & ZaloPay | `MUST` | Hỗ trợ ZaloPay Sandbox (`HMAC-SHA256`, webhook IPN, polling 3s) & Mock Gateway; `Idempotency-Key` chống trừ lặp; bảo vệ chống IDOR (`403`); endpoint giả lập Sandbox khóa mặc định trên Production (`ALLOW_SANDBOX_CONFIRM`). |
-| **FR-07** | Voucher & Điểm Loyalty Hạt Vàng | `MUST` | Mã giảm giá (`BREWLITE10`, `WELCOME20`, `DiscountCode`, `UserVoucher`); tích `1.000đ = 1 điểm` khi `PAID`; đổi điểm server-enforced (`10/20/50` điểm) trong transaction atomic. |
-| **FR-08** | Theo dõi & lịch sử đơn hàng | `MUST` | `/orders` (`GET /orders/me`) sắp mới nhất lên đầu; thanh tiến trình 5 nấc `PENDING → PAID → PREPARING → READY → COMPLETED`; polling 3–5s cập nhật tự động. |
-| **FR-09** | Quầy pha chế Barista KDS (`/staff`) | `SHOULD` | Chỉ `STAFF`/`ADMIN` truy cập; xem đơn `PAID`/`PREPARING` đủ Size/Topping/Đá/Đường; 1 chạm chuyển trạng thái; bật/tắt hết món `86` (`PATCH /products/:id/sold-out`); ẩn công thức & giá vốn khỏi `STAFF`. |
+| **FR-07** | Voucher & Điểm Loyalty Hạt Vàng | `MUST` | Mã giảm giá (`BREWLITE10`, `WELCOME20`, `DiscountCode`, `UserVoucher`); trừ lượt/ví voucher ngay khi tạo đơn (`voucherDeducted`) & hoàn lại nếu hủy/hết hạn; tích `1.000đ = 1 điểm` khi `PAID`; đổi điểm server-enforced (`10/15/20/50` điểm) trong transaction atomic. |
+| **FR-08** | Theo dõi & lịch sử đơn hàng | `MUST` | `/orders` (`GET /orders/me`) sắp mới nhất lên đầu; 5 trạng thái backend `PENDING → PAID → PREPARING → READY → COMPLETED` (UI hiển thị thanh tiến trình 3 bước chính); polling `4–5s` tự cập nhật. |
+| **FR-09** | Quầy pha chế Barista KDS (`/staff`) | `SHOULD` | Chỉ `STAFF`/`ADMIN` truy cập; polling `3s` xem đơn `PAID`/`PREPARING` đủ Size/Topping/Đá/Đường; 1 chạm chuyển trạng thái; bật/tắt hết món `86` (`PATCH /products/:id/sold-out`); ẩn công thức & giá vốn khỏi `STAFF`. |
 | **FR-10** | Admin Portal (`/admin`) | `SHOULD` | Quản trị Menu, kho nguyên liệu BOM (`Ingredient`, `Recipe`, `ToppingRecipe`, `InventoryLog`), Voucher, nhân sự `STAFF`, khách hàng và thống kê doanh thu. |
-| **FR-11** | Tự động hủy đơn quá hạn 15 phút | `COULD` | Cron job `ExpireOrdersJob` (`@Cron('*/1 * * * *')`) quét đơn `PENDING`/`PAYMENT_FAILED` quá 15 phút → `CANCELLED` và hoàn trả 100% kho BOM. |
-| **FR-12** | Tìm kiếm & lọc thực đơn nâng cao | `COULD` | Tìm kiếm không phân biệt hoa/thường/dấu tiếng Việt kết hợp tab danh mục (`vietnamese`, `espresso`, `tea`, `coldbrew`, `bakery`). |
-| **FR-13** | Hủy đơn & hoàn kho (Grace Period 5p) | `SHOULD` | Khách hàng hủy đơn trong 5 phút sau khi `PAID` (khi Barista chưa `PREPARING`) hoặc khi đang `PENDING`/`PAYMENT_FAILED` → hoàn 100% kho BOM & thu hồi điểm/voucher nếu có. |
+| **FR-11** | Tự động hủy đơn quá hạn 15 phút | `COULD` | Cron job `ExpireOrdersJob` (`@Cron('*/1 * * * *')`) quét đơn `PENDING`/`PAYMENT_FAILED` quá 15 phút → `CANCELLED` và hoàn trả 100% kho BOM & voucher. |
+| **FR-12** | Tìm kiếm & lọc thực đơn nâng cao | `COULD` | Tìm kiếm không phân biệt hoa/thường kết hợp 6 tab danh mục (`all`, `espresso`, `salt_phin`, `tea_matcha`, `cold_brew`, `bakery`). |
+| **FR-13** | Hủy đơn & hoàn kho BOM | `SHOULD` | `CUSTOMER` được hủy đơn khi đang `PENDING`/`PAYMENT_FAILED`; `STAFF`/`ADMIN` được hủy đơn `PAID` (trước khi `PREPARING`) → hoàn 100% kho BOM & hoàn lượt/ví voucher (`UserVoucher`/`DiscountCode`). |
 
 #### 2. Yêu cầu Phi chức năng (`NFR-01` – `NFR-06`)
 
@@ -167,8 +167,8 @@ Sơ đồ gồm **4 Tác nhân** (*Khách hàng*, *Nhân viên/Barista*, *Quản
 | **Actor** | Chính: Khách hàng. Hỗ trợ: PostgreSQL. | Chính: Khách hàng. Hỗ trợ: ZaloPay Sandbox / Mock Gateway. |
 | **Trigger** | Khách bấm *"Tiến hành đặt hàng"* tại `/cart`. | Gọi nối tiếp từ `UC-07a` hoặc khách bấm *"Thanh toán lại"* trên đơn `PAYMENT_FAILED`. |
 | **Tiền điều kiện** | Giỏ hàng không rỗng; khách có JWT Bearer hợp lệ. | Đơn ở trạng thái `PENDING` hoặc `PAYMENT_FAILED`, còn trong hạn giữ kho 15 phút. |
-| **Dòng sự kiện chính** | 1. Khách vào `/checkout`, kiểm tra JWT (`<<include>>`).<br>2. Chọn/áp mã Voucher (`<<extend>>`) và phương thức thanh toán.<br>3. Frontend sinh `Idempotency-Key` (UUIDv4), gửi `POST /orders`.<br>4. Backend mở Transaction Pha 1: `SELECT ... FOR UPDATE` trên User, kiểm tra ≤ 5 đơn chờ.<br>5. Tính định mức BOM (`computeRequiredIngredients`), kiểm tra & giữ tồn kho với Optimistic Locking (`version + 1`).<br>6. Tạo `Order` trạng thái `PENDING`, commit và chuyển sang `UC-07b`. | 1. Backend gọi `POST /payments/zalopay/create` (ký `HMAC-SHA256` Key1) hoặc `POST /payments`.<br>2. Hiển thị QR / trang `/gateway/zalopay`, đếm ngược giữ chỗ & polling 3s (`GET /payments/zalopay/status/:orderId`).<br>3. Khách quét QR hoặc xác nhận trên cổng Sandbox.<br>4. Backend nhận Webhook IPN (xác minh Key2) / xác nhận và mở Transaction Pha 2: đổi `Order` → `PAID`, tạo `Payment` (`SUCCESS`), cộng điểm Loyalty (`1.000đ = 1 điểm`).<br>5. Frontend xóa giỏ hàng và chuyển tới `/orders/:id`. |
-| **Dòng sự kiện phụ / Ngoại lệ** | • **A1:** Áp dụng Voucher hợp lệ giảm trừ tổng tiền.<br>• **E1 (`401`):** Chưa đăng nhập → chuyển `/auth/login?redirect=/checkout`, giữ nguyên giỏ.<br>• **E2 (`409`):** Thiếu nguyên liệu BOM hoặc đụng độ `version` → rollback, báo hết món.<br>• **E3:** Trùng `Idempotency-Key` → trả lại đơn đã tạo, không tạo trùng. | • **A1:** Thanh toán thất bại → `PAYMENT_FAILED`, vẫn giữ kho trong hạn 15 phút để khách retry.<br>• **A2:** Hủy đơn trong 5 phút Grace Period (trước khi `PREPARING`) → hoàn 100% kho BOM & thu hồi điểm.<br>• **E1:** Quá 15 phút chưa thanh toán → `ExpireOrdersJob` chuyển `CANCELLED` và hoàn kho BOM. |
+| **Dòng sự kiện chính** | 1. Khách vào `/checkout`, kiểm tra JWT (`<<include>>`).<br>2. Chọn/áp mã Voucher (`<<extend>>`) và phương thức thanh toán.<br>3. Frontend sinh `Idempotency-Key` (UUIDv4), gửi `POST /orders`.<br>4. Backend mở Transaction Pha 1: `SELECT ... FOR UPDATE` trên User, kiểm tra ≤ 5 đơn chờ, trừ lượt/ví voucher (`voucherDeducted`).<br>5. Tính định mức BOM (`computeRequiredIngredients`), kiểm tra & giữ tồn kho với Optimistic Locking (`version + 1`).<br>6. Tạo `Order` trạng thái `PENDING` (hoặc `PAID` nếu `totalAmount = 0đ`), commit và chuyển sang `UC-07b`. | 1. Backend gọi `POST /payments/zalopay/create` (ký `HMAC-SHA256` Key1) hoặc `POST /payments`.<br>2. Hiển thị QR / trang `/gateway/zalopay`, đếm ngược hiển thị UI 5p (giữ kho backend 15p) & polling 3s (`GET /payments/zalopay/status/:orderId`).<br>3. Khách quét QR hoặc xác nhận trên cổng Sandbox.<br>4. Backend nhận Webhook IPN (xác minh Key2) / xác nhận và mở Transaction Pha 2: đổi `Order` → `PAID`, tạo `Payment` (`SUCCESS`), cộng điểm Loyalty (`1.000đ = 1 điểm`).<br>5. Frontend xóa giỏ hàng và chuyển tới `/orders/:id`. |
+| **Dòng sự kiện phụ / Ngoại lệ** | • **A1:** Áp dụng Voucher hợp lệ giảm trừ tổng tiền (`0đ` tự chốt `PAID`).<br>• **E1 (`401`):** Chưa đăng nhập → chuyển `/auth/login?redirect=/checkout`, giữ nguyên giỏ.<br>• **E2 (`400`/`409`):** Thiếu nguyên liệu BOM trả `400 Bad Request`; đụng độ `version` trả `409 Conflict` → rollback.<br>• **E3:** Trùng `Idempotency-Key` (khớp payload) → trả lại đơn đã tạo, không tạo trùng. | • **A1:** Thanh toán thất bại → `PAYMENT_FAILED`, vẫn giữ kho trong hạn 15 phút để khách retry.<br>• **A2:** Khách hủy `PENDING`/`PAYMENT_FAILED` (`DELETE /orders/:id`) hoặc Staff/Admin hủy `PAID` trước khi `PREPARING` → hoàn 100% kho BOM & hoàn voucher.<br>• **E1:** Quá 15 phút chưa thanh toán → `ExpireOrdersJob` chuyển `CANCELLED` và hoàn kho BOM + voucher. |
 | **Hậu điều kiện** | Tạo `Order` (`PENDING`), giữ chỗ kho BOM (`version + 1`). | Thành công: `Order = PAID`, `Payment = SUCCESS`, cộng điểm Loyalty, dọn giỏ hàng. |
 
 ---
@@ -177,25 +177,25 @@ Sơ đồ gồm **4 Tác nhân** (*Khách hàng*, *Nhân viên/Barista*, *Quản
 
 ### TASK 2.1. Sơ đồ Hoạt động (Activity Diagram)
 
-Nhằm mô hình hóa trọn vẹn hành vi động của hệ thống theo đúng hành trình khách hàng và nhân viên pha chế, nhóm chuẩn hóa thành **1 Sơ đồ Hoạt động Toàn trình End-to-End** qua **5 Swimlanes** (*Khách hàng*, *Giao diện Web Next.js*, *Backend API NestJS*, *Cổng thanh toán ZaloPay*, *Cơ sở dữ liệu PostgreSQL*), bao quát **6 giai đoạn nghiệp vụ liên tục** và các nhánh ngoại lệ (`409` hết hàng BOM, lỗi thanh toán, hủy đơn 5 phút Grace Period, quá hạn 15 phút):
+Nhằm mô hình hóa trọn vẹn hành vi động của hệ thống theo đúng hành trình khách hàng và nhân viên pha chế, nhóm chuẩn hóa thành **1 Sơ đồ Hoạt động Toàn trình End-to-End** qua **6 Swimlanes** (*Khách hàng*, *Web Next.js*, *NestJS API*, *PostgreSQL*, *ZaloPay / Mock*, *Nhân viên KDS*), bao quát **6 giai đoạn nghiệp vụ liên tục** và các nhánh ngoại lệ (`400`/`409` hết hàng BOM, lỗi thanh toán, hủy đơn hợp lệ, quá hạn 15 phút):
 
 #### 1. Bảng tổng hợp 6 giai đoạn nghiệp vụ End-to-End
 
 | STT | Giai đoạn | Phân làn xử lý chính | Trọng tâm kỹ thuật & Ngoại lệ |
 | :---: | :--- | :--- | :--- |
-| **1** | **Duyệt Thực đơn** | Khách hàng → Web → API → PostgreSQL | Truy cập `/menu`, hiển thị Skeleton loader, gọi `GET /products` lọc theo danh mục & trạng thái bán (`isActive`). |
-| **2** | **Tùy biến & Giỏ hàng** | Khách hàng ↔ Web (`Zustand`) | Khóa chọn nếu hết kho (`86`/BOM); tính giá động theo Size (`S/M/L`) + Topping + mức đá/đường; gom nhóm theo composite key & lưu `localStorage`. |
-| **3** | **Đặt đơn (Pha 1: `PENDING`)** | Web → API → PostgreSQL | Kiểm tra JWT Bearer (giữ nguyên giỏ nếu cần đăng nhập); gắn `Idempotency-Key` (UUIDv4); `SELECT ... FOR UPDATE` giới hạn `<= 5` đơn chờ; giữ kho BOM bằng Optimistic Locking (`version + 1`), trả `409 Conflict` nếu thiếu nguyên liệu. |
-| **4** | **Thanh toán (Pha 2: ZaloPay / Mock)** | ZaloPay ↔ Khách ↔ Web ↔ API | Hiển thị QR / `/gateway/zalopay`, đếm ngược giữ kho 15 phút & polling 3s; xác thực Webhook IPN `HMAC-SHA256` chuyển `PAID`, tạo `Payment`, cộng điểm Hạt Vàng (`1.000đ = 1đ`). Nếu lỗi → `PAYMENT_FAILED` giữ kho đến hết 15 phút để thử lại. |
-| **5** | **Hủy đơn 5 phút & Hết hạn 15 phút** | Khách ↔ Web → API / Cron | Cho phép hủy trong 5 phút Grace Period (trước khi `PREPARING`) để hoàn 100% kho BOM & thu hồi điểm; quá 15 phút chưa thanh toán thì `ExpireOrdersJob` tự hủy & hoàn kho. |
-| **6** | **Pha chế KDS & Giao nhận** | Barista KDS (`/staff`) ↔ API ↔ Khách | Barista nhận đơn `PAID` kèm công thức BOM, chuyển `PREPARING → READY → COMPLETED` qua State Machine guard `assertTransition`. |
+| **1** | **Duyệt Thực đơn** | Khách hàng → Web → API → PostgreSQL | Truy cập `/menu`, hiển thị Skeleton loader, gọi `GET /products` lọc theo 6 tab danh mục & trạng thái bán (`isActive`, `isSoldOutManual`). |
+| **2** | **Tùy biến & Giỏ hàng** | Khách hàng ↔ Web (`Zustand`) | Vào `/products/[id]` (hoặc Quick-Add `+`); tính giá theo Size (`S/M/L`) + Topping (tối đa 10) + đá/đường; gom nhóm theo `lineId` (`1..20`/dòng) & lưu `localStorage`. |
+| **3** | **Đặt đơn (Pha 1: `PENDING`)** | Web → API → PostgreSQL | Kiểm tra JWT Bearer (giữ nguyên giỏ nếu cần đăng nhập); gắn `Idempotency-Key` (UUIDv4); `SELECT ... FOR UPDATE` giới hạn `<= 5` đơn chờ; trừ voucher trước (`voucherDeducted`); thiếu BOM trả `400`, đụng độ `version` trả `409 Conflict`. |
+| **4** | **Thanh toán (Pha 2: ZaloPay / Mock)** | ZaloPay ↔ Khách ↔ Web ↔ API | Hiển thị QR / `/gateway/zalopay`, đếm ngược UI 5p (giữ kho 15p) & polling 3s; xác thực IPN `HMAC-SHA256` chuyển `PAID`, tạo `Payment`, cộng điểm (`1.000đ = 1đ`). Nếu lỗi → `PAYMENT_FAILED` giữ kho đến hết 15 phút để thử lại. |
+| **5** | **Hủy đơn & Hết hạn 15 phút** | Khách / KDS → API / Cron | Khách hủy đơn `PENDING`/`PAYMENT_FAILED` (`DELETE /orders/:id`) hoặc Staff/Admin hủy `PAID` trước khi `PREPARING` → hoàn 100% kho BOM & voucher; quá 15 phút `ExpireOrdersJob` tự hủy & hoàn kho. |
+| **6** | **Pha chế KDS & Giao nhận** | Nhân viên KDS (`/staff`) ↔ API ↔ Khách | Barista polling 3s nhận đơn `PAID`, chuyển `PREPARING → READY → COMPLETED` qua State Machine guard `assertTransition`; khách theo dõi 5s tại `/orders/:id`. |
 
-#### 2. Sơ đồ Hoạt động Toàn trình End-to-End (5 Swimlanes)
+#### 2. Sơ đồ Hoạt động Toàn trình End-to-End (6 Swimlanes)
 
 <div align="center">
 
-![Sơ đồ Hoạt động End-to-End BrewLite](diagrams/activity-checkout.png)  
-*Hình 2.1: Sơ đồ Hoạt động toàn trình luồng Đặt hàng, Thanh toán và Pha chế End-to-End với 5 Swimlanes (`docs/diagrams/activity-checkout.png`).*
+![Sơ đồ Hoạt động End-to-End BrewLite](diagrams/activity_E2E.png)  
+*Hình 2.1: Sơ đồ Hoạt động toàn trình luồng Đặt hàng, Thanh toán và Pha chế End-to-End với 6 Swimlanes (`docs/diagrams/activity_E2E.png`).*
 
 </div>
 
@@ -203,7 +203,7 @@ Nhằm mô hình hóa trọn vẹn hành vi động của hệ thống theo đú
 
 ### TASK 2.2. Sơ đồ Trình tự (Sequence Diagram)
 
-Sơ đồ trình tự mô tả tương tác giữa 5 lifeline tối thiểu (`Customer → Next.js UI → NestJS API → Database PostgreSQL → Payment Service`), làm rõ kiểm tra JWT, Transaction 2 pha, Optimistic Locking, nhánh `alt` thanh toán thành công/thất bại và cơ chế `Idempotency-Key`:
+Sơ đồ trình tự được giữ ở mức trừu tượng trung bình (~18 thông điệp cốt lõi, phong cách đen trắng tối giản) giữa 5 lifeline (`Customer → Web App → NestJS API → PostgreSQL → Payment Gateway`), làm rõ kiểm tra JWT, Transaction 2 pha, trừ voucher Pha 1, Optimistic Locking, nhánh `alt` thanh toán (`PAID`/`PAYMENT_FAILED`) và hoàn kho `ExpireOrdersJob`:
 
 <div align="center">
 
@@ -451,7 +451,7 @@ Pipeline CI tại [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) ch�
 | **US-06** | Khách hàng | Là một khách hàng, tôi muốn thanh toán không tiền mặt qua ZaloPay Sandbox hoặc Ví/Thẻ mô phỏng (không bị trừ tiền lặp) để hoàn tất đơn nhanh chóng. | `FR-06` |
 | **US-07** | Khách hàng | Là một khách hàng, tôi muốn áp dụng mã Voucher và đổi điểm Hạt Vàng lấy ưu đãi để tiết kiệm chi phí mua hàng. | `FR-07` |
 | **US-08** | Khách hàng | Là một khách hàng, tôi muốn theo dõi trạng thái đơn hàng theo thời gian thực và xem lịch sử đơn để biết khi nào ra quầy nhận nước. | `FR-08` |
-| **US-09** | Khách hàng | Là một khách hàng, tôi muốn hủy đơn trong thời gian ân hạn 5 phút (khi chưa pha chế) hoặc thanh toán lại khi lỗi để linh hoạt xử lý sự cố. | `FR-13` |
+| **US-09** | Khách hàng | Là một khách hàng, tôi muốn hủy đơn khi chưa thanh toán (`PENDING`/`PAYMENT_FAILED`) hoặc thanh toán lại khi lỗi để linh hoạt xử lý sự cố. | `FR-13` |
 | **US-10** | Barista (`STAFF`) | Là một Barista, tôi muốn xem hàng đợi đơn đã thanh toán trên KDS (`/staff`) kèm âm báo và cập nhật trạng thái `PREPARING → READY → COMPLETED` để điều phối quầy bar chính xác. | `FR-09` |
 | **US-11** | Barista (`STAFF`) | Là một Barista, tôi muốn bật/tắt trạng thái hết món `86` ngay trên màn hình quầy để ngăn khách đặt món vừa hết nguyên liệu. | `FR-09` |
 | **US-12** | Quản lý (`ADMIN`) | Là một Admin, tôi muốn quản lý thực đơn, tồn kho nguyên liệu BOM, định mức `Recipe`, Voucher, nhân sự và xem doanh thu tại `/admin` để vận hành cửa hàng hiệu quả. | `FR-10` |
@@ -465,9 +465,9 @@ Pipeline CI tại [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) ch�
 | ID | Phân hệ (Module) | Các kịch bản kiểm thử chính |
 | :---: | :--- | :--- |
 | **TS-01** | Xác thực & Phân quyền (`Auth / RBAC`) | Đăng ký trùng email (`409`); mật khẩu < 6 ký tự (`400`); sai thông tin đăng nhập (`401`); đăng nhập hợp lệ trả JWT 7 ngày; chặn leo thang quyền `CUSTOMER` vào `/admin`, `/staff` (`403`). |
-| **TS-02** | Đặt đơn & Kho BOM (`Orders / BOM`) | Tạo đơn `PENDING` đúng tổng tiền; trừ kho BOM kèm Optimistic Locking; 2 request đồng thời tranh chấp 1 đơn vị tồn kho cuối cùng (`201` & `409`); giới hạn > 5 đơn chờ (`400`); tự động hủy quá hạn 15 phút (`ExpireOrdersJob`). |
+| **TS-02** | Đặt đơn & Kho BOM (`Orders / BOM`) | Tạo đơn `PENDING` đúng tổng tiền (0đ tự chốt `PAID`); thiếu kho ban đầu (`400 Bad Request`); 2 request đồng thời tranh chấp 1 đơn vị tồn kho cuối (`201` & `409`); giới hạn > 5 đơn chờ (`400`); tự động hủy quá hạn 15 phút (`ExpireOrdersJob`). |
 | **TS-03** | Thanh toán & Idempotency (`Payments`) | Gửi lại cùng `Idempotency-Key` không tạo bản ghi thứ 2; thanh toán thành công chuyển `PAID` và cộng điểm Loyalty; thanh toán thất bại chuyển `PAYMENT_FAILED` và cho retry; chặn `ALLOW_SANDBOX_CONFIRM=false` (`403`). |
-| **TS-04** | Quầy pha chế KDS & Hủy đơn | Chuyển trạng thái hợp lệ `PAID → PREPARING → READY → COMPLETED`; hủy đơn trong 5 phút Grace Period hoàn 100% kho BOM; nhân viên `STAFF` không xem được công thức/giá vốn. |
+| **TS-04** | Quầy pha chế KDS & Hủy đơn | Chuyển trạng thái hợp lệ `PAID → PREPARING → READY → COMPLETED`; `CUSTOMER` hủy `PENDING`/`PAYMENT_FAILED` và `STAFF`/`ADMIN` hủy `PAID` trước `PREPARING` hoàn 100% kho BOM & voucher; nhân viên `STAFF` không xem được công thức/giá vốn. |
 | **TS-05** | Luồng End-to-End Mobile (`Playwright`) | Người dùng trên viewport di động duyệt `/menu` → chọn Size/Topping → giỏ hàng → đăng nhập → `/checkout` → thanh toán thành công (`PAID`) và kịch bản thất bại giữ nguyên giỏ hàng. |
 
 #### 2. Bảng Test Case trọng tâm
@@ -480,7 +480,7 @@ Pipeline CI tại [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) ch�
 | **TC-04** | Chống trừ tiền lặp (`INT-T02`) | 1. Tạo đơn `PENDING`<br>2. Gửi 2 lần `POST /payments` với cùng `Idempotency-Key` | `Idempotency-Key`: cùng 1 UUIDv4 | Chỉ có 1 dòng `Payment`, trả về `isIdempotent: true`, cộng điểm đúng 1 lần. |
 | **TC-05** | Thanh toán thất bại & giữ kho (`INT-T04`) | 1. Gửi `POST /payments` với chế độ failure<br>2. Kiểm tra đơn và gửi lại lần 2 thành công | `MOCK_PAYMENT_MODE=failure` → `success` | Lần 1 đơn sang `PAYMENT_FAILED` (không trừ kho lần 2); lần 2 thành `PAID`. |
 | **TC-06** | Chặn truy cập trái phép (`INT-T05` & RBAC) | 1. Gửi `POST /orders` không JWT<br>2. Gửi `GET /admin/customers` với JWT `CUSTOMER` | Header thiếu token / JWT `CUSTOMER` | Lần 1 trả `401 Unauthorized`; lần 2 trả `403 Forbidden`. |
-| **TC-07** | Hủy đơn trong 5 phút ân hạn | 1. Thanh toán đơn thành `PAID`<br>2. Bấm Hủy đơn trước khi Barista bấm `PREPARING` | Đơn `PAID` < 5 phút | Đơn chuyển `CANCELLED`, hoàn 100% nguyên liệu BOM về `Ingredient`. |
+| **TC-07** | Hủy đơn & hoàn kho BOM | 1. Khách hủy đơn `PENDING`/`PAYMENT_FAILED` (`DELETE /orders/:id`)<br>2. Hoặc `STAFF`/`ADMIN` hủy đơn `PAID` trước `PREPARING` | Đơn `PENDING`/`PAYMENT_FAILED` hoặc `PAID` chưa pha | Đơn chuyển `CANCELLED`, hoàn 100% nguyên liệu BOM về `Ingredient` và hoàn voucher. |
 | **TC-08** | Luồng Mobile E2E thanh toán thành công (`E2E-T01`) | 1. Mở `/menu` (Pixel 7) → chọn Size M + Topping<br>2. Vào `/cart` → `/auth/register` → `/checkout`<br>3. Chọn Ví (`payment-method-wallet`) → `confirm-payment-button` | Tài khoản đăng ký mới; `MOCK_PAYMENT_MODE=success` | API trả `201 Created`, đơn đạt `PAID`, chuyển trang xác nhận đơn thành công. |
 | **TC-09** | Luồng Mobile E2E thanh toán thất bại (`E2E-T02`) | 1. Bật `MOCK_PAYMENT_MODE=failure` cho API container<br>2. Đặt đơn và bấm xác nhận thanh toán tại `/checkout` | `MOCK_PAYMENT_MODE=failure` | UI hiển thị `payment-error`, không chuyển trang, giỏ hàng (`cart-link`) vẫn giữ nguyên món. |
 | **TC-10** | Chống giả mạo ZaloPay Callback | 1. Gửi `POST /payments/zalopay/callback` với `mac` sai hoặc `amount` lệch | Payload giả mạo MAC / số tiền | Trả `return_code: -1`, từ chối cập nhật `PAID` và ghi log cảnh báo bảo mật. |
@@ -603,19 +603,19 @@ Pipeline CI tại [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) ch�
 
 | Mã yêu cầu | Use-case / Tính năng | Thiết kế / Sơ đồ / ADR | Code / API / Giao diện | Mã Test / Kết quả |
 | :---: | :--- | :--- | :--- | :--- |
-| **FR-01** | Duyệt thực đơn & lọc món đang bán | `activity-checkout.puml`, `class.puml`, `openapi.yaml` | `GET /products` (`apps/api/src/products/*`), `apps/web/src/app/menu/page.tsx` | `products.controller.spec.ts`, `menu.test.tsx` (Pass) |
-| **FR-02** | Chi tiết món, Size & Topping (BOM) | `activity-checkout.puml`, `ADR-008`, `openapi.yaml` | `GET /products/:id`, `GET /inventory/pricing-config`, `products/[id]/page.tsx` | `products.controller.spec.ts`, `product-detail.test.tsx` (Pass) |
-| **FR-03** | Giỏ hàng & tùy chỉnh ghi chú | `activity-checkout.puml`, `architecture.md` | `cart/page.tsx`, `ProductEditModal.tsx`, `cart-store.ts` | `cart-ui.test.tsx`, `cart-store.test.ts` (Pass) |
+| **FR-01** | Duyệt thực đơn & lọc món đang bán | `activity_E2E.puml`, `class.puml`, `openapi.yaml` | `GET /products` (`apps/api/src/products/*`), `apps/web/src/app/menu/page.tsx` | `products.controller.spec.ts`, `menu.test.tsx` (Pass) |
+| **FR-02** | Chi tiết món, Size & Topping (BOM) | `activity_E2E.puml`, `ADR-008`, `openapi.yaml` | `GET /products/:id`, `GET /inventory/pricing-config`, `products/[id]/page.tsx` | `products.controller.spec.ts`, `product-detail.test.tsx` (Pass) |
+| **FR-03** | Giỏ hàng & tùy chỉnh ghi chú | `activity_E2E.puml`, `architecture.md` | `cart/page.tsx`, `ProductEditModal.tsx`, `cart-store.ts` | `cart-ui.test.tsx`, `cart-store.test.ts` (Pass) |
 | **FR-04** | Đăng ký, đăng nhập & JWT RBAC | `sequence-checkout.puml`, `use-case.puml`, `openapi.yaml` | `POST /auth/{register,login}`, `GET /auth/me`, `apps/api/src/auth/*`, `auth/{login,register}/page.tsx` | `auth-api.spec.ts`, `auth-profile.spec.ts`, `auth.service.spec.ts`, `jwt-secret.spec.ts`, `auth-ui.test.tsx`, `account.test.tsx` (Pass) |
-| **FR-05** | Tạo đơn, tính giá & giữ kho BOM | `usecase-checkout.md`, `sequence-checkout.puml`, `activity-checkout.puml`, `ADR-006`, `ADR-008` | `POST /orders`, `GET /orders/*` (`orders.service.ts`, `bom.helper.ts`), `checkout/page.tsx` | `API-T04.spec.ts`, `orders.{controller,service}.spec.ts`, `checkout.test.tsx` (Pass); `INT-T01..T05` |
+| **FR-05** | Tạo đơn, tính giá & giữ kho BOM | `usecase-checkout.md`, `sequence-checkout.puml`, `activity_E2E.puml`, `ADR-006`, `ADR-008` | `POST /orders`, `GET /orders/*` (`orders.service.ts`, `bom.helper.ts`), `checkout/page.tsx` | `API-T04.spec.ts`, `orders.{controller,service}.spec.ts`, `checkout.test.tsx` (Pass); `INT-T01..T05` |
 | **FR-06** | Thanh toán Mock / ZaloPay & Idempotency | `usecase-checkout.md`, `sequence-checkout.puml`, `ADR-005`, `ADR-006` | `POST /payments`, `/payments/zalopay/*`, `gateway/zalopay/page.tsx` | `API-T05.spec.ts`, `API-T06.spec.ts`, `payments.*.spec.ts`, `zalopay.service.spec.ts` (Pass) |
 | **FR-07** | Voucher & Đổi Hạt Vàng | `architecture.md`, `class.puml`, `openapi.yaml` | `POST /auth/redeem-points`, `GET /auth/vouchers`, `/inventory/vouchers`, `promotions/page.tsx` | `auth.service.spec.ts`, `orders.service.spec.ts`, `payments.service.spec.ts`, `promotions.test.tsx` (Pass) |
-| **FR-08** | Lịch sử & theo dõi tiến trình đơn | `activity-checkout.puml`, `architecture.md` | `GET /orders/me`, `GET /orders/:id`, `orders/*/page.tsx`, `use-order-polling.ts` | `orders.test.tsx`, `confirmation.test.tsx`, `use-order-polling.test.ts` (Pass) |
-| **FR-09** | Quầy pha chế Barista KDS | `activity-checkout.puml`, `openapi.yaml` | `GET /orders/barista/queue`, `PATCH /orders/:id/status`, `staff/page.tsx` | `orders.service.spec.ts`, `staff/*.test.*`, `use-barista-queue.test.ts` (Pass) |
+| **FR-08** | Lịch sử & theo dõi tiến trình đơn | `activity_E2E.puml`, `architecture.md` | `GET /orders/me`, `GET /orders/:id`, `orders/*/page.tsx`, `use-order-polling.ts` | `orders.test.tsx`, `confirmation.test.tsx`, `use-order-polling.test.ts` (Pass) |
+| **FR-09** | Quầy pha chế Barista KDS | `activity_E2E.puml`, `openapi.yaml` | `GET /orders/barista/queue`, `PATCH /orders/:id/status`, `staff/page.tsx` | `orders.service.spec.ts`, `staff/*.test.*`, `use-barista-queue.test.ts` (Pass) |
 | **FR-10** | Admin Portal (Menu, Kho BOM, Nhân sự) | `architecture.md`, `ADR-004`, `ADR-008`, `openapi.yaml` | `/products`, `/inventory/*`, `/staff/*`, `/admin/customers/*`, `admin/page.tsx` | `inventory.*.spec.ts`, `users.service.spec.ts`, `customers.*.spec.ts`, `admin/page.test.tsx` (Pass) |
-| **FR-11** | Tự động hủy đơn quá hạn 15 phút | `sequence-checkout.puml`, `activity-checkout.puml`, `ADR-008` | `apps/api/src/jobs/expire-orders.job.ts`, `order-refund.helper.ts` | `API-T07..T09.spec.ts`, `expire-orders.job.spec.ts` (Pass) |
-| **FR-12** | Tìm kiếm & lọc thực đơn theo danh mục | `activity-checkout.puml`, `srs.md` | `apps/web/src/app/menu/page.tsx`, `lib/format.ts` | `menu.test.tsx`, `format.test.ts` (Pass) |
-| **FR-13** | Hủy đơn & hoàn kho BOM (5p Grace Period) | `usecase-checkout.md`, `activity-checkout.puml`, `ADR-008` | `PATCH /orders/:id/status`, `DELETE /orders/:id`, `order-refund.helper.ts` | `API-T07..T09.spec.ts`, `orders.service.spec.ts` (Pass) |
+| **FR-11** | Tự động hủy đơn quá hạn 15 phút | `sequence-checkout.puml`, `activity_E2E.puml`, `ADR-008` | `apps/api/src/jobs/expire-orders.job.ts`, `order-refund.helper.ts` | `API-T07..T09.spec.ts`, `expire-orders.job.spec.ts` (Pass) |
+| **FR-12** | Tìm kiếm & lọc thực đơn theo danh mục | `activity_E2E.puml`, `srs.md` | `apps/web/src/app/menu/page.tsx`, `lib/format.ts` | `menu.test.tsx`, `format.test.ts` (Pass) |
+| **FR-13** | Hủy đơn & hoàn kho BOM | `usecase-checkout.md`, `activity_E2E.puml`, `ADR-008` | `PATCH /orders/:id/status`, `DELETE /orders/:id`, `order-refund.helper.ts` | `API-T07..T09.spec.ts`, `orders.service.spec.ts` (Pass) |
 | **NFR-01..06** | Hiệu năng, Bảo mật, Zero Overselling, Mobile PWA, CI/CD, Idempotency | `ADR-003`, `ADR-006`, `ADR-007`, `deployment.puml`, `sequence-checkout.puml` | `JwtAuthGuard`, `RolesGuard`, `version`, `GET /health`, `ci.yml`, `cd.yml`, `smoke-test.ps1` | `health.controller.spec.ts`, `env.validation.spec.ts`, `ci.md`, `production-smoke.md`, `secret-scan.md` (Pass) |
 
 ---

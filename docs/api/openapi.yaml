@@ -6,9 +6,13 @@ info:
     REST API cho he thong BrewLite (Ass2 NestJS Monorepo `apps/api`), bao gom
     Customer storefront, Loyalty/Vouchers, Mock & ZaloPay Sandbox Payment,
     Bill of Materials (BOM) Inventory, Barista KDS va Admin Portal.
+    Global rate limit qua ThrottlerGuard: 120 requests / 60s (rieng /auth/register
+    va /auth/login gioi han 5 requests / 60s).
 servers:
   - url: http://localhost:3001
     description: Local NestJS API
+  - url: https://brewlite-api-9viv.onrender.com
+    description: Production API (Render Singapore)
 tags:
   - name: Health
   - name: Auth
@@ -118,8 +122,15 @@ paths:
   /auth/redeem-points:
     post:
       tags: [Auth]
-      summary: Doi Hat Vang (loyaltyPoints) lay voucher uu dai theo quy dinh server (10/20/50 diem)
-      description: Quy tac quy doi diem duoc server kiem soat tuyet doi (server-enforced). Cac muc quy doi hop le la 10 diem (voucher 10k), 20 diem (voucher 20k), 50 diem (voucher 50k). He thong tu dong tinh toan va tru diem chuan xac theo ma voucher (requiredPoints), ngan chan triet de loi tru diem sai tu client.
+      summary: Doi Hat Vang (loyaltyPoints) lay voucher uu dai theo VOUCHER_CATALOG / DiscountCode
+      description: >-
+        Quy tac quy doi diem duoc server kiem soat tuyet doi (server-enforced).
+        VOUCHER_CATALOG co dinh: BREW10 (10 diem -> giam 10%, toi da 15.000d),
+        BREWCOZY (15 diem -> giam 15%, toi da 25.000d), BREW20 (20 diem -> giam 20%,
+        toi da 25.000d, don toi thieu 60.000d), WELCOME20 (20 diem -> giam 20%,
+        toi da 25.000d, don toi thieu 50.000d), BREW50 (50 diem -> giam 50%,
+        toi da 60.000d, don toi thieu 120.000d), hoac ma dang isActive trong bang
+        DiscountCode (requiredPoints = max(1, round(discountPercent))).
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -148,11 +159,11 @@ paths:
     get:
       tags: [Products]
       summary: Lay danh sach thuc don kem ton kho BOM va outOfStockSizes
-      description: OptionalJwtAuthGuard - includeInactive=true chi co tac dung voi STAFF/ADMIN.
+      description: OptionalJwtAuthGuard - includeInactive=true (hoac '1') chi co tac dung voi STAFF/ADMIN.
       parameters:
         - in: query
           name: includeInactive
-          schema: { type: string, enum: ['true', 'false'] }
+          schema: { type: string, enum: ['true', '1', 'false'] }
       responses:
         '200':
           description: Danh sach mon boc trong `{ data }`
@@ -327,7 +338,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       tags: [Orders]
-      summary: Xoa don hang (Owner cho phep voi trang thai hop le hoac ADMIN)
+      summary: Xoa don hang chua thanh toan/da huy (Owner hoac STAFF/ADMIN)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/NumericId'
@@ -897,10 +908,10 @@ components:
       type: object
       required: [email, password, fullName]
       properties:
-        email: { type: string, format: email }
-        password: { type: string, minLength: 6 }
-        fullName: { type: string }
-        phone: { type: string }
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 6, maxLength: 128 }
+        fullName: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 30 }
     LoginDto:
       type: object
       required: [email, password]
@@ -910,15 +921,15 @@ components:
     UpdateProfileDto:
       type: object
       properties:
-        fullName: { type: string }
-        phone: { type: string }
-        currentPassword: { type: string }
-        newPassword: { type: string, minLength: 6 }
+        fullName: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 30 }
+        currentPassword: { type: string, maxLength: 128 }
+        newPassword: { type: string, minLength: 6, maxLength: 128 }
     RedeemPointsDto:
       type: object
-      required: [points]
+      required: [points, voucherCode]
       properties:
-        points: { type: integer, minimum: 1 }
+        points: { type: integer, minimum: 1, maximum: 2147483647 }
         voucherCode: { type: string, maxLength: 50 }
         description: { type: string, maxLength: 200 }
     UserSafe:
@@ -933,6 +944,9 @@ components:
         isActive: { type: boolean }
         loyaltyPoints: { type: integer }
         createdAt: { type: string, format: date-time }
+        vouchers:
+          type: array
+          items: { type: object }
     AuthResponse:
       type: object
       properties:
@@ -959,27 +973,27 @@ components:
       type: object
       required: [name, basePrice]
       properties:
-        name: { type: string }
-        description: { type: string }
-        imageUrl: { type: string }
-        basePrice: { type: number, minimum: 0 }
-        sizeUpchargeM: { type: number, minimum: 0, nullable: true }
-        sizeUpchargeL: { type: number, minimum: 0, nullable: true }
-        category: { type: string }
-        tag: { type: string }
+        name: { type: string, maxLength: 150 }
+        description: { type: string, maxLength: 1000 }
+        imageUrl: { type: string, maxLength: 500 }
+        basePrice: { type: integer, minimum: 0, maximum: 100000000 }
+        sizeUpchargeM: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
+        sizeUpchargeL: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
+        category: { type: string, maxLength: 50 }
+        tag: { type: string, maxLength: 50 }
         isActive: { type: boolean }
         isSoldOutManual: { type: boolean }
     UpdateProductDto:
       type: object
       properties:
-        name: { type: string }
-        description: { type: string }
-        imageUrl: { type: string }
-        basePrice: { type: number, minimum: 0 }
-        sizeUpchargeM: { type: number, minimum: 0, nullable: true }
-        sizeUpchargeL: { type: number, minimum: 0, nullable: true }
-        category: { type: string }
-        tag: { type: string }
+        name: { type: string, maxLength: 150 }
+        description: { type: string, maxLength: 1000 }
+        imageUrl: { type: string, maxLength: 500 }
+        basePrice: { type: integer, minimum: 0, maximum: 100000000 }
+        sizeUpchargeM: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
+        sizeUpchargeL: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
+        category: { type: string, maxLength: 50 }
+        tag: { type: string, maxLength: 50 }
         isActive: { type: boolean }
         isSoldOutManual: { type: boolean }
     ToggleProductVisibilityDto:
@@ -989,28 +1003,28 @@ components:
         isSoldOutManual: { type: boolean }
     ToggleSoldOutDto:
       type: object
-      required: [isSoldOut]
+      required: [isSoldOutManual]
       properties:
-        isSoldOut:
+        isSoldOutManual:
           type: boolean
           description: true = het hang tam thoi (86), false = con hang / mo ban lai
     OrderItemDto:
       type: object
       required: [productId, size, toppings, quantity]
       properties:
-        productId: { type: integer, minimum: 1 }
-        productName: { type: string }
+        productId: { type: integer, minimum: 1, maximum: 2147483647 }
+        productName: { type: string, maxLength: 150 }
         size: { type: string, enum: [S, M, L, ALL] }
-        sugarLevel: { type: string }
-        iceLevel: { type: string }
-        temperature: { type: string }
-        notes: { type: string }
+        sugarLevel: { type: string, maxLength: 30 }
+        iceLevel: { type: string, maxLength: 30 }
+        temperature: { type: string, maxLength: 30 }
+        notes: { type: string, maxLength: 500 }
         toppings:
           type: array
           maxItems: 10
           items: { type: string, maxLength: 50 }
         quantity: { type: integer, minimum: 1, maximum: 50 }
-        unitPrice: { type: number, minimum: 0 }
+        unitPrice: { type: number, minimum: 0, maximum: 100000000 }
     CreateOrderDto:
       type: object
       required: [items]
@@ -1020,7 +1034,7 @@ components:
           minItems: 1
           maxItems: 50
           items: { $ref: '#/components/schemas/OrderItemDto' }
-        discountCode: { type: string }
+        discountCode: { type: string, maxLength: 50 }
     UpdateOrderStatusDto:
       type: object
       required: [status]
@@ -1051,9 +1065,9 @@ components:
       type: object
       required: [sizeS, sizeM, sizeL]
       properties:
-        sizeS: { type: number, minimum: 0 }
-        sizeM: { type: number, minimum: 0 }
-        sizeL: { type: number, minimum: 0 }
+        sizeS: { type: integer, minimum: 0, maximum: 100000000 }
+        sizeM: { type: integer, minimum: 0, maximum: 100000000 }
+        sizeL: { type: integer, minimum: 0, maximum: 100000000 }
     CreateIngredientDto:
       type: object
       required: [code, name, unit, stock, minThreshold]
@@ -1099,16 +1113,16 @@ components:
       type: object
       required: [productId, ingredientId, size, amount]
       properties:
-        productId: { type: integer }
-        ingredientId: { type: integer }
+        productId: { type: integer, minimum: 1, maximum: 2147483647 }
+        ingredientId: { type: integer, minimum: 1, maximum: 2147483647 }
         size: { type: string, enum: [S, M, L, ALL] }
-        amount: { type: number, minimum: 0.01 }
+        amount: { type: number, minimum: 0.01, maximum: 1000000 }
     UpdateRecipeDto:
       type: object
       required: [amount]
       properties:
         size: { type: string, enum: [S, M, L, ALL] }
-        amount: { type: number, minimum: 0.01 }
+        amount: { type: number, minimum: 0.01, maximum: 1000000 }
     CreateToppingRecipeDto:
       type: object
       required: [toppingId, toppingName, price, ingredientId, amount]
@@ -1116,18 +1130,18 @@ components:
         toppingId: { type: string }
         toppingName: { type: string }
         subtext: { type: string }
-        price: { type: number, minimum: 0 }
+        price: { type: integer, minimum: 0, maximum: 100000000 }
         isActive: { type: boolean }
-        ingredientId: { type: integer }
-        amount: { type: number, minimum: 0.01 }
+        ingredientId: { type: integer, minimum: 1, maximum: 2147483647 }
+        amount: { type: number, minimum: 0.01, maximum: 1000000 }
     UpdateToppingRecipeDto:
       type: object
       properties:
         toppingName: { type: string }
         subtext: { type: string }
-        price: { type: number, minimum: 0 }
+        price: { type: integer, minimum: 0, maximum: 100000000 }
         isActive: { type: boolean }
-        amount: { type: number, minimum: 0.01 }
+        amount: { type: number, minimum: 0.01, maximum: 1000000 }
     CreateVoucherDto:
       type: object
       required: [code, discountPercent]
@@ -1135,8 +1149,8 @@ components:
         code: { type: string }
         description: { type: string }
         discountPercent: { type: number, minimum: 1, maximum: 100 }
-        minOrderAmount: { type: number, minimum: 0 }
-        maxDiscountAmount: { type: number, minimum: 0 }
+        minOrderAmount: { type: integer, minimum: 0, maximum: 100000000 }
+        maxDiscountAmount: { type: integer, minimum: 0, maximum: 100000000 }
         isActive: { type: boolean }
     UpdateVoucherDto:
       type: object
@@ -1144,8 +1158,8 @@ components:
         code: { type: string }
         description: { type: string }
         discountPercent: { type: number, minimum: 1, maximum: 100 }
-        minOrderAmount: { type: number, minimum: 0 }
-        maxDiscountAmount: { type: number, minimum: 0 }
+        minOrderAmount: { type: integer, minimum: 0, maximum: 100000000 }
+        maxDiscountAmount: { type: integer, minimum: 0, maximum: 100000000 }
         isActive: { type: boolean }
     ToggleStatusDto:
       type: object
@@ -1156,34 +1170,34 @@ components:
       type: object
       required: [email, password, fullName]
       properties:
-        email: { type: string, format: email }
-        password: { type: string, minLength: 6 }
-        fullName: { type: string }
-        phone: { type: string }
-        position: { type: string }
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 6, maxLength: 128 }
+        fullName: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 30 }
+        position: { type: string, maxLength: 100 }
         role: { $ref: '#/components/schemas/Role' }
     UpdateStaffDto:
       type: object
       properties:
-        email: { type: string, format: email }
-        password: { type: string, minLength: 6 }
-        fullName: { type: string }
-        phone: { type: string }
-        position: { type: string }
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 6, maxLength: 128 }
+        fullName: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 30 }
+        position: { type: string, maxLength: 100 }
         role: { $ref: '#/components/schemas/Role' }
         isActive: { type: boolean }
     CreateCustomerDto:
       type: object
-      required: [email, fullName]
+      required: [email, fullName, password]
       properties:
-        email: { type: string, format: email }
-        fullName: { type: string }
-        phone: { type: string }
-        password: { type: string }
+        email: { type: string, format: email, maxLength: 255 }
+        fullName: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 30 }
+        password: { type: string, minLength: 6, maxLength: 128 }
     UpdateCustomerDto:
       type: object
       properties:
-        fullName: { type: string }
-        phone: { type: string }
-        password: { type: string }
+        fullName: { type: string, maxLength: 100 }
+        phone: { type: string, maxLength: 30 }
+        password: { type: string, minLength: 6, maxLength: 128 }
         isActive: { type: boolean }

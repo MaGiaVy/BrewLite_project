@@ -12,7 +12,7 @@
 > 4. **Vũ Châu Minh Khôi**
 > 5. **Quách Kỳ Minh**
 > 6. **Nguyễn Thị Ý**  
-> **Phiên bản:** v1.1 (Đồng bộ chuẩn hóa cùng mã nguồn & SRS v4.2) — Ngày cập nhật: 25/10/2026
+> **Phiên bản:** v1.2 (Đồng bộ 100% cùng mã nguồn & SRS v4.5) — Ngày cập nhật: 15/11/2026
 
 ---
 
@@ -80,22 +80,22 @@ Nhằm đảm bảo dự án hoàn thành đúng tiến độ cam kết theo mô
 ### 3.1. Trong phạm vi MVP (Must Have — Sprint 1 & Sprint 2)
 1. **Quản lý Thực đơn & Sản phẩm:** Hiển thị danh mục đồ uống thủ công, tìm kiếm theo tên, phân loại nhóm, xem ảnh chất lượng cao và ghi chú hương vị.
 2. **Cá nhân hóa món uống:** Lựa chọn Size chuẩn (S/M/L), thêm Topping (Kem muối biển, Trân châu, Thạch cà phê, Đồ ăn kèm bánh), tùy chỉnh mức đá (0% - 100%) và đường (0% - 100%).
-3. **Quản lý Giỏ hàng (Client Cart):** Thêm món, điều chỉnh số lượng linh hoạt theo nhu cầu (tối thiểu 1 ly, trần an toàn kỹ thuật là 100 ly/dòng món để phòng ngừa spam đơn), xóa món, tính tạm tính tự động, lưu trữ bền vững qua `localStorage` (không mất khi reload trang).
-4. **Xác thực & Phân quyền (Authentication & RBAC):** Đăng ký, đăng nhập tài khoản bằng email/mật khẩu, mã hóa mật khẩu bằng `bcrypt`, cấp phát JWT token thời hạn **7 ngày** (`expiresIn: '7d'`), kiểm soát phân quyền theo vai trò (`CUSTOMER`, `STAFF`, `ADMIN`) với Route Guard bảo vệ tạo đơn, xem lịch sử, truy cập KDS và Dashboard quản trị.
+3. **Quản lý Giỏ hàng (Client Cart):** Thêm món, điều chỉnh số lượng linh hoạt theo nhu cầu (tối thiểu 1 ly, trần kỹ thuật tại Client Cart Store là 20 ly/dòng món; Backend DTO `CreateOrderDto` giới hạn 1–50 ly/dòng và tối đa 50 dòng/đơn), xóa món, tính tạm tính tự động, lưu trữ bền vững qua `localStorage` (không mất khi reload trang).
+4. **Xác thực & Phân quyền (Authentication & RBAC):** Đăng ký, đăng nhập tài khoản bằng email/mật khẩu, mã hóa mật khẩu bằng `bcrypt`, cấp phát JWT token thời hạn **7 ngày** (`expiresIn: '7d'`, payload `{ sub, email, role, tokenVersion }`), kiểm soát phân quyền theo vai trò (`CUSTOMER`, `STAFF`, `ADMIN`) với Route Guard (`JwtAuthGuard`, `RolesGuard`), Edge Middleware và giới hạn tốc độ (`ThrottlerGuard`: 120 req/60s toàn cục, 5 req/60s cho `/auth/login` & `/auth/register` -> `429`).
 5. **Xử lý Đơn hàng & Kiểm soát đồng thời kép (Dual-layer Optimistic Locking):**
-   - Tạo đơn trạng thái ban đầu `PENDING`, quản lý luân chuyển theo máy trạng thái nghiêm ngặt: `PENDING → PAID → PREPARING → READY → COMPLETED` (hoặc `CANCELLED`).
-   - **Khóa tầng kho nguyên liệu (Ingredient Level):** Cột `version` trong bảng `Ingredient` được kiểm tra và tăng tự động trong Database Transaction khi trừ công thức BOM, đảm bảo **Zero Overselling** (tuyệt đối không bao giờ để tồn kho bị âm khi nhiều khách đặt cùng lúc).
+   - Tạo đơn trạng thái ban đầu `PENDING` (hoặc chuyển thẳng `PAID` nếu tổng tiền sau voucher bằng `0đ`), quản lý luân chuyển theo máy trạng thái `ALLOWED_TRANSITIONS` (7 giá trị `OrderStatus`: `PENDING`, `PAID`, `PREPARING`, `READY`, `COMPLETED`, `PAYMENT_FAILED`, `CANCELLED`). Khóa hàng `User` (`SELECT ... FOR UPDATE`) chống vượt ngưỡng tối đa **5 đơn chờ** (`PENDING`/`PAYMENT_FAILED`), và tự động hủy đơn quá hạn **15 phút** bởi `ExpireOrdersJob` (`@Cron('*/1 * * * *')`).
+   - **Khóa tầng kho nguyên liệu (Ingredient Level):** Cột `version` trong bảng `Ingredient` được kiểm tra và tăng tự động trong Database Transaction khi trừ công thức BOM (`Recipe`, `ToppingRecipe` và `PACKAGING` theo `isRequiredForSale`), retry tối đa 3 lần khi xung đột và trả `400 Bad Request` nếu hết nguyên liệu bắt buộc hoặc `409 Conflict` nếu cạn retry khóa đồng thời, đảm bảo **Zero Overselling**.
    - **Khóa tầng đơn hàng (Order Level):** Cột `version` trong bảng `Order` chống tranh chấp cập nhật trạng thái đơn (State Machine transitions) khi hệ thống nhận webhook thanh toán hoặc Barista thao tác đồng thời.
 6. **Thanh toán không dùng tiền mặt (100% Cashless Multi-Gateway):**
-   - **Cổng ZaloPay Sandbox (Bên thứ ba VNG):** Tích hợp chính thức ở mức Must Have, hỗ trợ thanh toán qua mã QR/cổng ZaloPay Sandbox với xác thực chữ ký số HMAC-SHA256 và IPN Webhook tự động cập nhật đơn hàng.
-   - **Cổng thanh toán giả lập nội bộ (Internal Mock Gateway):** Cung cấp sẵn cơ chế mô phỏng với 2 phương thức Ví điện tử và Thẻ ngân hàng nội địa/quốc tế, hỗ trợ tỷ lệ 50% SUCCESS / 50% FAILURE hoặc cờ ép buộc trạng thái phục vụ kiểm thử tự động và demo độc lập.
-   - **Cơ chế Idempotency-Key (UUIDv4):** Áp dụng đồng bộ cho cả hai cổng thanh toán, chống trừ tiền hoặc tạo đơn lặp khi mất kết nối mạng hoặc người dùng ấn nút thanh toán nhiều lần.
-7. **Khuyến mãi & Tích lũy điểm Loyalty:** Áp dụng mã Voucher hợp lệ (theo % hoặc số tiền cố định), cộng điểm thưởng Loyalty Hạt Vàng với tỷ lệ **1.000đ = 1 điểm** ngay khi đơn chuyển trạng thái `PAID` thành công.
+   - **Cổng ZaloPay Sandbox (Bên thứ ba VNG):** Tích hợp chính thức ở mức Must Have, hỗ trợ thanh toán qua cổng ZaloPay Sandbox (`POST /payments/zalopay/create` -> `/gateway/zalopay`) với xác thực chữ ký số HMAC-SHA256 (`Key1`/`Key2`) và IPN Webhook (`POST /payments/zalopay/callback`) tự động cập nhật đơn hàng; các endpoint sandbox `confirm`/`cancel` bị khóa mặc định (`403 Forbidden`) trừ khi bật `ALLOW_SANDBOX_CONFIRM=true`.
+   - **Cổng thanh toán giả lập nội bộ (Internal Mock Gateway):** Cung cấp API `POST /payments` cho `EWALLET`/`BANK_CARD` (gồm Apple Pay mô phỏng ánh xạ sang `BANK_CARD`), mặc định trả `SUCCESS` trừ khi cấu hình `MOCK_PAYMENT_MODE=failure` hoặc truyền cờ `simulateFailure=true`; bị chặn (`403 Forbidden`) trên `NODE_ENV=production` nếu `ALLOW_MOCK_PAYMENT=false`.
+   - **Cơ chế Idempotency-Key (UUIDv4):** Áp dụng cho `POST /orders` (khóa duy nhất `[userId, idempotencyKey]`, trả `409 Conflict` nếu sai lệch payload) và `POST /payments`, chống trừ tiền hoặc tạo đơn lặp khi mất kết nối mạng hoặc người dùng ấn nút thanh toán nhiều lần.
+7. **Khuyến mãi & Tích lũy điểm Loyalty:** Áp dụng mã Voucher hợp lệ (`DiscountCode` và `UserVoucher` theo tỷ lệ `%` giảm giá `discountPercent` kèm điều kiện `minOrderAmount` và trần `maxDiscountAmount`), cộng điểm thưởng Loyalty Hạt Vàng với tỷ lệ **1.000đ = 1 điểm** (`Math.floor(totalAmount / 1000)`) ngay khi đơn chuyển trạng thái `PAID` thành công (và thu hồi nếu `STAFF`/`ADMIN` hủy đơn `PAID`).
 8. **Theo dõi đơn hàng & Thông báo tại quầy:**
-   - Màn hình theo dõi tiến trình 5 bước theo thời gian thực: `PENDING → PAID → PREPARING → READY → COMPLETED`.
+   - Màn hình theo dõi tiến trình 5 bước theo thời gian thực: `PENDING → PAID → PREPARING → READY → COMPLETED` tại `/orders` và `/orders/[id]` (kèm `/orders/[id]/confirmation`), polling mỗi 4–5 giây.
    - Bảng thông báo trang trọng mời khách đến quầy Bar Express (Trạm 02) nhận nước khi đồ uống chuyển sang `READY`.
    - Trang xem lại lịch sử các đơn hàng của chính tài khoản đăng nhập (`GET /orders/me`).
-9. **Kỹ thuật & DevOps:** Container hóa bằng Docker/Docker Compose, kiểm thử tự động (Unit test, Integration test), Pipeline CI/CD tự động hóa trên GitHub Actions và triển khai môi trường Production có HTTPS.
+9. **Kỹ thuật & DevOps:** Container hóa bằng Docker/Docker Compose, kiểm thử tự động đa tầng (API Jest unit & integration, Web Vitest, Playwright E2E), Pipeline CI/CD tự động hóa trên GitHub Actions và triển khai môi trường Production có HTTPS.
 
 ### 3.2. Phạm vi mở rộng (Should Have — Đã hiện thực hoàn chỉnh 100% trong dự án)
 Nhằm mang lại giải pháp vận hành toàn diện cho quán cà phê, nhóm phát triển đã hiện thực hóa hoàn chỉnh 100% hai phân hệ nâng cao (xếp loại **Should Have** trong SRS) ngay trong phạm vi sản phẩm bàn giao:
@@ -126,7 +126,7 @@ Nhằm mang lại giải pháp vận hành toàn diện cho quán cà phê, nhó
 
 ### 4.3. Giả định nghiệp vụ (Business Assumptions)
 * Khách hàng tự thao tác gọi món trên thiết bị di động cá nhân hoặc màn hình Kiosk cảm ứng tại cửa hàng.
-* **Hạ tầng thanh toán đa kênh:** Hệ thống tích hợp song song cả Cổng thanh toán thực nghiệm ZaloPay Sandbox (VNG) và Cổng thanh toán giả lập nội bộ (Internal Mock Gateway) có hỗ trợ điều hướng ngẫu nhiên hoặc ép buộc trạng thái thành công/thất bại phục vụ kiểm thử và demo độc lập.
+* **Hạ tầng thanh toán đa kênh:** Hệ thống tích hợp song song cả Cổng thanh toán thực nghiệm ZaloPay Sandbox (VNG) và Cổng thanh toán giả lập nội bộ (Internal Mock Gateway) điều khiển xác định qua biến môi trường `MOCK_PAYMENT_MODE` (`success`/`failure`), `ALLOW_MOCK_PAYMENT`, `ALLOW_SANDBOX_CONFIRM` và cờ `simulateFailure` phục vụ kiểm thử tự động và demo độc lập.
 * Giỏ hàng được quản lý an toàn phía Client (Zustand + LocalStorage), giá tiền cuối cùng luôn được Backend thẩm định và tính toán lại dựa trên cơ sở dữ liệu gốc nhằm chống gian lận giá.
 
 ---
@@ -135,10 +135,10 @@ Nhằm mang lại giải pháp vận hành toàn diện cho quán cà phê, nhó
 
 | Mã Rủi ro | Tên Rủi ro | Mức độ Tác động | Xác suất Xảy ra | Biện pháp Kỹ thuật & Nghiệp vụ Giảm thiểu |
 | :---: | :--- | :---: | :---: | :--- |
-| **RSK-01** | **Bán vượt tồn kho & Xung đột trạng thái**<br>*Nhiều khách hàng cùng đặt ly cà phê cuối cùng hoặc nhiều bên cùng cập nhật đơn.* | **Rất cao**<br>*(Critical)* | **Trung bình**<br>*(Medium)* | • Áp dụng Database Transaction với mức cô lập nghiêm ngặt.<br>• Sử dụng kỹ thuật **Khóa đồng thời kép (Dual-layer Optimistic Locking)**: kiểm tra cột `version` của bảng `Ingredient` chống bán âm kho BOM và bảng `Order` chống xung đột trạng thái.<br>• Backend tự động phát hiện xung đột và trả về mã lỗi `409 Conflict`, không bao giờ để tồn kho bị âm. |
-| **RSK-02** | **Trừ tiền lặp / Tạo đơn trùng (Double Charge)**<br>*Khách hàng nhấn nút thanh toán nhiều lần do mạng chập chờn hoặc lag.* | **Rất cao**<br>*(Critical)* | **Trung bình**<br>*(Medium)* | • Frontend tự động sinh khóa duy nhất `Idempotency-Key` (UUIDv4) khi bắt đầu giao dịch.<br>• Frontend khóa nút bấm (disable) và hiển thị loading spinner chống double-click.<br>• Backend lưu vết key; nếu nhận lại cùng một key sẽ trả về kết quả giao dịch cũ, không trừ tiền hai lần. |
+| **RSK-01** | **Bán vượt tồn kho & Xung đột trạng thái**<br>*Nhiều khách hàng cùng đặt ly cà phê cuối cùng hoặc nhiều bên cùng cập nhật đơn.* | **Rất cao**<br>*(Critical)* | **Trung bình**<br>*(Medium)* | • Áp dụng Database Transaction kết hợp `SELECT ... FOR UPDATE` trên bảng `User`.<br>• Sử dụng kỹ thuật **Khóa đồng thời kép (Dual-layer Optimistic Locking)**: kiểm tra cột `version` của bảng `Ingredient` chống bán âm kho BOM và bảng `Order` chống xung đột trạng thái.<br>• Backend trả `400 Bad Request` khi tồn kho bắt buộc không đủ ở lần kiểm tra đầu, hoặc `409 Conflict` khi xung đột `version` vượt quá số lần thử lại (retry), không bao giờ để tồn kho bị âm. |
+| **RSK-02** | **Trừ tiền lặp / Tạo đơn trùng (Double Charge)**<br>*Khách hàng nhấn nút thanh toán nhiều lần do mạng chập chờn hoặc lag.* | **Rất cao**<br>*(Critical)* | **Trung bình**<br>*(Medium)* | • Frontend tự động sinh khóa duy nhất `Idempotency-Key` (UUIDv4) khi bắt đầu giao dịch.<br>• Frontend khóa nút bấm (disable) và hiển thị loading spinner chống double-click.<br>• Backend lưu vết key (`POST /orders` và `POST /payments`); nếu nhận lại cùng một key và khớp payload sẽ trả về kết quả giao dịch cũ (hoặc `409 Conflict` nếu sai lệch payload), không trừ tiền hai lần. |
 | **RSK-03** | **Mất dữ liệu giỏ hàng khi người dùng reload trang**<br>*Khách đang chọn tùy chọn chi tiết nhưng vô tình tải lại trình duyệt.* | **Trung bình**<br>*(Medium)* | **Rất cao**<br>*(High)* | • Sử dụng Zustand kết hợp Middleware `persist` đồng bộ trạng thái giỏ hàng tức thời vào `localStorage`.<br>• Dữ liệu giỏ hàng được giữ nguyên vẹn cho đến khi đơn hàng chuyển trạng thái `PAID` thành công. |
-| **RSK-04** | **Nghẽn tiến độ Triển khai Production & CI/CD**<br>*Cấu hình pipeline CI/CD và môi trường cloud phức tạp vượt dự kiến.* | **Cao**<br>*(High)* | **Cao**<br>*(High)* | • Chuẩn hóa Dockerfile và `docker-compose.yml` độc lập ngay từ Sprint 1.<br>• Sử dụng các nền tảng PaaS hiện đại có tích hợp sẵn HTTPS và build tự động (như Vercel, Render).<br>• Xây dựng kịch bản kiểm thử tự động với Vitest để chạy nhẹ nhàng trên GitHub Actions. |
+| **RSK-04** | **Nghẽn tiến độ Triển khai Production & CI/CD**<br>*Cấu hình pipeline CI/CD và môi trường cloud phức tạp vượt dự kiến.* | **Cao**<br>*(High)* | **Cao**<br>*(High)* | • Chuẩn hóa Dockerfile và `docker-compose.yml` độc lập ngay từ Sprint 1.<br>• Sử dụng các nền tảng PaaS hiện đại có tích hợp sẵn HTTPS và build tự động (như Vercel, Render).<br>• Xây dựng kịch bản kiểm thử tự động đa tầng với Jest (API), Vitest (Web) và Playwright (E2E) chạy trên GitHub Actions. |
 | **RSK-05** | **Sai lệch số tiền thanh toán giữa Client và Server**<br>*Khách hàng cố tình can thiệp mã nguồn Frontend để sửa giá rẻ hơn.* | **Cao**<br>*(High)* | **Thấp**<br>*(Low)* | • Frontend chỉ đóng vai trò hiển thị tạm tính.<br>• Backend là **Nguồn sự thật duy nhất (Single Source of Truth)**: tự động truy vấn giá gốc từ DB, tính toán lại giá size, topping, giảm giá voucher và điểm thưởng trước khi lưu đơn. |
 
 ---

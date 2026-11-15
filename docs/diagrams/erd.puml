@@ -1,95 +1,105 @@
 @startuml erd
-' ERD 12 bảng PostgreSQL — đồng bộ apps/api/prisma/schema.prisma
+' ERD 12 bảng PostgreSQL — đồng bộ 100% apps/api/prisma/schema.prisma
 skinparam monochrome true
 skinparam shadowing false
+skinparam backgroundColor #FFFFFF
 skinparam linetype ortho
-skinparam defaultFontName Arial
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam nodesep 60
+skinparam ranksep 60
 hide circle
-title ERD CƠ SỞ DỮ LIỆU BREWLITE (12 BẢNG)
+
+title ERD CƠ SỞ DỮ LIỆU BREWLITE (12 BẢNG — schema.prisma)
 
 entity "User" as User {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * email : string <<UQ>>
   * passwordHash : string
-  fullName : string
-  phone : string
-  position : string
-  * isActive : boolean
-  * role : Role
-  * loyaltyPoints : int
-  * tokenVersion : int
+  fullName : string?
+  phone : string?
+  position : string?
+  * isActive : boolean = true
+  * role : Role = CUSTOMER
+  * loyaltyPoints : int = 0
+  * tokenVersion : int = 0
   * createdAt : datetime
 }
 
 entity "UserVoucher" as UserVoucher {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * userId : int <<FK>>
   * code : string
-  * quantity : int
+  * quantity : int = 1
   * discountPercent : float
-  * minOrderAmount : float
-  maxDiscountAmount : float
-  createdAt, updatedAt : datetime
-  UQ(userId, code)
+  * minOrderAmount : float = 0
+  maxDiscountAmount : float?
+  * createdAt : datetime
+  * updatedAt : datetime
+  --
+  <<UQ(userId, code)>>
 }
 
 entity "DiscountCode" as DiscountCode {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * code : string <<UQ>>
-  description : string
+  description : string?
   * discountPercent : float
-  * minOrderAmount : float
-  maxDiscountAmount : float
-  * isActive : boolean
-  * usageCount : int
-  createdAt, updatedAt : datetime
+  * minOrderAmount : float = 0
+  maxDiscountAmount : float?
+  * isActive : boolean = true
+  * usageCount : int = 0
+  * createdAt : datetime
+  * updatedAt : datetime
 }
 
 entity "Order" as Order {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
-  userId : int <<FK>>
-  * status : OrderStatus
+  userId : int? <<FK>>
+  * status : OrderStatus = PENDING
   * totalAmount : float
-  discountCode : string
-  * discountAmount : float
-  * voucherDeducted : boolean
-  voucherDiscountPercent : float
-  voucherMinOrderAmount : float
-  voucherMaxDiscountAmount : float
-  * version : int
-  idempotencyKey : string
-  idempotencyPayload : string
-  staffId : int
-  staffName : string
-  createdAt, updatedAt : datetime
-  UQ(userId, idempotencyKey)
+  discountCode : string?
+  * discountAmount : float = 0
+  * voucherDeducted : boolean = false
+  voucherDiscountPercent : float?
+  voucherMinOrderAmount : float?
+  voucherMaxDiscountAmount : float?
+  * version : int = 0
+  idempotencyKey : string?
+  idempotencyPayload : string?
+  staffId : int?
+  staffName : string?
+  * createdAt : datetime
+  * updatedAt : datetime
+  --
+  <<UQ(userId, idempotencyKey)>>
 }
 
 entity "OrderItem" as OrderItem {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * orderId : int <<FK>>
   * productId : int
   * productName : string
   * size : string
-  sugarLevel : string
-  iceLevel : string
-  temperature : string
-  notes : string
-  toppings : string[]
+  sugarLevel : string? = "100%"
+  iceLevel : string? = "100%"
+  temperature : string? = "COLD"
+  notes : string?
+  * toppings : string[]
   * quantity : int
   * unitPrice : float
 }
 
 entity "Payment" as Payment {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * orderId : int <<FK>>
-  idempotencyKey : string <<UQ>>
+  idempotencyKey : string? <<UQ>>
   * amount : float
   * method : PaymentMethod
   * status : PaymentStatus
@@ -97,73 +107,77 @@ entity "Payment" as Payment {
 }
 
 entity "Product" as Product {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * name : string
-  description : string
-  imageUrl : string
+  description : string?
+  imageUrl : string?
   * basePrice : float
-  sizeUpchargeM : float
-  sizeUpchargeL : float
-  * category : string
-  tag : string
-  * isActive : boolean
-  * isSoldOutManual : boolean
-  createdAt, updatedAt : datetime
+  sizeUpchargeM : float?
+  sizeUpchargeL : float?
+  * category : string = "vietnamese"
+  tag : string? = "Phổ biến"
+  * isActive : boolean = true
+  * isSoldOutManual : boolean = false
+  * createdAt : datetime
+  * updatedAt : datetime
 }
 
 entity "Ingredient" as Ingredient {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * code : string <<UQ>>
   * name : string
   * unit : string
-  * stock : float
-  * minThreshold : float
-  * costPerUnit : float
-  * type : string
-  * isRequiredForSale : boolean
-  * version : int
-  createdAt, updatedAt : datetime
+  * stock : float = 0
+  * minThreshold : float = 100
+  * costPerUnit : float = 0
+  * type : string = "INGREDIENT"
+  * isRequiredForSale : boolean = true
+  * version : int = 0
+  * createdAt : datetime
+  * updatedAt : datetime
 }
 
 entity "Recipe" as Recipe {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * productId : int <<FK>>
   * ingredientId : int <<FK>>
-  * size : string
+  * size : string = "ALL"
   * amount : float
-  UQ(productId, ingredientId, size)
+  --
+  <<UQ(productId, ingredientId, size)>>
 }
 
 entity "ToppingRecipe" as ToppingRecipe {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * toppingId : string
   * toppingName : string
-  subtext : string
-  * price : float
-  * isActive : boolean
+  subtext : string? = "Topping thơm ngon chuẩn vị"
+  * price : float = 8000
+  * isActive : boolean = true
   * ingredientId : int <<FK>>
   * amount : float
-  UQ(toppingId, ingredientId)
+  --
+  <<UQ(toppingId, ingredientId)>>
 }
 
 entity "InventoryLog" as InventoryLog {
-  * id : int <<PK>>
+  * id : int <<PK, autoincrement>>
   --
   * ingredientId : int <<FK>>
   * ingredientName : string
   * unit : string
-  * type : string
+  * type : string = "RESTOCK"
   * changeAmount : float
   * previousStock : float
   * newStock : float
-  * unitCost : float
-  * totalCost : float
-  note : string
-  performedBy : string
+  * unitCost : float = 0
+  * totalCost : float = 0
+  note : string?
+  performedBy : string?
   * createdAt : datetime
 }
 
@@ -171,23 +185,27 @@ entity "StoreSetting" as StoreSetting {
   * key : string <<PK>>
   --
   * value : string
-  description : string
-  updatedAt : datetime
+  description : string?
+  * updatedAt : datetime
 }
 
-User ||--o{ Order : "đặt (0..1 : N)"
+User |o--o{ Order : "đặt (0..1 : N)"
 User ||--o{ UserVoucher : "sở hữu (Cascade)"
 Order ||--o{ OrderItem : "gồm (Cascade)"
-Order ||--o{ Payment : "thanh toán"
+Order ||--o{ Payment : "thanh toán (Restrict)"
 Product ||--o{ Recipe : "định mức (Cascade)"
 Ingredient ||--o{ Recipe : "dùng (Cascade)"
 Ingredient ||--o{ ToppingRecipe : "dùng (Cascade)"
 Ingredient ||--o{ InventoryLog : "nhật ký (Restrict)"
+OrderItem ..> Product : "snapshot productId"
 
 note bottom of StoreSetting
-  Enum: Role {CUSTOMER, STAFF, ADMIN}
-  OrderStatus {PENDING, PAID, PREPARING, READY, COMPLETED, PAYMENT_FAILED, CANCELLED}
-  PaymentMethod {EWALLET, BANK_CARD}; PaymentStatus {SUCCESS, FAILED, PENDING}
-  DiscountCode, StoreSetting: bảng độc lập (không FK)
+  Prisma Enums:
+  • Role { CUSTOMER, STAFF, ADMIN }
+  • OrderStatus { PENDING, PAID, PREPARING, READY, COMPLETED, PAYMENT_FAILED, CANCELLED }
+  • PaymentMethod { EWALLET, BANK_CARD }
+  • PaymentStatus { SUCCESS, FAILED, PENDING }
+  • DiscountCode & StoreSetting: bảng cấu hình độc lập (không FK)
 end note
+
 @enduml

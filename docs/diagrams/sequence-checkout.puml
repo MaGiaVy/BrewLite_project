@@ -1,347 +1,74 @@
 @startuml
-!theme plain
-' Thành viên thực hiện: Huỳnh Tuấn Kiệt (Task 2.2 - Sequence Diagram)
-title Biểu Đồ Trình Tự Đặt Hàng & Thanh Toán 2 Pha (Checkout & Payment Sequence Diagram) — BrewLite
-
-skinparam DefaultFontName "Arial"
-skinparam DefaultFontSize 11
-skinparam RoundCorner 8
-skinparam BoxPadding 10
-skinparam ParticipantPadding 10
-skinparam Shadowing true
-
-skinparam actor {
-    BackgroundColor #FFFFFF
-    BorderColor #2C1810
-    BorderThickness 1.5
-    FontColor #2C1810
+skinparam monochrome true
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam ArrowColor #000000
+skinparam sequence {
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #FFFFFF
+  ActorBorderColor #000000
+  ActorBackgroundColor #FFFFFF
+  DatabaseBorderColor #000000
+  DatabaseBackgroundColor #FFFFFF
+  GroupBorderColor #000000
+  GroupBackgroundColor #FFFFFF
+  GroupHeaderFontStyle bold
+  DividerBackgroundColor #FFFFFF
+  DividerBorderColor #000000
 }
 
-skinparam participant {
-    BackgroundColor #FFF9F5
-    BorderColor #D97736
-    BorderThickness 1.2
-    FontColor #2C1810
-}
+title Biểu đồ Tuần tự Luồng Đặt hàng & Thanh toán (BrewLite Checkout)
 
-skinparam database {
-    BackgroundColor #F4ECE1
-    BorderColor #845326
-    BorderThickness 1.5
-    FontColor #2C1810
-}
+actor "Customer" as Customer
+participant "Next.js Web" as Web
+participant "NestJS API" as API
+database "PostgreSQL" as DB
+participant "ZaloPay / Mock Payment" as Gateway
 
-skinparam note {
-    BackgroundColor #FEF3C7
-    BorderColor #D97706
-    FontSize 10
-}
+Customer -> Web : Nhấn "Đặt hàng" trên /checkout
+Web -> Web : Kiểm tra JWT (chưa có -> /auth/login)
 
-actor "Khách Hàng / User" as Client
-boundary "BrewLite Web App\n(Next.js / Zustand Store)" as WebApp
-control "OrdersController" as OrderCtrl
-entity "OrdersService" as OrderSvc
-control "PaymentsController" as PayCtrl
-entity "PaymentsService" as PaySvc
-participant "MockGatewayService" as MockPay
-participant "ZaloPayService\n(Sandbox Gateway)" as ZaloPay
-database "PostgreSQL DB\n(Prisma Transaction)" as DB
-control "ExpireOrdersJob\n(@Cron '*/1 * * * *')" as CronJob
+== Phase 1: Tạo đơn & Khóa kho BOM ==
 
-== PHA 1: TẠO ĐƠN HÀNG & GIỮ KHO BOM (POST /orders) ==
+Web -> API : POST /orders (Bearer JWT, Idempotency-Key)
+API -> DB : Transaction: check < 5 đơn chờ, tính giá (0% VAT),\ntrừ Voucher & trừ kho BOM (Optimistic Lock version + 1)
 
-Client -> WebApp: Chọn món, topping, áp mã giảm giá & ấn "Đặt Hàng"
-activate WebApp
-
-WebApp -> OrderCtrl: POST /orders\nHeaders: Authorization: Bearer <JWT>\nBody: { items: [...], discountCode? }
-activate OrderCtrl
-
-OrderCtrl -> OrderSvc: createOrder(dto, userId)
-activate OrderSvc
-
-note over OrderSvc
-    1. Tính rawSubtotal server-side = sum(unitPrice * quantity)
-    2. Xác thực mã giảm giá (DiscountCode DB / UserVoucher / Preset):
-       - Kiểm tra isActive, minOrderAmount, maxDiscountAmount
-       - Tính discountAmount (VAT 0%)
-       - totalAmount = max(0, rawSubtotal - discountAmount)
-end note
-
-OrderSvc -> DB: Bắt đầu Prisma Transaction: prisma.$transaction(...)
-activate DB
-
-note over OrderSvc, DB
-    3. Tính toán định lượng nguyên vật liệu (BOM) tiêu hao:
-       computeRequiredIngredients(items, toppings)
-end note
-
-loop Duyệt từng nguyên vật liệu yêu cầu (reqIng)
-    OrderSvc -> DB: tx.ingredient.findUnique({ where: { id: reqIng.ingredientId } })
-    DB --> OrderSvc: currentIng (stock, version, isRequiredForSale)
-
-    alt Nguyên liệu bắt buộc và tồn kho không đủ (stock < requiredAmount)
-        OrderSvc --> OrderCtrl: Ném BadRequestException (400)\n"Nguyên vật liệu không đủ tồn kho"
-        OrderCtrl --> WebApp: HTTP 400 Bad Request
-        WebApp --> Client: Báo lỗi hết nguyên liệu món
-    else Tồn kho đủ -> Thực hiện Optimistic Locking
-        OrderSvc -> DB: tx.ingredient.updateMany({\n  where: { id: currentIng.id, version: currentIng.version, stock: { gte: reqIng.requiredAmount } },\n  data: { stock: { decrement: reqIng.requiredAmount }, version: { increment: 1 } }\n})
-        DB --> OrderSvc: updateRes { count: 0 | 1 }
-
-        alt Xung đột phiên bản đồng thời (updateRes.count == 0)
-            OrderSvc --> OrderCtrl: Ném ConflictException (409)\n"Xung đột đồng thời (Optimistic Lock) khi trừ kho"
-            OrderCtrl --> WebApp: HTTP 409 Conflict
-            WebApp --> Client: Báo lỗi có giao dịch đồng thời, vui lòng thử lại
-        end
-    end
+alt Thiếu nguyên liệu (400) hoặc xung đột version (409)
+  DB --> API : Rollback transaction
+  API --> Web : 400 Bad Request / 409 Conflict
+  Web --> Customer : Hiển thị lỗi tồn kho để chỉnh giỏ hàng
+else Giữ kho thành công
+  DB --> API : Tạo Order (PENDING, TTL 15 phút) & InventoryLog
+  API --> Web : 201 Created (orderId, totalAmount)
 end
 
-OrderSvc -> DB: tx.order.create({\n  data: { totalAmount, discountCode, discountAmount, userId, status: 'PENDING', items: [...] }\n})
-DB --> OrderSvc: Order Record (#orderId, status: PENDING, version: 0)
+== Phase 2: Thanh toán (ZaloPay / Mock) ==
 
-OrderSvc -> DB: Commit Transaction
-deactivate DB
+Web -> API : POST /payments (Idempotency-Key)\nhoặc POST /payments/zalopay/create
+API -> Gateway : Khởi tạo / xử lý giao dịch thanh toán
+Gateway --> API : Callback IPN (HMAC Key2) / Kết quả thanh toán
 
-OrderSvc --> OrderCtrl: { orderId, status: 'PENDING', totalAmount, discountAmount, items }
-deactivate OrderSvc
-OrderCtrl --> WebApp: HTTP 201 Created\n{ orderId, status: "PENDING", totalAmount: 75000, ... }
-deactivate OrderCtrl
-
-WebApp -> WebApp: Lưu orderId vào State, bắt đầu đếm ngược 15 phút
-WebApp --> Client: Hiển thị màn hình chờ thanh toán (TTL: 15 phút)
-deactivate WebApp
-
-== PHA 2 - PHƯƠNG ÁN A: THANH TOÁN KHÔNG TIỀN MẶT / MOCK GATEWAY (POST /payments) ==
-
-Client -> WebApp: Chọn phương thức (EWALLET / BANK_CARD), ấn "Xác Nhận Thanh Toán"
-activate WebApp
-
-WebApp -> PayCtrl: POST /payments\nHeaders:\n  Authorization: Bearer <JWT>\n  Idempotency-Key: <UUID-v4>\nBody: { orderId, method: "EWALLET" | "BANK_CARD", simulateFailure?: false }
-activate PayCtrl
-
-PayCtrl -> PaySvc: processPayment(dto, userId, idempotencyKey)
-activate PaySvc
-
-note over PaySvc
-    1. Kiểm tra Idempotency-Key:
-end note
-PaySvc -> DB: prisma.payment.findUnique({ where: { idempotencyKey } })
-activate DB
-DB --> PaySvc: existingPayment | null
-deactivate DB
-
-alt Key đã tồn tại và giao dịch trước đã SUCCESS
-    PaySvc --> PayCtrl: Trả về kết quả cũ (isIdempotent: true)
-    PayCtrl --> WebApp: HTTP 201 Created (Idempotent response)
-    WebApp --> Client: Thông báo đơn hàng đã được thanh toán
-else Key mới hoặc giao dịch trước FAILED
-    note over PaySvc
-        2. Kiểm tra đơn hàng & quyền sở hữu:
-           - findUnique(orderId)
-           - Chặn IDOR: order.userId == userId
-           - Kiểm tra hết hạn: Date.now() - createdAt <= 15 phút (900.000 ms)
-           - Lấy số tiền thanh toán = order.totalAmount (Bảo mật: không lấy từ client)
-           - Kiểm tra State Machine Guard: assertTransition(order.status, 'PAID')
-    end note
-
-    PaySvc -> DB: Bắt đầu Prisma Transaction: prisma.$transaction(...)
-    activate DB
-
-    PaySvc -> MockPay: charge({ orderId, amount: order.totalAmount, method, simulateFailure })
-    activate MockPay
-    MockPay --> PaySvc: { success: true, transactionId: "TXN-xxx", message: "..." }
-    deactivate MockPay
-
-    alt Thanh toán Gateway thất bại (success == false)
-        PaySvc -> DB: tx.order.updateMany({\n  where: { id: order.id, version: order.version },\n  data: { status: 'PAYMENT_FAILED', version: { increment: 1 } }\n})
-        PaySvc -> DB: tx.payment.create({\n  data: { orderId, amount, method, status: 'FAILED', idempotencyKey }\n})
-        PaySvc -> DB: Commit Transaction
-        PaySvc --> PayCtrl: { success: false, status: 'PAYMENT_FAILED', paymentStatus: 'FAILED', message: "..." }
-        PayCtrl --> WebApp: HTTP 201 Created (success: false)
-        WebApp --> Client: Báo lỗi thanh toán, cho phép thử lại (giữ nguyên kho BOM)
-    else Thanh toán Gateway thành công (success == true)
-        note over PaySvc, DB
-            Áp dụng Optimistic Locking khi cập nhật trạng thái đơn:
-        end note
-        PaySvc -> DB: tx.order.updateMany({\n  where: { id: order.id, version: order.version },\n  data: { status: 'PAID', version: { increment: 1 } }\n})
-        DB --> PaySvc: updateOrderRes { count: 1 }
-
-        alt Order version bị thay đổi bởi luồng khác (count == 0)
-            PaySvc --> PayCtrl: Ném ConflictException (409)\n"Đơn hàng đã bị thay đổi bởi request khác"
-            PayCtrl --> WebApp: HTTP 409 Conflict
-        else Order cập nhật thành công (count == 1)
-            PaySvc -> DB: tx.payment.create({\n  data: { orderId, amount, method, status: 'SUCCESS', idempotencyKey }\n})
-            DB --> PaySvc: paymentRecord (#paymentId)
-
-            note over PaySvc, DB
-                Tích điểm Hạt Vàng: 1.000 VNĐ = 1 điểm
-                pointsEarned = floor(order.totalAmount / 1000)
-            end note
-            PaySvc -> DB: tx.user.update({\n  where: { id: order.userId },\n  data: { loyaltyPoints: { increment: pointsEarned } }\n})
-
-            PaySvc -> DB: Commit Transaction
-            deactivate DB
-
-            PaySvc --> PayCtrl: { success: true, paymentId, orderId, status: 'PAID', pointsEarned }
-            deactivate PaySvc
-            PayCtrl --> WebApp: HTTP 201 Created\n{ success: true, status: "PAID", pointsEarned: 75, ... }
-            deactivate PayCtrl
-
-            WebApp --> Client: Chúc mừng! Thanh toán thành công & tích lũy +75 Hạt Vàng
-            deactivate WebApp
-        end
-    end
+alt Thanh toán thành công
+  API -> DB : CAS Order -> PAID, tạo Payment (SUCCESS),\ncộng Loyalty (+floor(total / 1.000đ))
+  DB --> API : Commit
+  API --> Web : 200/201 PAID
+  Web --> Customer : Xóa giỏ hàng & chuyển sang /orders/:id
+else Thanh toán thất bại
+  API -> DB : Cập nhật Order -> PAYMENT_FAILED\n(giữ kho BOM trong 15 phút TTL)
+  API --> Web : 201 PAYMENT_FAILED
+  Web --> Customer : Hiển thị "Thử lại" hoặc "Hủy đơn"
 end
 
-== PHA 2 - PHƯƠNG ÁN B: THANH TOÁN QUA ZALOPAY SANDBOX GATEWAY ==
+== Theo dõi tiến độ đơn hàng ==
 
-Client -> WebApp: Chọn thanh toán bằng ZaloPay
-activate WebApp
-WebApp -> PayCtrl: POST /payments/zalopay/create\nBody: { orderId }
-activate PayCtrl
-PayCtrl -> PaySvc: createZaloPayOrder(orderId, userId)
-activate PaySvc
-PaySvc -> ZaloPay: createOrder({ orderId, amount, appUser })
-activate ZaloPay
-ZaloPay --> PaySvc: { orderUrl, qrCodeUrl, appTransId }
-deactivate ZaloPay
-PaySvc --> PayCtrl: { orderUrl, qrCodeUrl, appTransId }
-deactivate PaySvc
-PayCtrl --> WebApp: HTTP 200 OK (Chứa link QR & appTransId)
-deactivate PayCtrl
-WebApp --> Client: Hiển thị mã QR ZaloPay / Chuyển hướng Cổng Sandbox
-
-Client -> ZaloPay: Quét mã QR & Xác nhận thanh toán trên App/Gateway
-activate ZaloPay
-ZaloPay -> PayCtrl: POST /payments/zalopay/callback (IPN Webhook)\nBody: { data, mac, type }
-deactivate ZaloPay
-activate PayCtrl
-
-PayCtrl -> PaySvc: handleZaloPayCallback(body)
-activate PaySvc
-note over PaySvc
-    Xác thực chữ ký HMAC SHA256 với MAC Key 2
-end note
-
-alt Chữ ký không hợp lệ (mac not equal)
-    PaySvc --> PayCtrl: { return_code: -1, return_message: "mac not equal" }
-    PayCtrl --> ZaloPay: Phản hồi lỗi chữ ký
-else Chữ ký hợp lệ
-    note over PaySvc
-        Kiểm tra đơn hàng, nếu đã PAID -> trả về success (Idempotent)
-        Nếu chưa PAID -> Mở Transaction cập nhật trạng thái
-    end note
-    PaySvc -> DB: prisma.$transaction({\n  tx.order.update(status: 'PAID', version++),\n  tx.payment.create(method: 'EWALLET', status: 'SUCCESS', idempotencyKey: 'ZALOPAY_...'),\n  tx.user.update(loyaltyPoints: increment(points))\n})
-    activate DB
-    DB --> PaySvc: Transaction committed
-    deactivate DB
-
-    PaySvc --> PayCtrl: { return_code: 1, return_message: "success" }
-    deactivate PaySvc
-    PayCtrl --> ZaloPay: HTTP 200 { return_code: 1 }
-    deactivate PayCtrl
+loop Polling mỗi 5 giây cho đến khi READY / COMPLETED
+  Web -> API : GET /orders/:id
+  API -> DB : Truy vấn trạng thái đơn
+  API --> Web : PAID -> PREPARING -> READY -> COMPLETED
 end
-
-opt Polling từ Frontend (Dự phòng Webhook trễ / Localhost)
-    loop Mỗi 3 giây Polling
-        WebApp -> PayCtrl: GET /payments/zalopay/status/:orderId?appTransId=...
-        PayCtrl -> PaySvc: getZaloPayStatus(orderId, userId, appTransId)
-        PaySvc -> DB: findUnique(orderId)
-        alt Đơn đã PAID
-            PaySvc --> PayCtrl: { status: 'PAID', isPaid: true }
-            PayCtrl --> WebApp: { status: 'PAID', isPaid: true }
-            WebApp --> Client: Hiển thị kết quả Đã Thanh Toán Thành Công
-        end
-    end
-end
-deactivate WebApp
-
-== LUỒNG BỔ TRỢ 1: TIMEOUT 15 PHÚT TỰ HỦY ĐƠN PENDING / PAYMENT_FAILED & HOÀN KHO BOM ==
-
-note over CronJob
-    ExpireOrdersJob chạy định kỳ mỗi 1 phút (@Cron('*/1 * * * *'))
-    gọi expirePendingOrders(..., { timeoutMinutes: 15 })
-    ORDER_PAYMENT_TTL_MS = 15 * 60 * 1000 (15 phút = 900.000 ms)
-end note
-
-CronJob -> DB: prisma.order.findMany({\n  where: { status: { in: ['PENDING', 'PAYMENT_FAILED'] }, createdAt: { lte: now - 15 phút } },\n  include: { items: true }\n})
-activate DB
-DB --> CronJob: Danh sách expiredOrders quá hạn 15 phút
-deactivate DB
-
-loop Duyệt từng expiredOrder
-    CronJob -> DB: Bắt đầu prisma.$transaction(...)
-    activate DB
-
-    note over CronJob, DB
-        1. Tính toán lại BOM định lượng nguyên vật liệu từ items của đơn
-        computeRequiredIngredients(order.items)
-    end note
-
-    loop Duyệt từng reqIng
-        note over CronJob, DB
-            2. Hoàn trả nguyên liệu lại kho & tăng version
-        end note
-        CronJob -> DB: tx.ingredient.update({\n  where: { id: reqIng.ingredientId },\n  data: { stock: { increment: reqIng.requiredAmount }, version: { increment: 1 } }\n})
-    end
-
-    note over CronJob, DB
-        3. Cập nhật trạng thái đơn hàng sang CANCELLED
-    end note
-    CronJob -> DB: tx.order.update({\n  where: { id: order.id },\n  data: { status: 'CANCELLED', version: { increment: 1 } }\n})
-
-    CronJob -> DB: Commit Transaction
-    deactivate DB
-    note over CronJob
-        Ghi log: [Auto-Expire 15m] Đơn hàng #id đã tự động hủy do quá 15 phút chưa thanh toán.
-    end note
-end
-
-== LUỒNG BỔ TRỢ 2: HỦY ĐƠN HÀNG ĐÃ PAID & THU HỒI ĐIỂM HẠT VÀNG ==
-
-Client -> WebApp: Yêu cầu hủy đơn hàng (hoặc Nhân viên hủy tại quầy Barista KDS)
-activate WebApp
-WebApp -> OrderCtrl: PATCH /orders/:id/status\nHeaders: Authorization: Bearer <JWT>\nBody: { status: "CANCELLED" }
-activate OrderCtrl
-
-OrderCtrl -> OrderSvc: updateOrderStatus(orderId, 'CANCELLED', userId, userRole)
-activate OrderSvc
-
-note over OrderSvc
-    1. Kiểm tra quyền & State Machine Guard:
-       assertTransition(previousStatus, 'CANCELLED')
-    2. Nhận diện previousStatus == 'PAID'
-end note
-
-OrderSvc -> DB: Bắt đầu prisma.$transaction(...)
-activate DB
-
-note over OrderSvc, DB
-    3. Hoàn lại 100% nguyên vật liệu vào kho BOM:
-end note
-loop Duyệt reqIng trong order.items
-    OrderSvc -> DB: tx.ingredient.update({\n  where: { id: reqIng.ingredientId },\n  data: { stock: { increment: reqIng.requiredAmount }, version: { increment: 1 } }\n})
-end
-
-note over OrderSvc, DB
-    4. Thu hồi điểm Hạt Vàng đã tích lũy khi thanh toán:
-       pointsToRevoke = floor(order.totalAmount / 1000)
-end note
-OrderSvc -> DB: tx.user.update({\n  where: { id: order.userId },\n  data: { loyaltyPoints: { decrement: pointsToRevoke } }\n})
-
-opt Nếu đơn hàng đã trừ mã cá nhân (voucherDeducted == true)
-    OrderSvc -> DB: tx.userVoucher.update(quantity: increment(1))
-end
-
-OrderSvc -> DB: tx.order.update({\n  where: { id: orderId },\n  data: { status: 'CANCELLED' }\n})
-
-OrderSvc -> DB: Commit Transaction
-deactivate DB
-
-OrderSvc --> OrderCtrl: Order Record đã chuyển CANCELLED
-deactivate OrderSvc
-OrderCtrl --> WebApp: HTTP 200 OK\n{ id, status: "CANCELLED", message: "Đã hủy đơn, hoàn kho và thu hồi điểm thưởng" }
-deactivate OrderCtrl
-WebApp --> Client: Thông báo đã hủy đơn, hoàn trả kho và cập nhật lại điểm Hạt Vàng
-deactivate WebApp
 
 @enduml

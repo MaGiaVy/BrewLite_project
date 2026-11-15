@@ -1,0 +1,119 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam ArrowColor #000000
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderColor #000000
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+skinparam ActivityDiamondBorderColor #000000
+skinparam SwimlaneBorderColor #000000
+skinparam SwimlaneTitleFontStyle bold
+skinparam maxMessageSize 180
+
+title Sơ đồ Hoạt động E2E: Chọn món -> Đặt hàng -> Thanh toán -> Pha chế (BrewLite)
+
+|Khách hàng|
+start
+:Truy cập thực đơn (/menu);
+
+|Web Next.js|
+:Gọi GET /products &\nlọc 6 danh mục (Espresso,\nPhin, Trà, Cold Brew, Bánh);
+
+|Khách hàng|
+if (Chọn món?) then (Chi tiết)
+  :Mở trang /products/[id]\nchọn Size / kiểu Bánh,\nNhiệt độ, Đường, Đá, Topping;
+else (Nhanh)
+  :Nhấn (+) chọn Size mặc định;
+endif
+
+|Web Next.js|
+:Lưu giỏ Zustand (localStorage)\nlineId = productId-size-toppingIds\n(tối đa 20 ly/dòng);
+
+|Khách hàng|
+:Mở /cart, áp dụng Voucher\n& nhấn "Thanh toán";
+
+|Web Next.js|
+if (Đã có JWT?) then (Chưa)
+  :Chuyển /auth/login?redirect=%2Fcheckout;
+  stop
+else (Có)
+  :Mở /checkout (UI đếm 5p,\nTTL backend 15 phút);
+endif
+
+|Khách hàng|
+:Chọn thanh toán &\nnhấn "Đặt hàng";
+
+|Web Next.js|
+:Phase 1: Gửi POST /orders\nkèm Idempotency-Key;
+
+|NestJS API|
+:Check JWT, Idempotency-Key,\nUser FOR UPDATE (< 5 đơn chờ),\ntính giá 0% VAT & trừ Voucher;
+
+|PostgreSQL|
+:Tính BOM (Recipe+Topping+Bao bì)\nTrừ kho Optimistic Lock\n(version+1, tối đa 3 lần thử)\n& ghi InventoryLog (SALE);
+
+if (Đủ kho?) then (Lỗi 400/409)
+  :Rollback Transaction;
+  |NestJS API|
+  :Trả 400 (Hết hàng)\nhoặc 409 (Xung đột);
+  |Web Next.js|
+  :Báo lỗi chỉnh giỏ hàng;
+  stop
+else (Đủ)
+  |PostgreSQL|
+  :Tạo Order PENDING\n(hoặc PAID nếu 0đ)\nTTL 15 phút;
+endif
+
+|Web Next.js|
+if (Phương thức?) then (ZaloPay)
+  :Phase 2: POST /payments/zalopay/create\n-> chuyển /gateway/zalopay;
+  |ZaloPay / Mock|
+  :Xử lý Sandbox & gửi IPN\nPOST /payments/zalopay/callback\n(HMAC Key2) hoặc query status;
+else (Mock)
+  |Web Next.js|
+  :Phase 2: Gửi POST /payments\nkèm Idempotency-Key;
+  |ZaloPay / Mock|
+  :Mô phỏng SUCCESS / FAILED;
+endif
+
+|NestJS API|
+if (Thanh toán thành công?) then (Có)
+  |PostgreSQL|
+  :CAS Order -> PAID, tạo Payment,\ncộng loyaltyPoints\n(+floor(total / 1.000đ));
+  |Web Next.js|
+  :Xóa giỏ & mở /orders/:id\nPolling GET /orders/:id mỗi 5s\n(thanh tiến trình 3 bước);
+else (Thất bại)
+  |PostgreSQL|
+  :Order -> PAYMENT_FAILED\n(giữ kho BOM 15p để thử lại);
+  |Web Next.js|
+  if (Hành động?) then (Thử lại)
+    :Thanh toán lại\n(PAYMENT_FAILED -> PENDING);
+    stop
+  else (Hủy / Quá 15p)
+    |NestJS API|
+    :Hủy đơn hoặc ExpireOrdersJob\n(sau 15 phút TTL);
+    |PostgreSQL|
+    :Order -> CANCELLED,\nhoàn kho BOM & Voucher;
+    stop
+  endif
+endif
+
+|Nhân viên KDS|
+:Màn hình /staff polling\nGET /orders/barista/queue mỗi 3s;
+if (Hủy đơn PAID trước pha?) then (Hủy)
+  :Staff / Admin hủy PAID -> CANCELLED\n(hoàn BOM, thu hồi điểm & Voucher);
+  stop
+else (Pha chế)
+  :Bấm "Bắt đầu pha" (PAID -> PREPARING);
+  :Bấm "Báo đã xong" (PREPARING -> READY);
+  :Bấm "Giao khách" (READY -> COMPLETED);
+endif
+
+|Khách hàng|
+:Nhận đồ uống & kết thúc;
+stop
+
+@enduml

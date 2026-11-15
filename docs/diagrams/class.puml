@@ -1,70 +1,26 @@
-@startuml
-!theme plain
-' Thành viên thực hiện: Nguyễn Gia Thành (Task 2.3 - Domain Class Diagram)
-title UML Class & Domain Entity Diagram — Hệ Thống BrewLite\n(Single Source of Truth: apps/api/prisma/schema.prisma & BOM Architecture)
+@startuml class
+' Thành viên thực hiện: Nguyễn Gia Thành (Task 2.3 - Domain & Application Class Diagram)
+' Đồng bộ 100% với apps/api/prisma/schema.prisma và apps/api/src/**
+title UML Class Diagram — Hệ Thống BrewLite\n(12 Prisma Models, 4 Enums & NestJS Domain Services/Controllers)
 
+skinparam monochrome true
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
 skinparam DefaultFontName "Arial"
-skinparam DefaultFontSize 11
-skinparam RoundCorner 10
-skinparam Shadowing true
-skinparam BoxPadding 10
-skinparam ParticipantPadding 10
-
-skinparam class {
-    BackgroundColor #FFFFFF
-    BorderColor #2C1810
-    BorderThickness 1.5
-    HeaderBackgroundColor #F4ECE1
-    FontColor #2C1810
-    FontStyle bold
-    AttributeFontColor #333333
-    AttributeFontSize 10
-    MethodFontColor #1F2937
-    MethodFontSize 10
-}
-
-skinparam enum {
-    BackgroundColor #FFF9F5
-    BorderColor #D97736
-    BorderThickness 1.2
-    HeaderBackgroundColor #FFEDE0
-    FontColor #7C2D12
-    FontStyle bold
-    AttributeFontColor #431407
-    AttributeFontSize 10
-}
-
-skinparam package {
-    BackgroundColor #FAFAFA
-    BorderColor #9CA3AF
-    BorderThickness 1.2
-    FontColor #111827
-    FontStyle bold
-}
-
-skinparam note {
-    BackgroundColor #FEF3C7
-    BorderColor #D97706
-    FontColor #78350F
-    FontSize 10
-}
-
-skinparam arrow {
-    Color #4B5563
-    Thickness 1.2
-    FontColor #374151
-    FontSize 10
-}
+skinparam DefaultFontSize 10
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+set namespaceSeparator none
 
 ' ==============================================================================
-' 1. PACKAGE: IDENTITY & ACCESS MANAGEMENT (IAM / RBAC)
+' 1. IDENTITY, ACCESS CONTROL & LOYALTY (IAM / RBAC)
 ' ==============================================================================
-package "1. Identity & Access Management (RBAC)" #FDF8F6 {
+package "1. Identity, RBAC & Loyalty (auth, users, customers)" {
 
     enum Role <<enumeration>> {
-        + CUSTOMER
-        + STAFF
-        + ADMIN
+        CUSTOMER
+        STAFF
+        ADMIN
     }
 
     class User <<Entity>> {
@@ -73,16 +29,12 @@ package "1. Identity & Access Management (RBAC)" #FDF8F6 {
         + passwordHash: String
         + fullName: String?
         + phone: String?
-        + position: String? = "Barista Pha Chế"
+        + position: String?
         + isActive: Boolean = true
         + role: Role = CUSTOMER
         + loyaltyPoints: Int = 0
+        + tokenVersion: Int = 0
         + createdAt: DateTime
-        --
-        + addLoyaltyPoints(pts: Int): void
-        + deductLoyaltyPoints(pts: Int): Boolean
-        + hasRole(r: Role): Boolean
-        + deactivate(): void
     }
 
     class UserVoucher <<Entity>> {
@@ -95,34 +47,78 @@ package "1. Identity & Access Management (RBAC)" #FDF8F6 {
         + maxDiscountAmount: Float?
         + createdAt: DateTime
         + updatedAt: DateTime
-        --
-        + isValidFor(orderSubtotal: Float): Boolean
-        + computeDiscount(orderSubtotal: Float): Float
+        <<Unique(userId, code)>>
     }
 
-    User "1" *-- "0..*" UserVoucher : owns >
-    User --> Role : has role >
+    class AuthController <<Controller>> {
+        + register(dto: RegisterDto)
+        + login(dto: LoginDto)
+        + getProfile(req)
+        + updateProfile(req, dto: UpdateProfileDto)
+        + redeemPoints(req, dto: RedeemPointsDto)
+        + getUserVouchers(req)
+    }
+
+    class AuthService <<Service>> {
+        + register(dto: RegisterDto)
+        + login(dto: LoginDto)
+        + getProfile(userId: Int)
+        + updateProfile(userId: Int, dto: UpdateProfileDto)
+        + getUserVouchers(userId: Int)
+        + redeemPoints(userId: Int, points: Int, desc?, voucherCode?)
+    }
+
+    class UsersController <<Controller>> {
+        + getAllStaff()
+        + getStaffById(id: Int)
+        + createStaff(req, dto: CreateStaffDto)
+        + updateStaff(id: Int, dto: UpdateStaffDto, req)
+        + toggleStaffStatus(id: Int, dto: ToggleStatusDto, req)
+        + deleteStaff(id: Int, req)
+    }
+
+    class UsersService <<Service>> {
+        + getAllStaff()
+        + getStaffById(id: Int)
+        + createStaff(dto: CreateStaffDto, creator?)
+        + updateStaff(id: Int, dto: UpdateStaffDto, currentAdminId?)
+        + toggleStaffStatus(id: Int, isActive: Boolean, currentAdminId?)
+        + deleteStaff(id: Int, currentAdminId?)
+    }
+
+    class CustomersController <<Controller>> {
+        + getAllCustomers()
+        + getCustomerById(id: Int)
+        + createCustomer(dto: CreateCustomerDto)
+        + updateCustomer(id: Int, dto: UpdateCustomerDto)
+        + toggleCustomerStatus(id: Int, dto: ToggleStatusDto)
+        + deleteCustomer(id: Int)
+    }
+
+    class CustomersService <<Service>> {
+        + getAllCustomers()
+        + getCustomerById(id: Int)
+        + createCustomer(dto: CreateCustomerDto)
+        + updateCustomer(id: Int, dto: UpdateCustomerDto)
+        + toggleCustomerStatus(id: Int, isActive: Boolean)
+        + deleteCustomer(id: Int)
+    }
+
+    User "1" *-- "0..*" UserVoucher : owns (Cascade) >
+    User --> Role : has >
+    AuthController --> AuthService
+    UsersController --> UsersService
+    CustomersController --> CustomersService
+    AuthService ..> User
+    AuthService ..> UserVoucher
+    UsersService ..> User
+    CustomersService ..> User
 }
 
 ' ==============================================================================
-' 2. PACKAGE: CATALOG & MENU MANAGEMENT
+' 2. CATALOG, BOM & INVENTORY ENGINE (products, inventory)
 ' ==============================================================================
-package "2. Catalog & Menu Management" #F0FDF4 {
-
-    class Category <<ValueObject / Dimension>> {
-        + code: String <<PK>>
-        + name: String
-        + description: String?
-        --
-        + getDisplayName(): String
-    }
-
-    enum ProductSize <<enumeration>> {
-        + S (Standard / Base)
-        + M (Medium + Upcharge)
-        + L (Large + Upcharge)
-        + ALL (Fixed size / Bakery)
-    }
+package "2. Catalog, BOM & Inventory (products, inventory)" {
 
     class Product <<Entity>> {
         + id: Int <<PK, autoincrement>>
@@ -132,43 +128,12 @@ package "2. Catalog & Menu Management" #F0FDF4 {
         + basePrice: Float
         + sizeUpchargeM: Float?
         + sizeUpchargeL: Float?
-        + category: String = "vietnamese" <<FK>>
+        + category: String = "vietnamese"
         + tag: String? = "Phổ biến"
         + isActive: Boolean = true
         + isSoldOutManual: Boolean = false
         + createdAt: DateTime
         + updatedAt: DateTime
-        --
-        + getEffectivePrice(size: ProductSize, defaultM: Float, defaultL: Float): Float
-        + calculateCOGS(size: ProductSize): Float
-        + calculateGrossProfit(size: ProductSize): Float
-        + calculateMarginPercent(size: ProductSize): Float
-        + getAvailableServings(): Int
-        + isAvailable(): Boolean
-    }
-
-    class StoreSetting <<Entity>> {
-        + key: String <<PK>>
-        + value: String
-        + description: String?
-        + updatedAt: DateTime
-        --
-        + getAsNumber(): Float
-        + getAsBoolean(): Boolean
-    }
-
-    Product --> Category : belongs to >
-    Product ..> ProductSize : supports >
-}
-
-' ==============================================================================
-' 3. PACKAGE: BOM & INVENTORY MANAGEMENT (BILL OF MATERIALS)
-' ==============================================================================
-package "3. BOM & Inventory Engine" #EFF6FF {
-
-    enum IngredientType <<enumeration>> {
-        + INGREDIENT (Pha chế cốt lõi)
-        + PACKAGING (Vật tư tiêu hao, ly, nắp, bao)
     }
 
     class Ingredient <<Entity>> {
@@ -184,46 +149,30 @@ package "3. BOM & Inventory Engine" #EFF6FF {
         + version: Int = 0 <<OptimisticLock>>
         + createdAt: DateTime
         + updatedAt: DateTime
-        --
-        + isLowStock(): Boolean
-        + deductStock(amount: Float, expectedVer: Int): Boolean
-        + restock(amount: Float, unitCost: Float): void
     }
 
-    class Recipe <<BOM Association Entity>> {
+    class Recipe <<Entity>> {
         + id: Int <<PK, autoincrement>>
         + productId: Int <<FK>>
         + ingredientId: Int <<FK>>
         + size: String = "ALL"
         + amount: Float
-        --
-        + calculateCost(): Float
+        <<Unique(productId, ingredientId, size)>>
     }
 
-    class Topping <<Entity / Catalog>> {
-        + id: String <<PK>>
-        + name: String
-        + subtext: String?
-        + price: Float = 8000
-        + isActive: Boolean = true
-        --
-        + isAvailable(): Boolean
-    }
-
-    class ToppingRecipe <<BOM Association Entity>> {
+    class ToppingRecipe <<Entity>> {
         + id: Int <<PK, autoincrement>>
-        + toppingId: String <<FK>>
+        + toppingId: String
         + toppingName: String
-        + subtext: String?
+        + subtext: String? = "Topping thơm ngon chuẩn vị"
         + price: Float = 8000
         + isActive: Boolean = true
         + ingredientId: Int <<FK>>
         + amount: Float
-        --
-        + calculateCost(): Float
+        <<Unique(toppingId, ingredientId)>>
     }
 
-    class InventoryLog <<Audit Entity>> {
+    class InventoryLog <<Entity>> {
         + id: Int <<PK, autoincrement>>
         + ingredientId: Int <<FK>>
         + ingredientName: String
@@ -239,27 +188,96 @@ package "3. BOM & Inventory Engine" #EFF6FF {
         + createdAt: DateTime
     }
 
-    Ingredient ..> IngredientType : categorized by >
-    Product "1" *-- "0..*" Recipe : defines BOM >
-    Ingredient "1" <-- "0..*" Recipe : requires material <
-    Topping "1" *-- "0..*" ToppingRecipe : defines BOM >
-    Ingredient "1" <-- "0..*" ToppingRecipe : consumes material <
-    Ingredient "1" *-- "0..*" InventoryLog : audit history >
+    class StoreSetting <<Entity>> {
+        + key: String <<PK>>
+        + value: String
+        + description: String?
+        + updatedAt: DateTime
+    }
+
+    class ProductsController <<Controller>> {
+        + findAll(includeInactive?, req?)
+        + findOne(id: Int, req?)
+        + create(dto: CreateProductDto)
+        + toggleSoldOut(id: Int, dto: ToggleSoldOutDto, req?)
+        + toggleVisibility(id: Int, dto: ToggleProductVisibilityDto)
+        + update(id: Int, dto: UpdateProductDto)
+        + remove(id: Int)
+    }
+
+    class ProductsService <<Service>> {
+        + findAll(includeInactive?: Boolean, isAdmin?: Boolean)
+        + findOne(id: Int, isAdmin?: Boolean, allowInactive?: Boolean)
+        + create(dto: CreateProductDto)
+        + update(id: Int, dto: UpdateProductDto)
+        + toggleVisibility(id: Int, dto: ToggleProductVisibilityDto)
+        + toggleSoldOut(id: Int, dto: ToggleSoldOutDto, isAdmin?: Boolean)
+        + remove(id: Int)
+    }
+
+    class InventoryController <<Controller>> {
+        + getPublicPricingConfig()
+        + updateGlobalSizePricing(dto)
+        + getInventoryRoot(req?) / getAllIngredients(req?)
+        + createIngredient(dto) / updateIngredient(id, dto) / deleteIngredient(id)
+        + restockIngredient(id, dto, req) / setIngredientStock(id, dto, req)
+        + getInventoryLogs() / getDashboardStats()
+        + getRecipeMatrix(req?) / upsertRecipe(dto) / updateRecipe(id, dto) / deleteRecipe(id)
+        + createToppingRecipe(dto) / updateToppingRecipe(id, dto) / deleteToppingRecipe(id)
+        + getAllVouchers() / createVoucher(dto) / updateVoucher(id, dto) / deleteVoucher(id)
+    }
+
+    class InventoryService <<Service>> {
+        + calculateServings(product)
+        + getAllIngredients(isAdmin?: Boolean)
+        + createIngredient(dto) / updateIngredient(id, dto) / deleteIngredient(id)
+        + restockIngredient(id, dto, actor) / setIngredientStock(id, dto, actor)
+        + getInventoryLogs() / getDashboardStats()
+        + getRecipeMatrix(isAdmin?: Boolean) / upsertRecipe(dto) / updateRecipe(id, dto) / deleteRecipe(id)
+        + createToppingRecipe(dto) / updateToppingRecipe(id, dto) / deleteToppingRecipe(id)
+        + getPublicPricingConfig() / getGlobalSizePricing() / updateGlobalSizePricing(dto)
+        + getAllVouchers(onlyActive?: Boolean) / createVoucher(dto) / updateVoucher(id, dto) / deleteVoucher(id)
+    }
+
+    Product "1" *-- "0..*" Recipe : defines BOM (Cascade) >
+    Ingredient "1" <-- "0..*" Recipe : requires (Cascade) <
+    Ingredient "1" <-- "0..*" ToppingRecipe : consumes (Cascade) <
+    Ingredient "1" *-- "0..*" InventoryLog : audit (Restrict) >
+    ProductsController --> ProductsService
+    InventoryController --> InventoryService
+    ProductsService ..> Product
+    ProductsService ..> ToppingRecipe
+    InventoryService ..> Ingredient
+    InventoryService ..> Recipe
+    InventoryService ..> ToppingRecipe
+    InventoryService ..> InventoryLog
+    InventoryService ..> StoreSetting
 }
 
 ' ==============================================================================
-' 4. PACKAGE: SALES & ORDER FULFILLMENT
+' 3. SALES, ORDERS & PAYMENTS (orders, payments, jobs, health)
 ' ==============================================================================
-package "4. Sales & Order Fulfillment" #FFFBEB {
+package "3. Orders, Payments & System (orders, payments, jobs, health)" {
 
     enum OrderStatus <<enumeration>> {
-        + PENDING
-        + PAID
-        + PREPARING
-        + READY
-        + COMPLETED
-        + PAYMENT_FAILED
-        + CANCELLED
+        PENDING
+        PAID
+        PREPARING
+        READY
+        COMPLETED
+        PAYMENT_FAILED
+        CANCELLED
+    }
+
+    enum PaymentMethod <<enumeration>> {
+        EWALLET
+        BANK_CARD
+    }
+
+    enum PaymentStatus <<enumeration>> {
+        SUCCESS
+        FAILED
+        PENDING
     }
 
     class DiscountCode <<Entity>> {
@@ -273,13 +291,9 @@ package "4. Sales & Order Fulfillment" #FFFBEB {
         + usageCount: Int = 0
         + createdAt: DateTime
         + updatedAt: DateTime
-        --
-        + isValidFor(subtotal: Float): Boolean
-        + computeDiscount(subtotal: Float): Float
-        + incrementUsage(): void
     }
 
-    class Order <<Aggregate Root>> {
+    class Order <<Entity>> {
         + id: Int <<PK, autoincrement>>
         + userId: Int? <<FK>>
         + status: OrderStatus = PENDING
@@ -287,6 +301,9 @@ package "4. Sales & Order Fulfillment" #FFFBEB {
         + discountCode: String?
         + discountAmount: Float = 0
         + voucherDeducted: Boolean = false
+        + voucherDiscountPercent: Float?
+        + voucherMinOrderAmount: Float?
+        + voucherMaxDiscountAmount: Float?
         + version: Int = 0 <<OptimisticLock>>
         + idempotencyKey: String?
         + idempotencyPayload: String?
@@ -294,61 +311,22 @@ package "4. Sales & Order Fulfillment" #FFFBEB {
         + staffName: String?
         + createdAt: DateTime
         + updatedAt: DateTime
-        --
-        + calculateRawSubtotal(): Float
-        ' VAT 0%: finalTotal = max(0, rawSubtotal - discountAmount)
-        + calculateFinalTotal(): Float
-        + canTransitionTo(next: OrderStatus): Boolean
-        + transitionTo(next: OrderStatus, staffId: Int?): void
+        <<Unique(userId, idempotencyKey)>>
     }
 
     class OrderItem <<Entity>> {
         + id: Int <<PK, autoincrement>>
         + orderId: Int <<FK>>
-        + productId: Int <<FK>>
+        + productId: Int
         + productName: String
         + size: String
-        + toppings: List<String>
+        + sugarLevel: String? = "100%"
+        + iceLevel: String? = "100%"
+        + temperature: String? = "COLD"
+        + notes: String?
+        + toppings: String[]
         + quantity: Int
         + unitPrice: Float
-        --
-        + calculateLineTotal(): Float
-    }
-
-    class OrderItemTopping <<ValueObject / Customization>> {
-        + id: Int <<PK, autoincrement>>
-        + orderItemId: Int <<FK>>
-        + toppingId: String <<FK>>
-        + toppingName: String
-        + toppingPrice: Float
-        + quantity: Int = 1
-        --
-        + calculateSubtotal(): Float
-    }
-
-    Order --> OrderStatus : state >
-    Order "1" *-- "1..*" OrderItem : contains >
-    OrderItem --> Product : snapshot of >
-    OrderItem "1" *-- "0..*" OrderItemTopping : customized with >
-    OrderItemTopping --> Topping : references >
-    Order ..> DiscountCode : applies >
-    User "1" --> "0..*" Order : places >
-}
-
-' ==============================================================================
-' 5. PACKAGE: PAYMENT & SETTLEMENT
-' ==============================================================================
-package "5. Payment Engine" #FAF5FF {
-
-    enum PaymentMethod <<enumeration>> {
-        + EWALLET (ZaloPay, MoMo)
-        + BANK_CARD (VietQR, ATM, Visa/Master)
-    }
-
-    enum PaymentStatus <<enumeration>> {
-        + PENDING
-        + SUCCESS
-        + FAILED
     }
 
     class Payment <<Entity>> {
@@ -359,55 +337,89 @@ package "5. Payment Engine" #FAF5FF {
         + method: PaymentMethod
         + status: PaymentStatus
         + createdAt: DateTime
-        --
-        + markSuccess(): void
-        + markFailed(): void
     }
 
+    class OrdersController <<Controller>> {
+        + createOrder(req, dto: CreateOrderDto, idempotencyKey?)
+        + findAllForAdmin()
+        + getMyOrders(req)
+        + getBaristaQueue()
+        + getOrderById(req, id: Int)
+        + updateOrderStatus(req, id: Int, dto: UpdateOrderStatusDto)
+        + deleteOrder(req, id: Int)
+    }
+
+    class OrdersService <<Service>> {
+        + createOrder(dto: CreateOrderDto, userId: Int, idempotencyKey?)
+        + getAllOrdersForAdmin()
+        + getMyOrders(userId: Int)
+        + getBaristaQueue()
+        + updateOrderStatus(orderId: Int, nextStatus: OrderStatus, userId: Int, userRole?)
+        + getOrderById(orderId: Int, userId: Int, userRole?)
+        + deleteOrder(orderId: Int, userId: Int, userRole?)
+        + cancelExpiredPendingOrders(): Promise<number>
+    }
+
+    class ExpireOrdersJob <<ScheduledJob>> {
+        + handleExpiredOrders(): Promise<void>
+    }
+
+    class PaymentsController <<Controller>> {
+        + processPayment(req, dto: CreatePaymentDto, idempotencyKey?)
+        + createZaloPayOrder(req, orderId: Int)
+        + handleZaloPayCallback(body)
+        + getZaloPayStatus(req, orderId: Int, appTransId?)
+        + confirmZaloPayOrder(req, orderId?, appTransId?)
+        + cancelZaloPayOrder(req, orderId: Int)
+    }
+
+    class PaymentsService <<Service>> {
+        + processPayment(dto: CreatePaymentDto, userId: Int, idempotencyKey?, userRole?)
+        + createZaloPayOrder(orderId: Int, userId: Int, userRole?)
+        + handleZaloPayCallback(body)
+        + getZaloPayStatus(orderId: Int, userId: Int, appTransId?, userRole?)
+        + confirmZaloPaySandbox(orderId?, userId, userRole?, appTransId?)
+        + cancelZaloPaySandbox(orderId: Int, userId: Int, userRole?)
+    }
+
+    class MockGatewayService <<Service>> {
+        + charge(amount: Float, method: PaymentMethod, simulateFailure?)
+    }
+
+    class ZaloPayService <<Service>> {
+        + createOrder(params: ZaloPayCreateOrderParams)
+        + verifyCallback(dataStr: String, requestMac: String): Boolean
+        + queryStatus(appTransId: String)
+        + createMockCallbackPayload(orderId, amount, appTransId, zpTransId?)
+    }
+
+    class HealthController <<Controller>> {
+        + check(): Promise<HealthResponse>
+    }
+
+    User "0..1" <-- "0..*" Order : places <
+    Order "1" *-- "1..*" OrderItem : contains (Cascade) >
+    OrderItem ..> Product : snapshot productId >
+    Order "1" *-- "0..*" Payment : settled by (Restrict) >
+    Order --> OrderStatus : state >
+    Order ..> DiscountCode : applies >
     Payment --> PaymentMethod : uses >
     Payment --> PaymentStatus : status >
-    Order "1" *-- "0..*" Payment : settled by >
+
+    OrdersController --> OrdersService
+    ExpireOrdersJob ..> OrdersService : "expires >15m"
+    PaymentsController --> PaymentsService
+    PaymentsService --> MockGatewayService
+    PaymentsService --> ZaloPayService
+    OrdersService ..> Order
+    PaymentsService ..> Payment
+    PaymentsService ..> Order
 }
 
-' ==============================================================================
-' ARCHITECTURAL NOTES & BUSINESS RULES
-' ==============================================================================
-note as N_BOM
-    <b>Kiến Trúc BOM (Bill of Materials) & Tồn Kho:</b>
-    • Không lưu trường 'stock' cố định trên Product.
-    • Tồn kho khả dụng (servings) và Giá vốn (COGS) được tính động:
-      minServings = min(Ingredient.stock / Recipe.amount) với mọi nguyên liệu cốt lõi.
-    • COGS(Size) = SUM(Recipe.amount * Ingredient.costPerUnit).
-    • Khi đặt hàng, hệ thống trừ tồn kho trên từng Ingredient theo công thức BOM.
+note bottom of HealthController
+  • BOM Stock & COGS: không lưu stock tĩnh trên Product; tính động từ Ingredient.stock / Recipe.amount.
+  • Optimistic Locking: Ingredient.version (chống overselling) & Order.version (State Machine CAS).
+  • Idempotency: Order(userId, idempotencyKey) & Payment.idempotencyKey; Soft Delete qua isActive.
 end note
-
-note as N_LOCK
-    <b>Kiểm Soát Đồng Thời (Optimistic Locking):</b>
-    • <b>Ingredient.version:</b> Ngăn chặn Overselling khi nhiều khách đặt cùng lúc.
-      Câu lệnh: UPDATE Ingredient SET stock = stock - qty, version = version + 1
-      WHERE id = :id AND version = :version AND stock >= qty.
-    • <b>Order.version:</b> Đảm bảo tính toàn vẹn trạng thái đơn hàng (State Machine)
-      khi Staff và Khách thao tác song song.
-end note
-
-note as N_PACKAGING
-    <b>Phân Loại Nguyên Vật Liệu (Ingredient.type & isRequiredForSale):</b>
-    • <b>type = 'INGREDIENT':</b> Cốt lõi (cà phê, sữa, đường). isRequiredForSale = true.
-      Hết hàng -> Tự động khóa món (Sold Out) trên menu.
-    • <b>type = 'PACKAGING':</b> Vật tư tiêu hao (ly giấy, nắp, ống hút, bịch mang đi).
-      Nếu isRequiredForSale = false -> Hết hàng vẫn cho bán, chỉ cảnh báo Barista/Admin.
-end note
-
-note as N_IDEMPOTENCY
-    <b>An Toàn Giao Dịch & Idempotency:</b>
-    • <b>Payment.idempotencyKey:</b> Tránh trừ tiền trùng lặp từ Webhook cổng thanh toán.
-    • <b>User.loyaltyPoints:</b> Tích lũy Hạt Vàng tự động (1.000đ = 1 điểm) khi đơn PAID.
-    • <b>Soft Delete:</b> Quản lý qua cờ isActive (User, Product, ToppingRecipe, DiscountCode).
-end note
-
-N_BOM .. Recipe
-N_LOCK .. Ingredient
-N_PACKAGING .. Ingredient
-N_IDEMPOTENCY .. Payment
 
 @enduml
