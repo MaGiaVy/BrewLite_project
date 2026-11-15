@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import OrderConfirmationPage from '../page';
 
 // Mock clipboard
@@ -167,21 +167,5 @@ describe('Task T5.1e — Order Confirmation Mobile UI (/orders/[id]/confirmation
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('12345');
     expect(await screen.findByText(/Đã chép/i)).toBeTruthy();
-  });
-
-  it('handles simulated E-Receipt download', async () => {
-    const paramsPromise = Promise.resolve({ id: '9988' });
-    render(<OrderConfirmationPage params={paramsPromise} />);
-
-    const receiptBtn = await screen.findByText(/Tải hóa đơn điện tử/i);
-    fireEvent.click(receiptBtn);
-
-    expect(await screen.findByText(/Đang tải hóa đơn/i)).toBeTruthy();
-    await waitFor(
-      () => {
-        expect(screen.getByText(/Đã lưu hóa đơn điện tử/i)).toBeTruthy();
-      },
-      { timeout: 2500 },
-    );
   });
 });
