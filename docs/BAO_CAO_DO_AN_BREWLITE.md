@@ -177,7 +177,7 @@ Sơ đồ gồm **4 Tác nhân** (*Khách hàng*, *Nhân viên/Barista*, *Quản
 
 ### TASK 2.1. Sơ đồ Hoạt động (Activity Diagram)
 
-Nhằm mô hình hóa đầy đủ hành vi động của hệ thống BrewLite theo cả góc nhìn toàn trình (*End-to-End*) và góc nhìn chi tiết theo từng phân hệ, nhóm xây dựng **Sơ đồ Hoạt động tổng hợp 5 Swimlanes** kết hợp hai sơ đồ phân hệ chi tiết (**Duyệt thực đơn – Giỏ hàng** và **Quầy pha chế Barista KDS – Ân hạn 5 phút**):
+Nhằm mô hình hóa trọn vẹn hành vi động của hệ thống theo đúng hành trình khách hàng và nhân viên pha chế, nhóm chuẩn hóa thành **1 Sơ đồ Hoạt động Toàn trình End-to-End** qua **5 Swimlanes** (*Khách hàng*, *Giao diện Web Next.js*, *Backend API NestJS*, *Cổng thanh toán ZaloPay*, *Cơ sở dữ liệu PostgreSQL*), bao quát **6 giai đoạn nghiệp vụ liên tục** và các nhánh ngoại lệ (`409` hết hàng BOM, lỗi thanh toán, hủy đơn 5 phút Grace Period, quá hạn 15 phút):
 
 #### 1. Bảng tổng hợp 6 giai đoạn nghiệp vụ End-to-End
 
@@ -199,24 +199,6 @@ Nhằm mô hình hóa đầy đủ hành vi động của hệ thống BrewLite 
 
 </div>
 
-#### 3. Sơ đồ Hoạt động Chi tiết Phân hệ Thực đơn & Giỏ hàng
-
-<div align="center">
-
-![Sơ đồ Hoạt động Duyệt Thực đơn và Giỏ hàng](diagrams/activity-menu-cart.png)  
-*Hình 2.2: Sơ đồ Hoạt động chi tiết luồng Duyệt thực đơn, Tùy biến Size/Topping và Quản lý Giỏ hàng (`docs/diagrams/activity-menu-cart.png`).*
-
-</div>
-
-#### 4. Sơ đồ Hoạt động Chi tiết Phân hệ Quầy Pha Chế KDS & Hủy đơn 5 phút
-
-<div align="center">
-
-![Sơ đồ Hoạt động Quầy pha chế Barista KDS](diagrams/activity-kds.png)  
-*Hình 2.3: Sơ đồ Hoạt động chi tiết Quầy pha chế Barista KDS, kiểm soát chuyển trạng thái và hoàn kho BOM khi hủy đơn trong 5 phút Grace Period (`docs/diagrams/activity-kds.png`).*
-
-</div>
-
 ---
 
 ### TASK 2.2. Sơ đồ Trình tự (Sequence Diagram)
@@ -226,7 +208,7 @@ Sơ đồ trình tự mô tả tương tác giữa 5 lifeline tối thiểu (`Cu
 <div align="center">
 
 ![Sơ đồ Trình tự Đặt hàng và Thanh toán](diagrams/sequence-checkout.png)  
-*Hình 2.4: Sơ đồ Trình tự luồng Đặt hàng và Thanh toán (`docs/diagrams/sequence-checkout.png`).*
+*Hình 2.2: Sơ đồ Trình tự luồng Đặt hàng và Thanh toán (`docs/diagrams/sequence-checkout.png`).*
 
 </div>
 
@@ -239,7 +221,7 @@ Sơ đồ trình tự mô tả tương tác giữa 5 lifeline tối thiểu (`Cu
 <div align="center">
 
 ![Sơ đồ Lớp miền BrewLite](diagrams/class.png)  
-*Hình 2.5: Sơ đồ Lớp miền hệ thống BrewLite (`docs/diagrams/class.png`).*
+*Hình 2.3: Sơ đồ Lớp miền hệ thống BrewLite (`docs/diagrams/class.png`).*
 
 </div>
 
