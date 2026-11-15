@@ -29,6 +29,7 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MinLength(6, { message: 'Mật khẩu mới phải có ít nhất 6 ký tự' })
+  @Matches(/\S/, { message: 'Mật khẩu mới không được chỉ gồm khoảng trắng' })
   @MaxLength(128, { message: 'Mật khẩu mới không được vượt quá 128 ký tự' })
   newPassword?: string;
 }

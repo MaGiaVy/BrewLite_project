@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -17,11 +18,13 @@ export class CreateStaffDto {
 
   @IsString()
   @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
+  @Matches(/\S/, { message: 'Mật khẩu không được chỉ gồm khoảng trắng' })
   @MaxLength(128)
   password!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Vui lòng nhập họ và tên' })
+  @Matches(/\S/, { message: 'Vui lòng nhập họ và tên' })
   @MaxLength(100)
   @NoUnsafeHtml()
   fullName!: string;

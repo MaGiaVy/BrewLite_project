@@ -770,7 +770,11 @@ export default function OrderDetailPage({
 
             {!isCancelled && !isPending && (
               <div className={styles.loyaltyRewardCard}>
-                <span>Điểm thưởng tích lũy đơn này:</span>
+                <span>
+                  {isCompleted
+                    ? 'Điểm thưởng đã cộng đơn này:'
+                    : 'Điểm thưởng tích lũy (cộng khi hoàn tất):'}
+                </span>
                 <span className={styles.loyaltyRewardPoints}>
                   +{loyaltyPoints} Hạt Vàng BrewLite Club
                 </span>

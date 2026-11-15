@@ -6,9 +6,12 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { NoUnsafeHtml } from '../../common/validators/no-unsafe-html.validator';
 
 export class RestockIngredientDto {
   @IsNumber()
@@ -30,6 +33,8 @@ export class RestockIngredientDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  @NoUnsafeHtml()
   note?: string;
 }
 
@@ -64,20 +69,31 @@ export class UpdateIngredientStockDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  @NoUnsafeHtml()
   note?: string;
 }
 
 export class CreateIngredientDto {
   @IsString()
   @IsNotEmpty({ message: 'Mã nguyên vật liệu không được để trống' })
+  @Matches(/\S/, { message: 'Mã nguyên vật liệu không được chứa toàn khoảng trắng' })
+  @MaxLength(50)
+  @NoUnsafeHtml()
   code!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Tên nguyên vật liệu không được để trống' })
+  @Matches(/\S/, { message: 'Tên nguyên vật liệu không được chứa toàn khoảng trắng' })
+  @MaxLength(150)
+  @NoUnsafeHtml()
   name!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Đơn vị tính không được để trống' })
+  @Matches(/\S/, { message: 'Đơn vị tính không được chứa toàn khoảng trắng' })
+  @MaxLength(30)
+  @NoUnsafeHtml()
   unit!: string;
 
   @IsNumber()
@@ -112,16 +128,25 @@ export class UpdateIngredientDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Mã nguyên vật liệu không được chứa toàn khoảng trắng' })
+  @MaxLength(50)
+  @NoUnsafeHtml()
   code?: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Tên nguyên vật liệu không được chứa toàn khoảng trắng' })
+  @MaxLength(150)
+  @NoUnsafeHtml()
   name?: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Đơn vị tính không được chứa toàn khoảng trắng' })
+  @MaxLength(30)
+  @NoUnsafeHtml()
   unit?: string;
 
   @IsOptional()
@@ -195,14 +220,22 @@ export class UpdateRecipeDto {
 export class CreateToppingRecipeDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Mã topping không được chứa toàn khoảng trắng' })
+  @MaxLength(50)
+  @NoUnsafeHtml()
   toppingId!: string;
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Tên topping không được chứa toàn khoảng trắng' })
+  @MaxLength(100)
+  @NoUnsafeHtml()
   toppingName!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
+  @NoUnsafeHtml()
   subtext?: string;
 
   @IsInt({ message: 'Giá topping phải là số nguyên (VND)' })
@@ -228,10 +261,16 @@ export class CreateToppingRecipeDto {
 export class UpdateToppingRecipeDto {
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @Matches(/\S/, { message: 'Tên topping không được chứa toàn khoảng trắng' })
+  @MaxLength(100)
+  @NoUnsafeHtml()
   toppingName?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
+  @NoUnsafeHtml()
   subtext?: string;
 
   @IsOptional()
@@ -271,10 +310,15 @@ export class UpdateSizePricingDto {
 export class CreateVoucherDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'Mã giảm giá không được chứa toàn khoảng trắng' })
+  @MaxLength(50)
+  @NoUnsafeHtml()
   code!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
+  @NoUnsafeHtml()
   description?: string;
 
   @IsNumber()
@@ -302,10 +346,16 @@ export class CreateVoucherDto {
 export class UpdateVoucherDto {
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @Matches(/\S/, { message: 'Mã giảm giá không được chứa toàn khoảng trắng' })
+  @MaxLength(50)
+  @NoUnsafeHtml()
   code?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
+  @NoUnsafeHtml()
   description?: string;
 
   @IsOptional()

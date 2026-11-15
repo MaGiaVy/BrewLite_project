@@ -67,6 +67,11 @@ export class CustomersService {
       throw new BadRequestException('Email này đã được sử dụng');
     }
 
+    const cleanFullName = dto.fullName?.trim();
+    if (!cleanFullName) {
+      throw new BadRequestException('Họ và tên không được để trống');
+    }
+
     const rawPassword = dto.password?.trim();
     if (!rawPassword || rawPassword.length < 6) {
       throw new BadRequestException(
@@ -79,7 +84,7 @@ export class CustomersService {
       data: {
         email: normalizedEmail,
         passwordHash: hashedPassword,
-        fullName: dto.fullName.trim(),
+        fullName: cleanFullName,
         phone: dto.phone?.trim() || null,
         position: null,
         role: Role.CUSTOMER,
@@ -113,7 +118,11 @@ export class CustomersService {
     } = {};
 
     if (dto.fullName !== undefined) {
-      data.fullName = dto.fullName.trim();
+      const cleanFullName = dto.fullName.trim();
+      if (!cleanFullName) {
+        throw new BadRequestException('Họ và tên không được để trống');
+      }
+      data.fullName = cleanFullName;
     }
 
     if (dto.phone !== undefined) {

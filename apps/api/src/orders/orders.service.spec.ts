@@ -371,7 +371,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('[SRS AC-13.2] cho phép STAFF/ADMIN hủy đơn PAID trước khi pha chế (PREPARING) và hoàn kho + thu hồi điểm Loyalty', async () => {
+    it('[SRS AC-13.2] cho phép STAFF/ADMIN hủy đơn PAID trước khi pha chế (PREPARING) và hoàn kho không đụng điểm Loyalty', async () => {
       const now = new Date();
       prisma.order.findUnique.mockResolvedValue({
         id: 110,
@@ -395,7 +395,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
         },
         toppingRecipe: { findMany: jest.fn().mockResolvedValue([]) },
         ingredient: { update: jest.fn().mockResolvedValue({}) },
-        user: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        user: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn() },
         order: {
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
           findUnique: jest.fn().mockResolvedValue({
@@ -409,10 +409,12 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
 
       const res = await service.updateOrderStatus(110, OrderStatus.CANCELLED, 99, Role.STAFF);
       expect(res.status).toBe(OrderStatus.CANCELLED);
-      expect(mockTx.user.updateMany).toHaveBeenCalledWith({
-        where: { id: 1, loyaltyPoints: { gte: 50 } },
-        data: { loyaltyPoints: { decrement: 50 } },
+      expect(mockTx.ingredient.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { stock: { increment: 25 }, version: { increment: 1 } },
       });
+      expect(mockTx.user.updateMany).not.toHaveBeenCalled();
+      expect(mockTx.user.update).not.toHaveBeenCalled();
     });
 
     it('cho phép khách hàng thường hủy đơn PENDING của chính mình sang CANCELLED, thành công và hoàn trả nguyên liệu kho', async () => {
@@ -628,13 +630,13 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       );
     });
 
-    it('cho phép Staff hủy đơn từ trạng thái PAID -> CANCELLED, tự động hoàn kho nguyên vật liệu và thu hồi điểm Loyalty', async () => {
+    it('cho phép Staff hủy đơn từ trạng thái PAID -> CANCELLED, tự động hoàn kho nguyên vật liệu và không trừ điểm Loyalty (chỉ cộng khi COMPLETED)', async () => {
       const now = new Date();
       prisma.order.findUnique.mockResolvedValue({
         id: 108,
         userId: 5,
         status: OrderStatus.PAID,
-        totalAmount: 84000, // 84 điểm Hạt Vàng
+        totalAmount: 84000,
         items: [
           {
             productId: 4,
@@ -702,13 +704,8 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
           version: { increment: 1 },
         },
       });
-      // Thu hồi 84 điểm Hạt Vàng (100 - 84 = 16)
-      expect(mockTx.user.update).toHaveBeenCalledWith({
-        where: { id: 5 },
-        data: {
-          loyaltyPoints: 16,
-        },
-      });
+      // Không chạm loyalty khi hủy đơn PAID
+      expect(mockTx.user.update).not.toHaveBeenCalled();
     });
   });
 
@@ -1537,21 +1534,21 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       );
     });
 
-    it('[HIGH-05] chặn sàn số dư điểm Hạt Vàng không bao giờ bị âm khi hủy đơn hàng', async () => {
-      prisma.order.findUnique.mockResolvedValue({
+    it('[HIGH-05] không trừ điểm Hạt Vàng khi hủy đơn PAID và chỉ cộng điểm khi đơn chuyển sang COMPLETED', async () => {
+      prisma.order.findUnique.mockResolvedValueOnce({
         id: 109,
         userId: 7,
         status: OrderStatus.PAID,
-        totalAmount: 100000, // 100 điểm cần thu hồi
+        totalAmount: 100000,
         items: [],
       });
 
-      const mockTx = {
+      const cancelTx = {
         recipe: { findMany: jest.fn().mockResolvedValue([]) },
         toppingRecipe: { findMany: jest.fn().mockResolvedValue([]) },
         ingredient: { update: jest.fn().mockResolvedValue({}) },
         user: {
-          findUnique: jest.fn().mockResolvedValue({ loyaltyPoints: 30 }), // Chỉ còn 30 điểm
+          findUnique: jest.fn().mockResolvedValue({ loyaltyPoints: 30 }),
           update: jest.fn().mockResolvedValue({}),
         },
         order: {
@@ -1564,16 +1561,43 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
         },
       };
 
-      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+      prisma.$transaction.mockImplementationOnce(async (cb) => cb(cancelTx));
 
       await service.updateOrderStatus(109, OrderStatus.CANCELLED, 99, Role.STAFF);
+      expect(cancelTx.user.update).not.toHaveBeenCalled();
 
-      // Điểm thu hồi 100 > số dư 30 -> số dư sàn về 0
-      expect(mockTx.user.update).toHaveBeenCalledWith({
-        where: { id: 7 },
-        data: {
-          loyaltyPoints: 0,
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 110,
+        userId: 7,
+        status: OrderStatus.READY,
+        totalAmount: 100000,
+        items: [],
+      });
+      const completeTx = {
+        order: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 110,
+            userId: 7,
+            totalAmount: 100000,
+            status: OrderStatus.COMPLETED,
+            updatedAt: new Date(),
+          }),
         },
+        user: { update: jest.fn().mockResolvedValue({}) },
+      };
+      prisma.$transaction.mockImplementationOnce(async (cb) => cb(completeTx));
+
+      const completedRes = await service.updateOrderStatus(
+        110,
+        OrderStatus.COMPLETED,
+        99,
+        Role.STAFF,
+      );
+      expect((completedRes as any).pointsEarned).toBe(100);
+      expect(completeTx.user.update).toHaveBeenCalledWith({
+        where: { id: 7 },
+        data: { loyaltyPoints: { increment: 100 } },
       });
     });
 
@@ -2810,22 +2834,34 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       );
     });
 
-    it('[BE-I2] updateOrderStatus PAID -> CANCELLED uses atomic user.updateMany CAS clawback and clamps at 0', async () => {
-      prisma.order.findUnique.mockResolvedValue({
+    it('[BE-I2] updateOrderStatus PAID -> CANCELLED refunds BOM stock without decrementing loyaltyPoints, and READY -> COMPLETED increments by 84', async () => {
+      prisma.order.findUnique.mockResolvedValueOnce({
         id: 907,
         userId: 5,
         status: OrderStatus.PAID,
         totalAmount: 84000, // 84 points
-        items: [],
+        items: [{ productId: 4, size: 'M', toppings: [], quantity: 1 }],
       });
 
       const mockTx = {
+        recipe: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              productId: 4,
+              size: 'M',
+              amount: 20,
+              ingredient: { id: 1, code: 'ING_ROBUSTA', name: 'Robusta', unit: 'g' },
+            },
+          ]),
+        },
+        toppingRecipe: { findMany: jest.fn().mockResolvedValue([]) },
+        ingredient: { update: jest.fn().mockResolvedValue({}) },
         order: {
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
           findUnique: jest.fn().mockResolvedValue({ id: 907, status: OrderStatus.CANCELLED, updatedAt: new Date() }),
         },
         user: {
-          updateMany: jest.fn().mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 }),
+          updateMany: jest.fn(),
           findUnique: jest.fn(),
           update: jest.fn(),
         },
@@ -2834,16 +2870,41 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
 
       await service.updateOrderStatus(907, OrderStatus.CANCELLED, 99, Role.STAFF);
 
-      expect(mockTx.user.updateMany).toHaveBeenNthCalledWith(1, {
-        where: { id: 5, loyaltyPoints: { gte: 84 } },
-        data: { loyaltyPoints: { decrement: 84 } },
+      expect(mockTx.ingredient.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { stock: { increment: 20 }, version: { increment: 1 } },
       });
-      expect(mockTx.user.updateMany).toHaveBeenNthCalledWith(2, {
-        where: { id: 5, loyaltyPoints: { gt: 0, lt: 84 } },
-        data: { loyaltyPoints: 0 },
-      });
-      expect(mockTx.user.findUnique).not.toHaveBeenCalled();
+      expect(mockTx.user.updateMany).not.toHaveBeenCalled();
       expect(mockTx.user.update).not.toHaveBeenCalled();
+
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 907,
+        userId: 5,
+        status: OrderStatus.READY,
+        totalAmount: 84000,
+        items: [],
+      });
+      const completeTx = {
+        order: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 907,
+            userId: 5,
+            totalAmount: 84000,
+            status: OrderStatus.COMPLETED,
+            updatedAt: new Date(),
+          }),
+        },
+        user: { update: jest.fn().mockResolvedValue({}) },
+      };
+      prisma.$transaction.mockImplementationOnce(async (cb: any) => cb(completeTx));
+
+      const completed = await service.updateOrderStatus(907, OrderStatus.COMPLETED, 99, Role.STAFF);
+      expect((completed as any).pointsEarned).toBe(84);
+      expect(completeTx.user.update).toHaveBeenCalledWith({
+        where: { id: 5 },
+        data: { loyaltyPoints: { increment: 84 } },
+      });
     });
 
     it('[BE-I2] updateOrderStatus READY -> COMPLETED does not deduct UserVoucher when voucherDeducted is false', async () => {

@@ -134,7 +134,7 @@ runIntegrationSuite('orders and payments integration', () => {
     const updatedIng = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
     expect(order?.status).toBe(OrderStatus.PAID);
     expect(updatedIng?.stock).toBe(9);
-    expect(paymentResponse.body.pointsEarned).toBe(50);
+    expect(paymentResponse.body.pointsEarned).toBe(0);
   });
 
   it('INT-T02 makes a repeated payment idempotent and records one payment', async () => {
@@ -147,7 +147,7 @@ runIntegrationSuite('orders and payments integration', () => {
 
     expect(duplicate.body.isIdempotent).toBe(true);
     expect(await prisma.payment.count({ where: { idempotencyKey: key } })).toBe(1);
-    expect(await prisma.user.findUnique({ where: { id: userId } })).toMatchObject({ loyaltyPoints: 50 });
+    expect(await prisma.user.findUnique({ where: { id: userId } })).toMatchObject({ loyaltyPoints: 0 });
   });
 
   it('INT-T03 allows only one of two concurrent orders when stock is one', async () => {

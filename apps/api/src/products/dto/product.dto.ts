@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -15,6 +16,7 @@ const MAX_VND_AMOUNT = 100000000;
 export class CreateProductDto {
   @IsString()
   @IsNotEmpty({ message: 'Tên món không được để trống' })
+  @Matches(/\S/, { message: 'Tên món không được chứa toàn khoảng trắng' })
   @MaxLength(150)
   @NoUnsafeHtml()
   name!: string;
@@ -28,6 +30,7 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @NoUnsafeHtml()
   imageUrl?: string;
 
   @IsInt({ message: 'Giá bán phải là số nguyên (VND)' })
@@ -50,11 +53,13 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  @NoUnsafeHtml()
   category?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  @NoUnsafeHtml()
   tag?: string;
 
   @IsOptional()
@@ -70,6 +75,7 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty({ message: 'Tên món không được để trống' })
+  @Matches(/\S/, { message: 'Tên món không được chứa toàn khoảng trắng' })
   @MaxLength(150)
   @NoUnsafeHtml()
   name?: string;
@@ -83,6 +89,7 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
+  @NoUnsafeHtml()
   imageUrl?: string;
 
   @IsOptional()
@@ -106,11 +113,13 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  @NoUnsafeHtml()
   category?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  @NoUnsafeHtml()
   tag?: string;
 
   @IsOptional()

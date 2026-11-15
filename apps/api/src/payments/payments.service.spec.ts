@@ -982,7 +982,7 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
     });
 
     describe('Loyalty Points (Hạt Vàng)', () => {
-      it('cộng điểm tích lũy chính xác (1 điểm / 1.000 VNĐ) sau khi thanh toán thành công', async () => {
+      it('không cộng điểm khi mới thanh toán PAID (chỉ cộng khi đơn hàng đạt COMPLETED)', async () => {
         mockPrisma.order.findUnique.mockResolvedValue({
           id: 8,
           userId: 1,
@@ -1012,11 +1012,8 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
         );
 
         expect(result.success).toBe(true);
-        expect(result.pointsEarned).toBe(85); // 85.000 / 1.000 = 85
-        expect(mockPrisma.user.update).toHaveBeenCalledWith({
-          where: { id: 1 },
-          data: { loyaltyPoints: { increment: 85 } },
-        });
+        expect(result.pointsEarned).toBe(0);
+        expect(mockPrisma.user.update).not.toHaveBeenCalled();
       });
 
       it('BE-C3: chặn CUSTOMER thanh toán đơn khách vãng lai (userId: null) và cho phép STAFF', async () => {
@@ -1468,7 +1465,7 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
           expect(mockPrisma.order.updateMany).not.toHaveBeenCalled();
         });
 
-        it('Task 2.5 & BE-I2: STAFF/ADMIN hủy chính đơn PAID của mình -> CANCELLED hoàn kho BOM và thu hồi điểm loyalty nguyên tử bằng updateMany', async () => {
+        it('Task 2.5 & BE-I2: STAFF/ADMIN hủy chính đơn PAID của mình -> CANCELLED hoàn kho BOM và không chạm điểm loyalty', async () => {
           mockPrisma.order.findUnique.mockResolvedValue({
             id: 25,
             userId: 99,
@@ -1513,18 +1510,11 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
               data: expect.objectContaining({ stock: { increment: 40 } }),
             }),
           );
-          expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
-            where: {
-              id: 99,
-              loyaltyPoints: { gte: 80 },
-            },
-            data: {
-              loyaltyPoints: { decrement: 80 },
-            },
-          });
+          expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
+          expect(mockPrisma.user.update).not.toHaveBeenCalled();
         });
 
-        it('BE-I2: thu hồi điểm loyalty clamp về 0 nguyên tử khi số dư user nhỏ hơn điểm cần thu hồi (chính chủ ADMIN)', async () => {
+        it('BE-I2: hủy đơn PAID của chính chủ ADMIN không trừ điểm loyalty khi điểm chỉ cộng ở COMPLETED', async () => {
           mockPrisma.order.findUnique.mockResolvedValue({
             id: 28,
             userId: 99,
@@ -1543,14 +1533,8 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
 
           const result = await service.cancelZaloPaySandbox(28, 99, Role.ADMIN);
           expect(result.success).toBe(true);
-          expect(mockPrisma.user.updateMany).toHaveBeenNthCalledWith(1, {
-            where: { id: 99, loyaltyPoints: { gte: 80 } },
-            data: { loyaltyPoints: { decrement: 80 } },
-          });
-          expect(mockPrisma.user.updateMany).toHaveBeenNthCalledWith(2, {
-            where: { id: 99, loyaltyPoints: { lt: 80, gt: 0 } },
-            data: { loyaltyPoints: 0 },
-          });
+          expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
+          expect(mockPrisma.user.update).not.toHaveBeenCalled();
         });
 
         it('Task 5: cho phép hủy đơn PAYMENT_FAILED, tạo lại UserVoucher đã bị xóa và ghi CANCEL_REFUND log đủ ingredientName & unit', async () => {
@@ -2199,12 +2183,9 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
       const second = await svc.processPayment({ orderId: 700, method: PaymentMethod.EWALLET }, 5);
       expect(second.success).toBe(true);
       expect(second.status).toBe(OrderStatus.PAID);
-      expect(second.pointsEarned).toBe(50);
+      expect(second.pointsEarned).toBe(0);
       expect(chargeSpy).toHaveBeenCalledTimes(2);
-      expect(userUpdate).toHaveBeenCalledWith({
-        where: { id: 5 },
-        data: { loyaltyPoints: { increment: 50 } },
-      });
+      expect(userUpdate).not.toHaveBeenCalled();
     });
   });
 });

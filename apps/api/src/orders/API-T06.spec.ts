@@ -1,8 +1,9 @@
-import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentMethod, PaymentStatus, Role } from '@prisma/client';
 import { PaymentsService } from '../payments/payments.service';
+import { OrdersService } from './orders.service';
 
 describe('API-T06 — loyalty points', () => {
-  it('adds one point per 1,000 VND after successful payment', async () => {
+  it('awards 0 points on PAID payment and awards one point per 1,000 VND only when order reaches COMPLETED', async () => {
     const userUpdate = jest.fn().mockResolvedValue({});
     const prisma: any = {
       payment: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({
@@ -34,7 +35,50 @@ describe('API-T06 — loyalty points', () => {
       3,
     );
 
-    expect(result.pointsEarned).toBe(90);
+    expect(result.pointsEarned).toBe(0);
+    expect(userUpdate).not.toHaveBeenCalled();
+
+    const completePrisma: any = {
+      order: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 10,
+          userId: 3,
+          totalAmount: 90000,
+          status: OrderStatus.READY,
+          version: 2,
+          items: [],
+        }),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ id: 99, fullName: 'Staff' }),
+      },
+      $transaction: jest.fn((callback: any) =>
+        callback({
+          order: {
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            findUnique: jest.fn().mockResolvedValue({
+              id: 10,
+              userId: 3,
+              totalAmount: 90000,
+              status: OrderStatus.COMPLETED,
+              updatedAt: new Date(),
+            }),
+          },
+          user: { update: userUpdate },
+        }),
+      ),
+    };
+
+    const completeResult = await new OrdersService(completePrisma).updateOrderStatus(
+      10,
+      OrderStatus.COMPLETED,
+      99,
+      Role.STAFF,
+    );
+
+    expect(completeResult.status).toBe(OrderStatus.COMPLETED);
+    expect((completeResult as any).pointsEarned).toBe(90);
+    expect(userUpdate).toHaveBeenCalledTimes(1);
     expect(userUpdate).toHaveBeenCalledWith({
       where: { id: 3 },
       data: { loyaltyPoints: { increment: 90 } },
