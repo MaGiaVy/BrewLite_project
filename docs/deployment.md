@@ -63,36 +63,26 @@ Repository cung cấp thêm workflow thủ công [`cd.yml`](../.github/workflows
 
 ## 4. Quy trình Quay lui Sự cố (Rollback Procedure)
 
-Khi phát hiện lỗi nghiêm trọng sau triển khai trên Production:
+- Gitleaks v3 scans repo history before publishing (personal-account repo; for an organization repository, verify licensing). Preserve redacted PASS/FAIL evidence in `docs/evidence/`.
+- Demonstrate a negative smoke test without touching production, and record the expected FAIL result.
+- `scripts/render-deploy.sh` needs `RENDER_API_KEY`; the deploy hook by itself does not prove a deploy has completed.
+- If a deploy hook returns 202/queues without a deploy ID, this script intentionally fails rather than incorrectly claiming success. Retry only after checking Render deploy history.
+- Update `docs/traceability-matrix.md` after confirming its existing rows and format.
+- Test image builds, smoke-test failure/retry, Render release and rollback before claiming T5.3 completion.
+- A Render LIVE status and successful smoke test still require functional verification (including database migration and staff/customer flows) during acceptance.
 
-1. **Rollback Frontend trên Vercel (30 giây):**
-   - Mở **Vercel Dashboard** → Project `brew-lite-project` → tab **Deployments**.
-   - Tìm deployment ổn định gần nhất (ví dụ gắn mốc tag `v1.0.0`) → bấm **⋯ → Instant Rollback** để trỏ domain production về bản trước đó ngay lập tức.
-2. **Rollback Backend trên Render (~1–3 phút):**
-   - Mở **Render Dashboard** → Web Service `brewlite-api` → tab **Deploys**.
-   - Chọn bản deploy xanh gần nhất trước commit lỗi → bấm **Rollback** để Render khôi phục service về bản build/image trước đó.
-3. **Rollback qua Git (khi Auto-Deploy đang bật):**
-   - Chạy `git revert <bad_commit_sha>` trên `main` và `git push`, hoặc tạo nhánh/hotfix từ annotated tag ổn định (`git checkout -b hotfix/revert v1.0.0`) để Vercel và Render tự đồng bộ lại trạng thái sạch.
-4. **Rollback bằng `cd.yml` (nếu triển khai qua GHCR image):**
-   - Vào GitHub Actions → **CD** → **Run workflow** → chọn `operation = rollback`, nhập `release_tag = v1.0.0` (bản ổn định trước).
-5. **Lưu ý Database Migration:** Mọi migration trong `apps/api/prisma/migrations/` phải giữ tính tương thích ngược (*additive-first*: thêm bảng/cột nullable trước khi xóa cột cũ) để bản code cũ sau rollback vẫn đọc/ghi dữ liệu an toàn.
+## Bootstrap first deployment (API has no public URL yet)
 
----
+The existing `publish` operation needs `RENDER_API_URL` to build the Web image.
+For the first deployment, use the `publish-api` operation to avoid using an invented URL:
 
-## 5. Kiểm tra Hậu Triển khai & Minh chứng Đã Hoàn tất
+1. Review security and the API startup seed behavior with the owners before any public API deployment.
+2. Run `publish-api` on `main` with an approved version tag, such as `v1.0.0`. This runs quality and Gitleaks checks and pushes **only** the GHCR API image.
+3. Confirm the GHCR API package exists and Render can pull it (public visibility or appropriate registry credentials).
+4. Create the Render API image-backed service in the same region as PostgreSQL. Do not start a publicly accessible API with known seeded demo passwords. Set `DATABASE_URL` from Render's Internal Database URL and configure other required secrets directly on Render.
+5. Record the API's real public HTTPS origin in GitHub Actions repository variable `RENDER_API_URL`.
+6. Run `publish` with the **same tag only if the API image is unchanged** (otherwise use a new version tag), so the Web image is built with the correct URL.
+7. Create the Render Web image-backed service from the published Web image. Record its URL in `RENDER_WEB_URL`. Set the two service IDs, deploy hooks and Render API key as described above.
+8. Run `deploy` with an approved **new** version tag, or use the already-created images via a reviewed workflow change. The current `deploy` operation repushes both images for the selected tag. Do not overwrite a previously released tag with different image content.
 
-Chạy kiểm tra tự động sau mỗi lần phát hành:
-
-```powershell
-./scripts/smoke-test.ps1 `
-  -ApiBaseUrl "https://brewlite-api-9viv.onrender.com" `
-  -WebBaseUrl "https://brew-lite-project.vercel.app" `
-  -Email "khach@brewlite.vn" `
-  -Password "<DEMO_PASSWORD>" `
-  -Attempts 12 -DelaySeconds 10
-```
-
-Hồ sơ minh chứng thực tế đã được ghi nhận đầy đủ:
-- **CI Pull Request Gate (`ci.yml`):** [`docs/evidence/ci.md`](evidence/ci.md)
-- **Production Smoke Test & Negative Checks:** [`docs/evidence/production-smoke.md`](evidence/production-smoke.md)
-- **Secret Scan & Environment Hygiene:** [`docs/evidence/secret-scan.md`](evidence/secret-scan.md)
+**Important:** The current API entrypoint always runs `prisma db seed`. The current seed includes fixed demo/admin/staff passwords and updates existing accounts. **Block public deployment until the seed and authentication configuration are secured with the owning team**, e.g. opt-in seed only for a controlled demo environment with rotated credentials.
