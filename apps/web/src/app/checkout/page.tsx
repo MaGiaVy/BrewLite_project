@@ -600,11 +600,6 @@ function CheckoutContent() {
       return;
     }
 
-    if (selectedMethod === 'EWALLET' && ewalletProvider === 'ZALOPAY') {
-      await handleOpenZaloPaySandbox();
-      return;
-    }
-
     if (selectedMethod === 'BANK_CARD') {
       const cleanCard = cardNumber.replace(/\s/g, '');
       if (cleanCard.length < 16) {
@@ -1149,7 +1144,8 @@ function CheckoutContent() {
 
                             <button
                               type="button"
-                              onClick={handlePay}
+                              data-testid="zalopay-gateway-button"
+                              onClick={handleOpenZaloPaySandbox}
                               disabled={isSubmitting}
                               className={styles.zalopayGatewayBtn}
                             >

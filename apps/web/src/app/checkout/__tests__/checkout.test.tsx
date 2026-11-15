@@ -302,7 +302,7 @@ describe('Task T5.1d — Checkout & Idempotency Key Handling (WEB-T10..T13)', ()
 
     render(<CheckoutPage />);
 
-    const payBtn = await screen.findByTestId('confirm-payment-button');
+    const payBtn = await screen.findByTestId('zalopay-gateway-button');
     fireEvent.click(payBtn);
 
     const errBox = await screen.findByTestId('payment-error');
