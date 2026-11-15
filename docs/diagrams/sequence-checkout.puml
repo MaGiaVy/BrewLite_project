@@ -7,6 +7,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #000000
 skinparam sequence {
   LifeLineBorderColor #000000
+  LifeLineBorderThickness 1.5
   LifeLineBackgroundColor #FFFFFF
   ParticipantBorderColor #000000
   ParticipantBackgroundColor #FFFFFF
@@ -29,47 +30,76 @@ participant "NestJS API" as API
 database "PostgreSQL" as DB
 participant "ZaloPay / Mock Payment" as Gateway
 
+activate Customer
 Customer -> Web : Nhấn "Đặt hàng" trên /checkout
+activate Web
 Web -> Web : Kiểm tra JWT (chưa có -> /auth/login)
 
 == Phase 1: Tạo đơn & Khóa kho BOM ==
 
 Web -> API : POST /orders (Bearer JWT, Idempotency-Key)
+activate API
 API -> DB : Transaction: check < 5 đơn chờ, check Recipe bắt buộc,\ntính giá (0% VAT), check Voucher (1 lần/userId với mã công khai)\n& trừ kho BOM (Optimistic Lock version + 1)
+activate DB
 
-alt Thiếu công thức / nguyên liệu (400) hoặc xung đột version (409)
+alt Lỗi kho / công thức (400 / 409)
   DB --> API : Rollback transaction
   API --> Web : 400 Bad Request / 409 Conflict
   Web --> Customer : Hiển thị lỗi để chỉnh giỏ hàng
 else Giữ kho thành công
   DB --> API : Tạo Order (PENDING, TTL 15 phút) & InventoryLog
+  deactivate DB
   API --> Web : 201 Created (orderId, totalAmount)
+  deactivate API
+  Web --> Customer : Hiển thị màn hình chờ thanh toán (TTL 15 phút)
 end
+deactivate Web
 
 == Phase 2: Thanh toán (ZaloPay / Mock) ==
 
+Customer -> Web : Xác nhận thanh toán
+activate Web
 Web -> API : POST /payments (Idempotency-Key)\nhoặc POST /payments/zalopay/create
+activate API
 API -> Gateway : Khởi tạo / xử lý giao dịch thanh toán
+activate Gateway
 Gateway --> API : Callback IPN (HMAC Key2) / Kết quả thanh toán
+deactivate Gateway
 
-alt Thanh toán thành công
+alt Thành công
   API -> DB : CAS Order -> PAID & tạo Payment (SUCCESS)
+  activate DB
   DB --> API : Commit
+  deactivate DB
   API --> Web : 200/201 PAID
   Web --> Customer : Xóa giỏ hàng & chuyển sang /orders/:id
-else Thanh toán thất bại
+else Thất bại
   API -> DB : Cập nhật Order -> PAYMENT_FAILED\n(giữ kho BOM trong 15 phút TTL)
+  activate DB
+  DB --> API : Commit
+  deactivate DB
   API --> Web : 201 PAYMENT_FAILED
+  deactivate API
   Web --> Customer : Hiển thị "Thử lại" hoặc "Hủy đơn"
 end
+deactivate Web
 
 == Theo dõi tiến độ đơn hàng ==
 
+activate Web
 loop Polling mỗi 5 giây cho đến khi READY / COMPLETED
   Web -> API : GET /orders/:id
+  activate API
   API -> DB : Truy vấn trạng thái đơn
+  activate DB
+  DB --> API : Trả trạng thái đơn
+  deactivate DB
   API --> Web : PAID -> PREPARING -> READY -> COMPLETED
+  deactivate API
 end
+Web --> Customer : Hiển thị hoàn tất & nhận đồ uống
+deactivate Web
+deactivate Customer
 note right of API
   Điểm Hạt Vàng (+floor(total / 1.000đ))
   chỉ cộng khi KDS chuyển READY -> COMPLETED

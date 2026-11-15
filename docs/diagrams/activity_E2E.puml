@@ -9,6 +9,8 @@ skinparam ActivityBackgroundColor #FFFFFF
 skinparam ActivityBorderColor #000000
 skinparam ActivityDiamondBackgroundColor #FFFFFF
 skinparam ActivityDiamondBorderColor #000000
+skinparam ActivityDiamondFontSize 11
+skinparam conditionStyle InsideDiamond
 skinparam SwimlaneBorderColor #000000
 skinparam SwimlaneTitleFontStyle bold
 skinparam maxMessageSize 180
@@ -23,7 +25,7 @@ start
 :Gọi GET /products &\nlọc 6 danh mục (Espresso,\nPhin, Trà, Cold Brew, Bánh);
 
 |Khách hàng|
-if (Chọn món?) then (Chi tiết)
+if (\n    Chọn món?    \n) then (Chi tiết)
   :Mở trang /products/[id]\nchọn Size / kiểu Bánh,\nNhiệt độ, Đường, Đá, Topping;
 else (Nhanh)
   :Nhấn (+) chọn Size mặc định;
@@ -36,7 +38,7 @@ endif
 :Mở /cart, áp dụng Voucher\n& nhấn "Thanh toán";
 
 |Web Next.js|
-if (Đã có JWT?) then (Chưa)
+if (\n    Đã có JWT?    \n) then (Chưa)
   :Chuyển /auth/login?redirect=%2Fcheckout;
   stop
 else (Có)
@@ -55,7 +57,7 @@ endif
 |PostgreSQL|
 :Tính BOM (Recipe+Topping+Bao bì)\nTrừ kho Optimistic Lock\n(version+1, tối đa 3 lần thử)\n& ghi InventoryLog (SALE);
 
-if (Đủ kho?) then (Lỗi 400/409)
+if (\n    Đủ kho?    \n) then (Lỗi 400/409)
   :Rollback Transaction;
   |NestJS API|
   :Trả 400 (Thiếu công thức / Hết hàng)\nhoặc 409 (Xung đột);
@@ -68,7 +70,7 @@ else (Đủ)
 endif
 
 |Web Next.js|
-if (Phương thức?) then (ZaloPay)
+if (\n    Phương thức?    \n) then (ZaloPay)
   :Phase 2: POST /payments/zalopay/create\n-> chuyển /gateway/zalopay;
   |ZaloPay / Mock|
   :Xử lý Sandbox & gửi IPN\nPOST /payments/zalopay/callback\n(HMAC Key2) hoặc query status;
@@ -80,7 +82,7 @@ else (Mock)
 endif
 
 |NestJS API|
-if (Thanh toán thành công?) then (Có)
+if (\n      Thanh toán      \n      thành công?      \n) then (Có)
   |PostgreSQL|
   :CAS Order -> PAID\n& tạo Payment (SUCCESS);
   |Web Next.js|
@@ -89,7 +91,7 @@ else (Thất bại)
   |PostgreSQL|
   :Order -> PAYMENT_FAILED\n(giữ kho BOM 15p để thử lại);
   |Web Next.js|
-  if (Hành động?) then (Thử lại)
+  if (\n    Hành động?    \n  ) then (Thử lại)
     :Thanh toán lại\n(PAYMENT_FAILED -> PENDING);
     stop
   else (Hủy / Quá 15p)
@@ -103,7 +105,7 @@ endif
 
 |Nhân viên KDS|
 :Màn hình /staff polling\nGET /orders/barista/queue mỗi 3s;
-if (Hủy đơn PAID trước pha?) then (Hủy)
+if (\n      Hủy đơn PAID      \n      trước pha?      \n) then (Hủy)
   :Staff / Admin hủy PAID -> CANCELLED\nqua PATCH /orders/:id/status\n(chỉ hoàn BOM & Voucher);
   stop
 else (Pha chế)
