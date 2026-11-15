@@ -3,7 +3,7 @@ import { OrderStatus, Role } from '@prisma/client';
 import { OrdersService } from './orders.service';
 
 describe('API-T09 — PAID order cancellation policy (Phần 4.1)', () => {
-  it('allows STAFF/ADMIN to cancel PAID order before PREPARING, restores BOM stock and revokes loyalty points', async () => {
+  it('allows STAFF/ADMIN to cancel PAID order before PREPARING and restores BOM stock without touching loyalty points', async () => {
     const ingredientUpdate = jest.fn().mockResolvedValue({ id: 10, name: 'Cà phê hạt', unit: 'g', stock: 140 });
     const userUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
     const orderFindInTx = jest.fn().mockResolvedValue({
@@ -49,10 +49,7 @@ describe('API-T09 — PAID order cancellation policy (Phần 4.1)', () => {
       where: { id: 10 },
       data: { stock: { increment: 40 }, version: { increment: 1 } },
     });
-    expect(userUpdateMany).toHaveBeenCalledWith({
-      where: { id: 5, loyaltyPoints: { gte: 84 } },
-      data: { loyaltyPoints: { decrement: 84 } },
-    });
+    expect(userUpdateMany).not.toHaveBeenCalled();
   });
 
   it('rejects CUSTOMER cancelling PAID order at any time (must contact Staff/Admin)', async () => {

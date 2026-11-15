@@ -20,8 +20,8 @@ import {
 } from './zalopay.service';
 import { assertTransition } from './state-machine.helper';
 import { refundOrderResources } from '../orders/order-refund.helper';
+import { normalizeIdempotencyKey } from '../common/helpers/idempotency-key.helper';
 
-const POINTS_PER_VND = 1000;
 const ORDER_PAYMENT_TTL_MS = 15 * 60 * 1000; // SRS v4.3 AC-05.4: 15 minutes
 
 export interface PaymentResponse {
@@ -91,8 +91,8 @@ export class PaymentsService {
     }
   }
 
-  private extractOrderIdFromAppTransId(appTransId?: string): number | null {
-    if (!appTransId) return null;
+  private extractOrderIdFromAppTransId(appTransId?: unknown): number | null {
+    if (typeof appTransId !== 'string' || !appTransId.trim()) return null;
     const parts = appTransId.split('_');
     if (parts.length < 2 || !/^\d+$/.test(parts[1])) return null;
     const parsed = Number(parts[1]);
@@ -146,50 +146,6 @@ export class PaymentsService {
       return this.mockPaymentService.processPayment({ amount, method, simulateFailure });
     }
     return new MockGatewayService().charge(amount, method, simulateFailure);
-  }
-
-  private async revokeLoyaltyPointsInTx(
-    tx: any,
-    userId: number,
-    pointsToRevoke: number,
-  ): Promise<void> {
-    if (pointsToRevoke <= 0 || !tx?.user) return;
-    if (typeof tx.user.updateMany === 'function') {
-      const decResult = await tx.user.updateMany({
-        where: {
-          id: userId,
-          loyaltyPoints: { gte: pointsToRevoke },
-        },
-        data: {
-          loyaltyPoints: { decrement: pointsToRevoke },
-        },
-      });
-      if ((decResult?.count ?? 0) === 0) {
-        await tx.user.updateMany({
-          where: {
-            id: userId,
-            loyaltyPoints: { lt: pointsToRevoke, gt: 0 },
-          },
-          data: {
-            loyaltyPoints: 0,
-          },
-        });
-      }
-      return;
-    }
-    let currentPoints = 0;
-    if (typeof tx.user.findUnique === 'function') {
-      const currentUser = await tx.user.findUnique({
-        where: { id: userId },
-        select: { loyaltyPoints: true },
-      });
-      currentPoints = currentUser?.loyaltyPoints || 0;
-    }
-    const newPoints = Math.max(0, currentPoints - pointsToRevoke);
-    await tx.user.update({
-      where: { id: userId },
-      data: { loyaltyPoints: newPoints },
-    });
   }
 
   private buildIdempotentPaymentResponse(existingPayment: any): PaymentResponse {
@@ -416,6 +372,7 @@ export class PaymentsService {
     idempotencyKey?: string,
     _userRole?: Role,
   ): Promise<PaymentResponse> {
+    const normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
     this.assertValidOrderId(dto?.orderId);
 
     const order = await this.prisma.order.findUnique({
@@ -434,9 +391,9 @@ export class PaymentsService {
     );
 
     let preloadedPayment: any = null;
-    if (idempotencyKey) {
+    if (normalizedIdempotencyKey) {
       const existingPayment = await this.prisma.payment.findUnique({
-        where: { idempotencyKey },
+        where: { idempotencyKey: normalizedIdempotencyKey },
         include: { order: true },
       });
 
@@ -448,7 +405,7 @@ export class PaymentsService {
         }
         if (existingPayment.status === PaymentStatus.SUCCESS) {
           this.logger.log(
-            `[Idempotency] Phat hien yeu cau trung lap voi key "${idempotencyKey}". Tra ve ket qua giao dich cu.`,
+            `[Idempotency] Phat hien yeu cau trung lap voi key "${normalizedIdempotencyKey}". Tra ve ket qua giao dich cu.`,
           );
           return this.buildIdempotentPaymentResponse(existingPayment);
         }
@@ -562,7 +519,7 @@ export class PaymentsService {
             paymentAmount,
             dto.method,
             PaymentStatus.FAILED,
-            idempotencyKey,
+            normalizedIdempotencyKey,
             preloadedPayment,
           );
           if (failWrite.idempotentResponse) {
@@ -614,25 +571,13 @@ export class PaymentsService {
           paymentAmount,
           dto.method,
           PaymentStatus.SUCCESS,
-          idempotencyKey,
+          normalizedIdempotencyKey,
           preloadedPayment,
         );
         if (successWrite.idempotentResponse) {
           return successWrite.idempotentResponse;
         }
         const paymentRecord = successWrite.paymentRecord;
-
-        const pointsEarned = Math.floor(paymentAmount / POINTS_PER_VND);
-
-        if (pointsEarned > 0 && currentOrder.userId) {
-          await tx.user.update({
-            where: { id: currentOrder.userId },
-            data: { loyaltyPoints: { increment: pointsEarned } },
-          });
-          this.logger.log(
-            `[Loyalty] Don #${currentOrder.id}: Cong ${pointsEarned} Hat Vang cho User #${currentOrder.userId}`,
-          );
-        }
 
         this.logger.log(
           `[Payment Success] Don hang #${currentOrder.id} thanh toan thanh cong. Ma Payment: #${paymentRecord.id}`,
@@ -647,20 +592,17 @@ export class PaymentsService {
           amount: paymentRecord.amount,
           method: paymentRecord.method,
           transactionId: gatewayResult?.transactionId,
-          pointsEarned,
-          message:
-            pointsEarned > 0
-              ? `Thanh toan thanh cong! Ban nhan duoc +${pointsEarned} Hat Vang BrewLite Club.`
-              : 'Thanh toan don hang thanh cong!',
+          pointsEarned: 0,
+          message: 'Thanh toan don hang thanh cong!',
         };
       });
     } catch (err: any) {
       if (
         (err?.code === 'P2002' || err instanceof ConflictException) &&
-        idempotencyKey
+        normalizedIdempotencyKey
       ) {
         const existingPayment = await this.prisma.payment.findUnique({
-          where: { idempotencyKey },
+          where: { idempotencyKey: normalizedIdempotencyKey },
           include: { order: true },
         });
         if (existingPayment) {
@@ -671,7 +613,7 @@ export class PaymentsService {
           }
           if (existingPayment.status === PaymentStatus.SUCCESS) {
             this.logger.log(
-              `[Idempotency] Phat hien yeu cau trung lap sau rollback/race voi key "${idempotencyKey}". Tra ve ket qua giao dich cu.`,
+              `[Idempotency] Phat hien yeu cau trung lap sau rollback/race voi key "${normalizedIdempotencyKey}". Tra ve ket qua giao dich cu.`,
             );
             return this.buildIdempotentPaymentResponse(existingPayment);
           }
@@ -716,20 +658,20 @@ export class PaymentsService {
       });
     } catch (paymentErr: any) {
       if (paymentErr?.code === 'P2002') {
+        const existingPayment = tx.payment?.findUnique
+          ? await tx.payment.findUnique({ where: { idempotencyKey } })
+          : null;
+        if (existingPayment && existingPayment.orderId !== txOrder.id) {
+          throw new ConflictException(
+            `Mã giao dịch ZaloPay "${idempotencyKey}" đã được sử dụng cho đơn hàng #${existingPayment.orderId}.`,
+          );
+        }
         this.logger.log(
           `[ZaloPay Callback] Bản ghi payment đã tồn tại (P2002) cho đơn #${txOrder.id}`,
         );
       } else {
         throw paymentErr;
       }
-    }
-
-    const points = Math.floor(paidAmount / POINTS_PER_VND);
-    if (paymentCreated && points > 0 && txOrder.userId) {
-      await tx.user.update({
-        where: { id: txOrder.userId },
-        data: { loyaltyPoints: { increment: points } },
-      });
     }
 
     return { casCount: cas.count, paymentCreated };
@@ -807,12 +749,28 @@ export class PaymentsService {
     });
   }
 
-  async handleZaloPayCallback(body: { data: string; mac: string; type?: number }) {
+  async handleZaloPayCallback(body?: { data?: unknown; mac?: unknown; type?: number } | null) {
     if (!this.zaloPayService) {
       return { return_code: 0, return_message: 'ZaloPayService unavailable' };
     }
 
-    const isValid = this.zaloPayService.verifyCallback(body.data, body.mac);
+    if (
+      !body ||
+      typeof body.data !== 'string' ||
+      typeof body.mac !== 'string' ||
+      !body.data.trim() ||
+      !body.mac.trim()
+    ) {
+      return { return_code: -1, return_message: 'invalid callback payload' };
+    }
+
+    let isValid = false;
+    try {
+      isValid = this.zaloPayService.verifyCallback(body.data, body.mac);
+    } catch (err: any) {
+      this.logger.error(`[ZaloPay Callback] Lỗi xác thực callback: ${err?.message || err}`);
+      return { return_code: 0, return_message: err?.message || 'ZaloPay configuration error' };
+    }
     if (!isValid) {
       this.logger.error('[ZaloPay Callback] Chữ ký MAC không hợp lệ (Tampered Data)');
       return { return_code: -1, return_message: 'mac not equal' };
@@ -1018,8 +976,15 @@ export class PaymentsService {
       'Bạn không có quyền xem thông tin thanh toán của đơn hàng này',
     );
 
-    if (appTransId) {
-      this.assertAppTransIdMatchesOrder(appTransId, order.id);
+    if (appTransId !== undefined) {
+      if (typeof appTransId !== 'string') {
+        throw new BadRequestException(
+          `Mã giao dịch ZaloPay (appTransId) không hợp lệ hoặc không khớp với đơn hàng #${order.id}`,
+        );
+      }
+      if (appTransId) {
+        this.assertAppTransIdMatchesOrder(appTransId, order.id);
+      }
     }
 
     const paidOrLaterStatuses: OrderStatus[] = [
@@ -1110,7 +1075,7 @@ export class PaymentsService {
           message: queryRes.returnMessage,
         };
       } catch (err: any) {
-        if (err instanceof BadRequestException) {
+        if (err instanceof BadRequestException || err instanceof ConflictException) {
           throw err;
         }
         this.logger.warn(
@@ -1133,6 +1098,11 @@ export class PaymentsService {
     userRole?: Role,
     appTransId?: string,
   ) {
+    if (appTransId !== undefined && typeof appTransId !== 'string') {
+      throw new BadRequestException(
+        'Mã giao dịch ZaloPay (appTransId) không hợp lệ.',
+      );
+    }
     const resolvedOrderId =
       orderId ?? this.extractOrderIdFromAppTransId(appTransId) ?? undefined;
     this.assertValidOrderId(resolvedOrderId);
@@ -1154,8 +1124,15 @@ export class PaymentsService {
       'Bạn không có quyền xác nhận hoặc hủy thanh toán đơn hàng này',
     );
 
-    if (appTransId) {
-      this.assertAppTransIdMatchesOrder(appTransId, order.id);
+    if (appTransId !== undefined) {
+      if (typeof appTransId !== 'string') {
+        throw new BadRequestException(
+          `Mã giao dịch ZaloPay (appTransId) không hợp lệ hoặc không khớp với đơn hàng #${order.id}`,
+        );
+      }
+      if (appTransId) {
+        this.assertAppTransIdMatchesOrder(appTransId, order.id);
+      }
     }
 
     if (
@@ -1285,11 +1262,6 @@ export class PaymentsService {
           performedBy: userId ? `User #${userId}` : 'ZaloPay Gateway',
           notePrefix: 'Hoàn kho do hủy thanh toán ZaloPay đơn hàng',
         });
-
-        if (order.status === OrderStatus.PAID && order.userId && tx.user) {
-          const pointsToRevoke = Math.floor(order.totalAmount / POINTS_PER_VND);
-          await this.revokeLoyaltyPointsInTx(tx, order.userId, pointsToRevoke);
-        }
       });
     }
 

@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 export interface RequiredIngredientItem {
   ingredientId: number;
   code: string;
@@ -23,6 +25,7 @@ export async function computeRequiredIngredients(
     toppings: string[];
     quantity: number;
   }>,
+  options?: { requireRecipeForEachItem?: boolean },
 ): Promise<RequiredIngredientItem[]> {
   if (!tx.recipe || !tx.ingredient) {
     return [];
@@ -63,6 +66,16 @@ export async function computeRequiredIngredients(
         })
       : Promise.resolve([]),
   ]);
+
+  let hasConfiguredRecipes = Array.isArray(recipes) && recipes.length > 0;
+  if (
+    options?.requireRecipeForEachItem &&
+    !hasConfiguredRecipes &&
+    typeof tx.recipe?.count === 'function'
+  ) {
+    const totalRecipes = await tx.recipe.count();
+    hasConfiguredRecipes = totalRecipes > 0;
+  }
 
   const activeToppingRecipes = Array.isArray(toppingRecipes)
     ? toppingRecipes.filter((tr: any) => tr?.isActive !== false)
@@ -108,6 +121,16 @@ export async function computeRequiredIngredients(
         r.productId === item.productId &&
         (r.size === normalizedSize || r.size === 'ALL'),
     );
+
+    if (
+      options?.requireRecipeForEachItem &&
+      hasConfiguredRecipes &&
+      matchedRecipes.length === 0
+    ) {
+      throw new BadRequestException(
+        `Sản phẩm #${item.productId} (size ${normalizedSize}) chưa được cấu hình công thức pha chế. Vui lòng liên hệ nhân viên.`,
+      );
+    }
 
     for (const r of matchedRecipes) {
       addRequirement(r.ingredient, r.amount * item.quantity, true);

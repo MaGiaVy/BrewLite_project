@@ -2,6 +2,7 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -10,6 +11,7 @@ import { NoUnsafeHtml } from '../../common/validators/no-unsafe-html.validator';
 export class UpdateCustomerDto {
   @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
   @IsOptional()
+  @Matches(/\S/, { message: 'Họ và tên không được chứa toàn khoảng trắng' })
   @MaxLength(100)
   @NoUnsafeHtml()
   fullName?: string;
@@ -22,6 +24,7 @@ export class UpdateCustomerDto {
 
   @IsString({ message: 'Mật khẩu phải là chuỗi ký tự' })
   @IsOptional()
+  @Matches(/\S/, { message: 'Mật khẩu không được chỉ gồm khoảng trắng' })
   @MinLength(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' })
   @MaxLength(128, { message: 'Mật khẩu không được vượt quá 128 ký tự' })
   password?: string;
