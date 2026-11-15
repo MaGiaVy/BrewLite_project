@@ -398,6 +398,9 @@ describe('T5.1g Admin Page (/admin) — Real API Integration', () => {
             { status: 201 },
           );
         }
+        if (path === '/inventory/recipes' && init?.method === 'POST') {
+          return new Response(String(init.body), { status: 201 });
+        }
         return null;
       },
     });
@@ -413,10 +416,21 @@ describe('T5.1g Admin Page (/admin) — Real API Integration', () => {
     fireEvent.change(screen.getByPlaceholderText('39000'), {
       target: { value: '45000' },
     });
+    fireEvent.click(screen.getByText('+ Thêm nguyên liệu'));
+    fireEvent.change(screen.getByLabelText('Size 2'), { target: { value: 'L' } });
+    fireEvent.change(screen.getByLabelText('Định lượng 2'), { target: { value: '30' } });
     fireEvent.click(screen.getByTestId('sheet-submit-btn'));
 
     await waitFor(() => {
       expect(screen.getByText('Cà Phê Trứng Hà Nội')).toBeTruthy();
+    });
+    await waitFor(() => {
+      const recipeBodies = apiSpy.mock.calls
+        .filter(([p, i]) => p === '/inventory/recipes' && i?.method === 'POST')
+        .map(([, i]) => JSON.parse(String(i?.body)));
+      expect(recipeBodies).toHaveLength(2);
+      expect(recipeBodies[0]).toMatchObject({ productId: 77, size: 'ALL', amount: 20 });
+      expect(recipeBodies[1]).toMatchObject({ productId: 77, size: 'L', amount: 30 });
     });
 
     const postCall = apiSpy.mock.calls.find(

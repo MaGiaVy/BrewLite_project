@@ -50,7 +50,7 @@ endif
 :Phase 1: Gửi POST /orders\nkèm Idempotency-Key;
 
 |NestJS API|
-:Check JWT, Idempotency-Key,\nUser FOR UPDATE (< 5 đơn chờ),\ntính giá 0% VAT & trừ Voucher;
+:Check JWT, Idempotency-Key,\nUser FOR UPDATE (< 5 đơn chờ),\ncheck Recipe bắt buộc (400 nếu thiếu),\ntính giá 0% VAT & check/trừ Voucher\n(mã công khai 1 lần/userId);
 
 |PostgreSQL|
 :Tính BOM (Recipe+Topping+Bao bì)\nTrừ kho Optimistic Lock\n(version+1, tối đa 3 lần thử)\n& ghi InventoryLog (SALE);
@@ -58,7 +58,7 @@ endif
 if (Đủ kho?) then (Lỗi 400/409)
   :Rollback Transaction;
   |NestJS API|
-  :Trả 400 (Hết hàng)\nhoặc 409 (Xung đột);
+  :Trả 400 (Thiếu công thức / Hết hàng)\nhoặc 409 (Xung đột);
   |Web Next.js|
   :Báo lỗi chỉnh giỏ hàng;
   stop
@@ -82,7 +82,7 @@ endif
 |NestJS API|
 if (Thanh toán thành công?) then (Có)
   |PostgreSQL|
-  :CAS Order -> PAID, tạo Payment,\ncộng loyaltyPoints\n(+floor(total / 1.000đ));
+  :CAS Order -> PAID\n& tạo Payment (SUCCESS);
   |Web Next.js|
   :Xóa giỏ & mở /orders/:id\nPolling GET /orders/:id mỗi 5s\n(thanh tiến trình 3 bước);
 else (Thất bại)
@@ -94,7 +94,7 @@ else (Thất bại)
     stop
   else (Hủy / Quá 15p)
     |NestJS API|
-    :Hủy đơn hoặc ExpireOrdersJob\n(sau 15 phút TTL);
+    :Hủy đơn (PATCH /status hoặc\nDELETE chủ đơn/ADMIN)\nhoặc ExpireOrdersJob (sau 15p TTL);
     |PostgreSQL|
     :Order -> CANCELLED,\nhoàn kho BOM & Voucher;
     stop
@@ -104,12 +104,14 @@ endif
 |Nhân viên KDS|
 :Màn hình /staff polling\nGET /orders/barista/queue mỗi 3s;
 if (Hủy đơn PAID trước pha?) then (Hủy)
-  :Staff / Admin hủy PAID -> CANCELLED\n(hoàn BOM, thu hồi điểm & Voucher);
+  :Staff / Admin hủy PAID -> CANCELLED\nqua PATCH /orders/:id/status\n(chỉ hoàn BOM & Voucher);
   stop
 else (Pha chế)
   :Bấm "Bắt đầu pha" (PAID -> PREPARING);
   :Bấm "Báo đã xong" (PREPARING -> READY);
   :Bấm "Giao khách" (READY -> COMPLETED);
+  |PostgreSQL|
+  :Order -> COMPLETED &\ncộng loyaltyPoints\n(+floor(total / 1.000đ));
 endif
 
 |Khách hàng|

@@ -35,9 +35,10 @@ rectangle "Phân hệ Đặt hàng & Thanh toán (UC-07 .. UC-12)" {
   usecase "Áp dụng mã giảm giá\n(Voucher cá nhân / công khai)" as UC_Voucher
   usecase "Phase 1: Tạo đơn PENDING &\nKhóa kho BOM (Optimistic Lock)" as UC_CreateOrder
   usecase "Phase 2: Thanh toán đơn hàng\n(ZaloPay / Mock, Idempotency-Key)" as UC_Payment
-  usecase "Cộng điểm Hạt Vàng\n(1.000đ = 1 điểm)" as UC_Loyalty
+  usecase "Hoàn tất giao đơn\n(READY -> COMPLETED)" as UC_Complete
+  usecase "Cộng điểm Hạt Vàng\n(khi COMPLETED, 1.000đ = 1đ)" as UC_Loyalty
   usecase "Thử lại thanh toán\n(PAYMENT_FAILED -> PENDING)" as UC_Retry
-  usecase "Hủy đơn hàng &\nHoàn kho BOM / Voucher" as UC_Cancel
+  usecase "Hủy / Xóa đơn hàng &\nHoàn kho BOM / Voucher" as UC_Cancel
   usecase "Tự động hết hạn đơn\nsau 15 phút TTL" as UC_Expire
   usecase "Theo dõi tiến độ đơn\n(Polling 5s /orders/:id)" as UC_Track
 }
@@ -48,19 +49,27 @@ Customer --> UC_Cancel
 Customer --> UC_Track
 
 Staff --> UC_Cancel
+Staff --> UC_Complete
 Scheduler --> UC_Expire
 UC_Payment -- Gateway
 
 UC_CreateOrder ..> UC_Auth : <<include>>
 UC_Voucher ..> UC_CreateOrder : <<extend>>
-UC_Payment ..> UC_Loyalty : <<include>>
+UC_Complete ..> UC_Loyalty : <<include>>
 UC_Retry ..> UC_Payment : <<extend>>
 UC_Expire ..> UC_Cancel : <<include>>
 
 note right of UC_Cancel
-  - Khách hàng: hủy đơn PENDING / PAYMENT_FAILED.
-  - Staff / Admin: hủy đơn PAID trước khi PREPARING
-    (hoàn kho BOM, thu hồi điểm & hoàn Voucher).
+  - Chủ đơn / Admin: hủy hoặc xóa đơn PENDING / PAYMENT_FAILED
+    (DELETE /orders/:id chặn STAFF với 403).
+  - Staff / Admin: hủy đơn PAID trước khi PREPARING qua PATCH /status
+    (hoàn kho BOM & Voucher; không cần thu hồi điểm).
+end note
+
+note right of UC_Auth
+  - Kiểm tra Recipe bắt buộc cho từng món/size (thiếu -> 400).
+  - Mã công khai giới hạn 1 đơn không CANCELLED / userId;
+    lọc DiscountCode ngưng hoạt động khỏi UserVoucher.
 end note
 
 @enduml

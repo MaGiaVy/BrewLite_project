@@ -959,7 +959,7 @@ function CheckoutContent() {
               </div>
               <div className={styles.grandTotalSubtext}>
                 <Sparkles size={13} style={{ color: '#845326' }} />
-                <span>Tích lũy ngay +{loyaltyPoints} Hạt Vàng vào tài khoản BrewLite</span>
+                <span>Nhận +{loyaltyPoints} Hạt Vàng khi đơn hoàn tất</span>
               </div>
             </div>
 

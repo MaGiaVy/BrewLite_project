@@ -35,12 +35,12 @@ Web -> Web : Kiểm tra JWT (chưa có -> /auth/login)
 == Phase 1: Tạo đơn & Khóa kho BOM ==
 
 Web -> API : POST /orders (Bearer JWT, Idempotency-Key)
-API -> DB : Transaction: check < 5 đơn chờ, tính giá (0% VAT),\ntrừ Voucher & trừ kho BOM (Optimistic Lock version + 1)
+API -> DB : Transaction: check < 5 đơn chờ, check Recipe bắt buộc,\ntính giá (0% VAT), check Voucher (1 lần/userId với mã công khai)\n& trừ kho BOM (Optimistic Lock version + 1)
 
-alt Thiếu nguyên liệu (400) hoặc xung đột version (409)
+alt Thiếu công thức / nguyên liệu (400) hoặc xung đột version (409)
   DB --> API : Rollback transaction
   API --> Web : 400 Bad Request / 409 Conflict
-  Web --> Customer : Hiển thị lỗi tồn kho để chỉnh giỏ hàng
+  Web --> Customer : Hiển thị lỗi để chỉnh giỏ hàng
 else Giữ kho thành công
   DB --> API : Tạo Order (PENDING, TTL 15 phút) & InventoryLog
   API --> Web : 201 Created (orderId, totalAmount)
@@ -53,7 +53,7 @@ API -> Gateway : Khởi tạo / xử lý giao dịch thanh toán
 Gateway --> API : Callback IPN (HMAC Key2) / Kết quả thanh toán
 
 alt Thanh toán thành công
-  API -> DB : CAS Order -> PAID, tạo Payment (SUCCESS),\ncộng Loyalty (+floor(total / 1.000đ))
+  API -> DB : CAS Order -> PAID & tạo Payment (SUCCESS)
   DB --> API : Commit
   API --> Web : 200/201 PAID
   Web --> Customer : Xóa giỏ hàng & chuyển sang /orders/:id
@@ -70,5 +70,10 @@ loop Polling mỗi 5 giây cho đến khi READY / COMPLETED
   API -> DB : Truy vấn trạng thái đơn
   API --> Web : PAID -> PREPARING -> READY -> COMPLETED
 end
+note right of API
+  Điểm Hạt Vàng (+floor(total / 1.000đ))
+  chỉ cộng khi KDS chuyển READY -> COMPLETED
+  (hủy đơn PAID chỉ hoàn BOM & Voucher).
+end note
 
 @enduml

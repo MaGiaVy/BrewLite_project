@@ -91,7 +91,8 @@ paths:
   /auth/me:
     get:
       tags: [Auth]
-      summary: Lay ho so nguoi dung hien tai kem danh sach voucher ca nhan
+      summary: Lay ho so nguoi dung hien tai kem danh sach voucher ca nhan dang hoat dong
+      description: Loc bo cac UserVoucher co quantity <= 0 hoac lien ket voi DiscountCode dang bi vo hieu hoa (isActive = false).
       security: [{ bearerAuth: [] }]
       responses:
         '200':
@@ -106,6 +107,7 @@ paths:
     patch:
       tags: [Auth]
       summary: Cap nhat ho so va/hoac doi mat khau
+      description: Neu doi mat khau (newPassword), server tang tokenVersion (+1) de thu hoi token cu va tra ve accessToken moi cung ho so da cap nhat.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -115,7 +117,7 @@ paths:
               $ref: '#/components/schemas/UpdateProfileDto'
       responses:
         '200':
-          description: Ho so da cap nhat
+          description: Ho so da cap nhat (kem accessToken moi neu doi mat khau)
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
@@ -131,6 +133,7 @@ paths:
         toi da 25.000d, don toi thieu 50.000d), BREW50 (50 diem -> giam 50%,
         toi da 60.000d, don toi thieu 120.000d), hoac ma dang isActive trong bang
         DiscountCode (requiredPoints = max(1, round(discountPercent))).
+        Danh sach vouchers tra ve da loc bo cac ma co DiscountCode.isActive = false.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -148,7 +151,8 @@ paths:
   /auth/vouchers:
     get:
       tags: [Auth]
-      summary: Danh sach voucher cua tai khoan hien tai
+      summary: Danh sach voucher dang hoat dong cua tai khoan hien tai
+      description: Chi tra ve UserVoucher co quantity > 0 va DiscountCode tuong ung khong bi isActive = false.
       security: [{ bearerAuth: [] }]
       responses:
         '200':
@@ -281,7 +285,14 @@ paths:
     post:
       tags: [Orders]
       summary: Tao don hang PENDING va tam giu nguyen vat lieu BOM trong transaction
-      description: Tao don hang moi o trang thai PENDING. He thong khoa User bang SELECT ... FOR UPDATE de chong race condition, kiem tra gioi han toi da 5 don hang o trang thai PENDING/PAYMENT_FAILED cung luc tren tai khoan de chong spam. Ho tro header Idempotency-Key de chong duplicate order khi client re-try.
+      description: >-
+        Tao don hang moi o trang thai PENDING (hoac PAID ngay neu totalAmount = 0).
+        He thong khoa User bang SELECT ... FOR UPDATE de chong race condition, kiem tra gioi han toi da 5 don hang
+        o trang thai PENDING/PAYMENT_FAILED cung luc tren tai khoan.
+        Bat buoc san pham/size phai co cong thuc BOM Recipe (requireRecipeForEachItem: true -> 400 neu thieu).
+        Ma DiscountCode cong khai yeu cau dang nhap va chi duoc dung toi da 1 don khong huy (status != CANCELLED) moi user;
+        UserVoucher cung kiem tra DiscountCode.isActive.
+        Ho tro header Idempotency-Key chuan hoa qua normalizeIdempotencyKey (toi da 255 ky tu, tu choi non-string -> 400).
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -295,10 +306,10 @@ paths:
         '201':
           description: Don hang duoc tao thanh cong o trang thai PENDING (VAT 0%), hoac tra ve don hang da ton tai neu trung Idempotency-Key va trung payload
         '400':
-          description: Du lieu khong hop le, hoac vuot qua gioi han toi da 5 don hang o trang thai PENDING/PAYMENT_FAILED cung luc
+          description: Du lieu khong hop le (thieu Recipe BOM, het nguyen lieu bat buoc, voucher da dung/tat, Idempotency-Key sai dinh dang, hoac vuot gioi han 5 don PENDING/PAYMENT_FAILED)
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409':
-          description: Xung dot kho/nguyen lieu (BOM khong du ton kho) hoac Idempotency-Key payload mismatch
+          description: Xung dot optimistic locking khi tru kho hoac Idempotency-Key payload mismatch
     get:
       tags: [Orders]
       summary: Lay tat ca don hang (ADMIN)
@@ -338,18 +349,23 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       tags: [Orders]
-      summary: Xoa don hang chua thanh toan/da huy (Owner hoac STAFF/ADMIN)
+      summary: Xoa don hang chua thanh toan/da huy (Chi Owner hoac ADMIN; STAFF bi tu choi 403)
+      description: Chi chu so huu don hang hoac ADMIN duoc phep xoa don dang o trang thai PENDING, PAYMENT_FAILED hoac CANCELLED (STAFF nhan 403 neu khong phai chu don; muon huy don PAID truoc PREPARING thi STAFF dung PATCH /orders/{id}/status).
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/NumericId'
       responses:
         '200': { description: Da xoa don hang }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
   /orders/{id}/status:
     patch:
       tags: [Orders]
-      summary: Chuyen trang thai don hang qua state-machine + CAS version + hoan kho neu CANCELLED
+      summary: Chuyen trang thai don hang qua state-machine + CAS version (cong diem COMPLETED, hoan kho neu CANCELLED)
+      description: >-
+        Khi chuyen sang COMPLETED, he thong cong diem Hat Vang floor(totalAmount / 1000) cho user va tra ve pointsEarned.
+        STAFF va ADMIN duoc phep huy don PAID truoc khi PREPARING (hoan 100% BOM + voucher ma khong thu hoi diem chua cong).
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/NumericId'
@@ -360,14 +376,16 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateOrderStatusDto'
       responses:
-        '200': { description: Trang thai da cap nhat }
+        '200': { description: Trang thai da cap nhat (kem pointsEarned neu chuyen sang COMPLETED) }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
 
   /payments:
     post:
       tags: [Payments]
       summary: Thanh toan MockGateway (bi chan 403 o production neu ALLOW_MOCK_PAYMENT=false)
+      description: Chuyen don sang PAID va ghi nhan Payment (pointsEarned = 0 tai buoc PAID; diem Hat Vang duoc cong khi don dat COMPLETED). Ho tro Idempotency-Key chuan hoa qua normalizeIdempotencyKey.
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -416,6 +434,7 @@ paths:
     post:
       tags: [Payments]
       summary: Webhook IPN tu ZaloPay xac thuc chu ky HMAC-SHA256
+      description: Kiem tra data va mac la chuoi khong rong (tra return_code -1 neu sai), xac thuc MAC Key2, chong trung appTransId xuyen don hang (409 -> return_code 1/0) va tu choi neu don da het han 15 phut.
       requestBody:
         required: true
         content:
@@ -446,9 +465,11 @@ paths:
           schema: { type: string }
       responses:
         '200': { description: Trang thai thanh toan don hang }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403':
           description: Chi chu so huu don hang hoac STAFF/ADMIN moi co quyen xem trang thai thanh toan
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /payments/zalopay/confirm:
     post:
@@ -476,7 +497,7 @@ paths:
     post:
       tags: [Payments]
       summary: Huy giao dich ZaloPay Sandbox va hoan kho (production yeu cau ALLOW_SANDBOX_CONFIRM=true)
-      description: Endpoint ho tro test huy giao dich va hoan nguyen lieu BOM. O moi truong production, endpoint bi chan 403 mac dinh (Default-Deny) tru khi ALLOW_SANDBOX_CONFIRM=true. Kiem tra chu so huu don hang.
+      description: Endpoint ho tro test huy giao dich va hoan 100% nguyen lieu BOM + voucher (khong thu hoi diem Hat Vang vi diem chi cong khi COMPLETED). O moi truong production, endpoint bi chan 403 mac dinh (Default-Deny) tru khi ALLOW_SANDBOX_CONFIRM=true. Kiem tra chu so huu don hang va kieu chuoi appTransId.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -882,8 +903,8 @@ components:
       in: header
       name: Idempotency-Key
       required: false
-      description: Khoa chong trung lap don hang tu client (UUIDv4). Neu gui lai cung key voi cung payload, server tra ve don hang da ton tai (khong tru kho lan hai). Neu payload khac voi key da luu, server tra ve 409 Conflict.
-      schema: { type: string }
+      description: Khoa chong trung lap don hang/thanh toan tu client (UUIDv4, chuan hoa qua normalizeIdempotencyKey, toi da 255 ky tu, tu choi gia tri khong phai chuoi voi 400, bo qua chuoi rong/khoang trang). Neu gui lai cung key voi cung payload, server tra ve ket qua da ton tai. Neu payload khac voi key da luu, server tra ve 409 Conflict.
+      schema: { type: string, maxLength: 255 }
   responses:
     BadRequest: { description: Du lieu dau vao khong hop le hoac vi pham nghiep vu }
     Unauthorized: { description: Thieu hoac JWT khong hop le }
@@ -909,8 +930,8 @@ components:
       required: [email, password, fullName]
       properties:
         email: { type: string, format: email, maxLength: 255 }
-        password: { type: string, minLength: 6, maxLength: 128 }
-        fullName: { type: string, maxLength: 100 }
+        password: { type: string, minLength: 6, maxLength: 128, pattern: '.*\S.*', description: '@Matches(/\S/)' }
+        fullName: { type: string, maxLength: 100, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         phone: { type: string, maxLength: 30 }
     LoginDto:
       type: object
@@ -924,14 +945,14 @@ components:
         fullName: { type: string, maxLength: 100 }
         phone: { type: string, maxLength: 30 }
         currentPassword: { type: string, maxLength: 128 }
-        newPassword: { type: string, minLength: 6, maxLength: 128 }
+        newPassword: { type: string, minLength: 6, maxLength: 128, pattern: '.*\S.*', description: '@Matches(/\S/)' }
     RedeemPointsDto:
       type: object
       required: [points, voucherCode]
       properties:
         points: { type: integer, minimum: 1, maximum: 2147483647 }
-        voucherCode: { type: string, maxLength: 50 }
-        description: { type: string, maxLength: 200 }
+        voucherCode: { type: string, maxLength: 50, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        description: { type: string, maxLength: 200, description: '@NoUnsafeHtml()' }
     UserSafe:
       type: object
       properties:
@@ -973,27 +994,27 @@ components:
       type: object
       required: [name, basePrice]
       properties:
-        name: { type: string, maxLength: 150 }
+        name: { type: string, maxLength: 150, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         description: { type: string, maxLength: 1000 }
-        imageUrl: { type: string, maxLength: 500 }
+        imageUrl: { type: string, maxLength: 500, description: '@NoUnsafeHtml()' }
         basePrice: { type: integer, minimum: 0, maximum: 100000000 }
         sizeUpchargeM: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
         sizeUpchargeL: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
-        category: { type: string, maxLength: 50 }
-        tag: { type: string, maxLength: 50 }
+        category: { type: string, maxLength: 50, description: '@NoUnsafeHtml()' }
+        tag: { type: string, maxLength: 50, description: '@NoUnsafeHtml()' }
         isActive: { type: boolean }
         isSoldOutManual: { type: boolean }
     UpdateProductDto:
       type: object
       properties:
-        name: { type: string, maxLength: 150 }
+        name: { type: string, maxLength: 150, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         description: { type: string, maxLength: 1000 }
-        imageUrl: { type: string, maxLength: 500 }
+        imageUrl: { type: string, maxLength: 500, description: '@NoUnsafeHtml()' }
         basePrice: { type: integer, minimum: 0, maximum: 100000000 }
         sizeUpchargeM: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
         sizeUpchargeL: { type: integer, minimum: 0, maximum: 100000000, nullable: true }
-        category: { type: string, maxLength: 50 }
-        tag: { type: string, maxLength: 50 }
+        category: { type: string, maxLength: 50, description: '@NoUnsafeHtml()' }
+        tag: { type: string, maxLength: 50, description: '@NoUnsafeHtml()' }
         isActive: { type: boolean }
         isSoldOutManual: { type: boolean }
     ToggleProductVisibilityDto:
@@ -1013,16 +1034,18 @@ components:
       required: [productId, size, toppings, quantity]
       properties:
         productId: { type: integer, minimum: 1, maximum: 2147483647 }
-        productName: { type: string, maxLength: 150 }
+        productName: { type: string, maxLength: 150, description: '@NoUnsafeHtml()' }
         size: { type: string, enum: [S, M, L, ALL] }
-        sugarLevel: { type: string, maxLength: 30 }
-        iceLevel: { type: string, maxLength: 30 }
-        temperature: { type: string, maxLength: 30 }
-        notes: { type: string, maxLength: 500 }
+        sugarLevel: { type: string, maxLength: 30, description: '@NoUnsafeHtml()' }
+        iceLevel: { type: string, maxLength: 30, description: '@NoUnsafeHtml()' }
+        temperature: { type: string, maxLength: 30, description: '@NoUnsafeHtml()' }
+        notes: { type: string, maxLength: 500, description: '@NoUnsafeHtml()' }
         toppings:
           type: array
           maxItems: 10
-          items: { type: string, maxLength: 50 }
+          uniqueItems: true
+          description: '@ArrayUnique (case-insensitive trimmed), @Matches(/\S/), @NoUnsafeHtml()'
+          items: { type: string, maxLength: 50, pattern: '.*\S.*' }
         quantity: { type: integer, minimum: 1, maximum: 50 }
         unitPrice: { type: number, minimum: 0, maximum: 100000000 }
     CreateOrderDto:
@@ -1058,7 +1081,9 @@ components:
         amount: { type: number }
         method: { $ref: '#/components/schemas/PaymentMethod' }
         transactionId: { type: string }
-        pointsEarned: { type: integer }
+        pointsEarned:
+          type: integer
+          description: Luon tra ve 0 tai buoc thanh toan PAID; diem Hat Vang duoc cong khi don dat trang thai COMPLETED qua PATCH /orders/{id}/status.
         isIdempotent: { type: boolean }
         message: { type: string }
     UpdateSizePricingDto:
@@ -1072,9 +1097,9 @@ components:
       type: object
       required: [code, name, unit, stock, minThreshold]
       properties:
-        code: { type: string }
-        name: { type: string }
-        unit: { type: string }
+        code: { type: string, maxLength: 50, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        name: { type: string, maxLength: 150, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        unit: { type: string, maxLength: 30, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         stock: { type: number, minimum: 0, maximum: 100000000 }
         minThreshold: { type: number, minimum: 0, maximum: 100000000 }
         costPerUnit: { type: number, minimum: 0, maximum: 1000000000 }
@@ -1083,9 +1108,9 @@ components:
     UpdateIngredientDto:
       type: object
       properties:
-        code: { type: string }
-        name: { type: string }
-        unit: { type: string }
+        code: { type: string, maxLength: 50, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        name: { type: string, maxLength: 150, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        unit: { type: string, maxLength: 30, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         stock: { type: number, minimum: 0, maximum: 100000000 }
         minThreshold: { type: number, minimum: 0, maximum: 100000000 }
         costPerUnit: { type: number, minimum: 0, maximum: 1000000000 }
@@ -1098,7 +1123,7 @@ components:
         addAmount: { type: number, minimum: 0.1, maximum: 100000000 }
         unitCost: { type: number, minimum: 0, maximum: 1000000000 }
         totalCost: { type: number, minimum: 0, maximum: 10000000000 }
-        note: { type: string }
+        note: { type: string, maxLength: 500, description: '@NoUnsafeHtml()' }
     UpdateIngredientStockDto:
       type: object
       required: [stock]
@@ -1108,7 +1133,7 @@ components:
         costPerUnit: { type: number, minimum: 0, maximum: 1000000000 }
         type: { type: string, enum: [INGREDIENT, PACKAGING] }
         isRequiredForSale: { type: boolean }
-        note: { type: string }
+        note: { type: string, maxLength: 500, description: '@NoUnsafeHtml()' }
     UpsertRecipeDto:
       type: object
       required: [productId, ingredientId, size, amount]
@@ -1127,9 +1152,9 @@ components:
       type: object
       required: [toppingId, toppingName, price, ingredientId, amount]
       properties:
-        toppingId: { type: string }
-        toppingName: { type: string }
-        subtext: { type: string }
+        toppingId: { type: string, maxLength: 50, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        toppingName: { type: string, maxLength: 100, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        subtext: { type: string, maxLength: 200, description: '@NoUnsafeHtml()' }
         price: { type: integer, minimum: 0, maximum: 100000000 }
         isActive: { type: boolean }
         ingredientId: { type: integer, minimum: 1, maximum: 2147483647 }
@@ -1137,8 +1162,8 @@ components:
     UpdateToppingRecipeDto:
       type: object
       properties:
-        toppingName: { type: string }
-        subtext: { type: string }
+        toppingName: { type: string, maxLength: 100, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        subtext: { type: string, maxLength: 200, description: '@NoUnsafeHtml()' }
         price: { type: integer, minimum: 0, maximum: 100000000 }
         isActive: { type: boolean }
         amount: { type: number, minimum: 0.01, maximum: 1000000 }
@@ -1146,8 +1171,8 @@ components:
       type: object
       required: [code, discountPercent]
       properties:
-        code: { type: string }
-        description: { type: string }
+        code: { type: string, maxLength: 50, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        description: { type: string, maxLength: 300, description: '@NoUnsafeHtml()' }
         discountPercent: { type: number, minimum: 1, maximum: 100 }
         minOrderAmount: { type: integer, minimum: 0, maximum: 100000000 }
         maxDiscountAmount: { type: integer, minimum: 0, maximum: 100000000 }
@@ -1155,8 +1180,8 @@ components:
     UpdateVoucherDto:
       type: object
       properties:
-        code: { type: string }
-        description: { type: string }
+        code: { type: string, maxLength: 50, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
+        description: { type: string, maxLength: 300, description: '@NoUnsafeHtml()' }
         discountPercent: { type: number, minimum: 1, maximum: 100 }
         minOrderAmount: { type: integer, minimum: 0, maximum: 100000000 }
         maxDiscountAmount: { type: integer, minimum: 0, maximum: 100000000 }
@@ -1171,8 +1196,8 @@ components:
       required: [email, password, fullName]
       properties:
         email: { type: string, format: email, maxLength: 255 }
-        password: { type: string, minLength: 6, maxLength: 128 }
-        fullName: { type: string, maxLength: 100 }
+        password: { type: string, minLength: 6, maxLength: 128, pattern: '.*\S.*', description: '@Matches(/\S/)' }
+        fullName: { type: string, maxLength: 100, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         phone: { type: string, maxLength: 30 }
         position: { type: string, maxLength: 100 }
         role: { $ref: '#/components/schemas/Role' }
@@ -1180,8 +1205,8 @@ components:
       type: object
       properties:
         email: { type: string, format: email, maxLength: 255 }
-        password: { type: string, minLength: 6, maxLength: 128 }
-        fullName: { type: string, maxLength: 100 }
+        password: { type: string, minLength: 6, maxLength: 128, pattern: '.*\S.*', description: '@Matches(/\S/)' }
+        fullName: { type: string, maxLength: 100, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         phone: { type: string, maxLength: 30 }
         position: { type: string, maxLength: 100 }
         role: { $ref: '#/components/schemas/Role' }
@@ -1191,13 +1216,13 @@ components:
       required: [email, fullName, password]
       properties:
         email: { type: string, format: email, maxLength: 255 }
-        fullName: { type: string, maxLength: 100 }
+        fullName: { type: string, maxLength: 100, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         phone: { type: string, maxLength: 30 }
-        password: { type: string, minLength: 6, maxLength: 128 }
+        password: { type: string, minLength: 6, maxLength: 128, pattern: '.*\S.*', description: '@Matches(/\S/)' }
     UpdateCustomerDto:
       type: object
       properties:
-        fullName: { type: string, maxLength: 100 }
+        fullName: { type: string, maxLength: 100, pattern: '.*\S.*', description: '@Matches(/\S/), @NoUnsafeHtml()' }
         phone: { type: string, maxLength: 30 }
-        password: { type: string, minLength: 6, maxLength: 128 }
+        password: { type: string, minLength: 6, maxLength: 128, pattern: '.*\S.*', description: '@Matches(/\S/)' }
         isActive: { type: boolean }

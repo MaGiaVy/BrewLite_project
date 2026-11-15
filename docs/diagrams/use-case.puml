@@ -93,11 +93,15 @@ UC10 -- Gateway
 UC05 ..> UC06 : <<include>>
 UC08 ..> UC07 : <<extend>>
 UC07 ..> UC10 : <<include>>
-UC10 ..> UC09 : <<include>>
+UC15 ..> UC09 : <<include>>
 
 note bottom of UC11
-  Khách hàng chỉ được hủy đơn PENDING / PAYMENT_FAILED.
-  Staff / Admin được phép hủy đơn PAID trước khi pha chế.
+  - Chủ đơn / Admin: hủy hoặc xóa đơn PENDING / PAYMENT_FAILED
+    (DELETE /orders/:id chặn STAFF với 403).
+  - Staff / Admin: hủy đơn PAID trước khi pha chế qua PATCH /status
+    (hoàn BOM & Voucher; điểm Hạt Vàng chỉ cộng khi COMPLETED).
+  - Tạo món (/admin) bắt buộc >= 1 nguyên liệu (ALL/S/M/L);
+    đặt hàng thiếu Recipe -> 400; đổi MK cấp tokenVersion + 1.
 end note
 
 @enduml

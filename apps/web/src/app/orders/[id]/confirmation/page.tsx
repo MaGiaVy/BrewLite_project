@@ -749,7 +749,7 @@ export default function OrderConfirmationPage({
             {/* Loyalty points card */}
             {!isCancelled && (
               <div className={styles.loyaltyRewardCard}>
-                <span>Điểm thưởng tích lũy đơn này:</span>
+                <span>Điểm thưởng nhận khi đơn hoàn tất:</span>
                 <span className={styles.loyaltyRewardPoints}>
                   +{loyaltyPoints} Hạt Vàng BrewLite Club
                 </span>

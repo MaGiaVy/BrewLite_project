@@ -105,6 +105,7 @@ export default function AdminPortalPage() {
   const [sheetPrice, setSheetPrice] = useState('39000');
   const [sheetCategory, setSheetCategory] = useState('vietnamese');
   const [sheetDescription, setSheetDescription] = useState('');
+  const [sheetRecipeRows, setSheetRecipeRows] = useState<{ ingredientId: number; size: string; amount: string }[]>([]);
 
   // Inventory restock sheet fields
   const [sheetStockAmount, setSheetStockAmount] = useState('5');
@@ -458,6 +459,19 @@ export default function AdminPortalPage() {
       showToast('Giá bán phải là số không âm!', 'error');
       return;
     }
+    // API từ chối đặt món chưa có công thức BOM, nên bắt buộc chọn công thức khi tạo món
+    const recipeRows = sheetRecipeRows.map((r) => ({ ingredientId: r.ingredientId, size: r.size, amount: Number(r.amount) }));
+    if (
+      recipeRows.length === 0 ||
+      recipeRows.some((r) => !r.ingredientId || !Number.isFinite(r.amount) || r.amount <= 0)
+    ) {
+      showToast('Vui lòng chọn nguyên liệu công thức và định lượng > 0!', 'error');
+      return;
+    }
+    if (new Set(recipeRows.map((r) => `${r.ingredientId}-${r.size}`)).size !== recipeRows.length) {
+      showToast('Mỗi nguyên liệu chỉ được chọn một lần cho mỗi size!', 'error');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -481,6 +495,18 @@ export default function AdminPortalPage() {
       const created = await res.json();
       setProducts((prev) => [created, ...prev]);
       setActiveSheet(null);
+
+      for (const row of recipeRows) {
+        const recipeRes = await apiClient('/inventory/recipes', {
+          method: 'POST',
+          body: JSON.stringify({ productId: created.id, ...row }),
+        });
+        if (!recipeRes.ok) {
+          const errMsg = await readApiError(recipeRes, 'Đã tạo món nhưng lưu công thức thất bại');
+          showToast(errMsg, 'error');
+          return;
+        }
+      }
       showToast(`Đã thêm món "${created.name || trimmedName}" thành công!`);
     } catch {
       showToast('Lỗi kết nối khi thêm món mới', 'error');
@@ -674,6 +700,7 @@ export default function AdminPortalPage() {
                 setSheetPrice('39000');
                 setSheetCategory('vietnamese');
                 setSheetDescription('');
+                setSheetRecipeRows([{ ingredientId: ingredients[0]?.id ?? 0, size: 'ALL', amount: '20' }]);
                 setActiveSheet('product');
               }}
             />
@@ -811,6 +838,66 @@ export default function AdminPortalPage() {
                 value={sheetDescription}
                 onChange={(e) => setSheetDescription(e.target.value)}
               />
+            </div>
+            <div className={styles.inputGroup}>
+              <span className={styles.inputLabel}>Công thức (nguyên liệu / định lượng mỗi ly)</span>
+              {sheetRecipeRows.map((row, idx) => {
+                const updateRow = (patch: Partial<typeof row>) =>
+                  setSheetRecipeRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+                return (
+                  <div key={idx} style={{ display: 'flex', gap: 8 }}>
+                    <select
+                      aria-label={`Nguyên liệu ${idx + 1}`}
+                      className={styles.textInput}
+                      value={row.ingredientId}
+                      onChange={(e) => updateRow({ ingredientId: Number(e.target.value) })}
+                    >
+                      {ingredients.map((ing) => (
+                        <option key={ing.id} value={ing.id}>
+                          {ing.name} ({ing.unit})
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label={`Size ${idx + 1}`}
+                      className={styles.textInput}
+                      style={{ maxWidth: 90 }}
+                      value={row.size}
+                      onChange={(e) => updateRow({ size: e.target.value })}
+                    >
+                      <option value="ALL">Mọi size</option>
+                      <option value="S">S</option>
+                      <option value="M">M</option>
+                      <option value="L">L</option>
+                    </select>
+                    <input
+                      aria-label={`Định lượng ${idx + 1}`}
+                      type="number"
+                      className={styles.textInput}
+                      style={{ maxWidth: 100 }}
+                      value={row.amount}
+                      onChange={(e) => updateRow({ amount: e.target.value })}
+                    />
+                    {sheetRecipeRows.length > 1 && (
+                      <button
+                        type="button"
+                        aria-label={`Xóa nguyên liệu ${idx + 1}`}
+                        onClick={() => setSheetRecipeRows((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() =>
+                  setSheetRecipeRows((prev) => [...prev, { ingredientId: ingredients[0]?.id ?? 0, size: 'ALL', amount: '' }])
+                }
+              >
+                + Thêm nguyên liệu
+              </button>
             </div>
           </div>
         </AdminBottomSheet>
