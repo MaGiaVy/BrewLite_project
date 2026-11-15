@@ -296,16 +296,15 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
 
 ### `FR-13`: Hủy Đơn Hàng & Hoàn Tồn Kho (Order Cancellation & Inventory Rollback)
 * **Độ ưu tiên:** `SHOULD HAVE` *(Tương ứng trực tiếp Use-Case `UC-11`)*
-* **Tác nhân:** Khách hàng, Hệ thống
+* **Tác nhân:** Khách hàng, Nhân viên quầy (Staff/Admin), Hệ thống
 * **Mô tả chi tiết:**
-  * Cho phép khách hàng chủ động hủy đơn khi đơn còn ở trạng thái `PENDING` (chưa thanh toán).
-  * Cho phép khách hàng hủy đơn khi thanh toán thất bại (`PAYMENT_FAILED`) thay vì chọn thanh toán lại.
-  * Cho phép khách hàng yêu cầu hủy đơn trong vòng **5 phút (Grace Period)** sau khi đã thanh toán thành công (`PAID`), với điều kiện Barista tại quầy bar chưa bấm tiếp nhận chế biến (`PREPARING`).
-  * Mọi thao tác hủy đơn đều kích hoạt hoàn trả định mức nguyên liệu BOM về kho `Ingredient` trong Database Transaction an toàn.
+  * Cho phép khách hàng chủ động hủy đơn khi đơn còn ở trạng thái `PENDING` (chưa thanh toán) hoặc thanh toán thất bại (`PAYMENT_FAILED`).
+  * Đối với đơn hàng đã thanh toán thành công (`PAID`), khách hàng **không thể tự hủy** trực tiếp; chỉ Nhân viên quầy (`STAFF`) hoặc Quản lý (`ADMIN`) mới có quyền hủy đơn `PAID` trước khi Barista bấm tiếp nhận chế biến (`PREPARING`).
+  * Mọi thao tác hủy đơn đều kích hoạt hoàn trả định mức nguyên liệu BOM về kho `Ingredient`, hoàn trả voucher (nếu đã khấu trừ) và thu hồi điểm Hạt Vàng đã cộng trong Database Transaction an toàn.
 * **Tiêu chí chấp nhận (Acceptance Criteria):**
-  - [x] **AC-13.1:** Hủy đơn ở trạng thái `PENDING` hoặc `PAYMENT_FAILED`: Đơn hàng lập tức chuyển sang `CANCELLED` và giải phóng nguyên liệu giữ chỗ.
-  - [x] **AC-13.2:** Đơn hàng ở trạng thái `PAID` được hủy trong vòng 5 phút trước khi Barista bấm tiếp nhận (`PREPARING`): Trạng thái chuyển sang `CANCELLED` và hoàn trả nguyên liệu.
-  - [x] **AC-13.3:** Nếu đơn hàng đã chuyển sang `PREPARING`, `READY` hoặc `COMPLETED`, nút "Hủy đơn" bị khóa và hệ thống từ chối yêu cầu hủy đơn với thông báo đồ uống đang được chế biến.
+  - [x] **AC-13.1:** Khách hàng hủy đơn ở trạng thái `PENDING` hoặc `PAYMENT_FAILED`: Đơn hàng lập tức chuyển sang `CANCELLED` và giải phóng nguyên liệu giữ chỗ.
+  - [x] **AC-13.2:** Đơn hàng ở trạng thái `PAID` bị từ chối nếu khách hàng tự hủy; chỉ `STAFF`/`ADMIN` được hủy đơn `PAID` trước khi Barista chuyển sang `PREPARING` (khi hủy thành công sẽ hoàn trả nguyên liệu, voucher và thu hồi điểm).
+  - [x] **AC-13.3:** Nếu đơn hàng đã chuyển sang `PREPARING`, `READY` hoặc `COMPLETED`, thao tác hủy đơn bị khóa và hệ thống từ chối yêu cầu với thông báo đồ uống đang được chế biến.
 
 ---
 

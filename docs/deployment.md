@@ -63,13 +63,41 @@ Repository cung cấp thêm workflow thủ công [`cd.yml`](../.github/workflows
 
 ## 4. Quy trình Quay lui Sự cố (Rollback Procedure)
 
-- Gitleaks v3 scans repo history before publishing (personal-account repo; for an organization repository, verify licensing). Preserve redacted PASS/FAIL evidence in `docs/evidence/`.
-- Demonstrate a negative smoke test without touching production, and record the expected FAIL result.
-- `scripts/render-deploy.sh` needs `RENDER_API_KEY`; the deploy hook by itself does not prove a deploy has completed.
-- If a deploy hook returns 202/queues without a deploy ID, this script intentionally fails rather than incorrectly claiming success. Retry only after checking Render deploy history.
-- Update `docs/traceability-matrix.md` after confirming its existing rows and format.
-- Test image builds, smoke-test failure/retry, Render release and rollback before claiming T5.3 completion.
-- A Render LIVE status and successful smoke test still require functional verification (including database migration and staff/customer flows) during acceptance.
+Khi phát hiện lỗi nghiêm trọng sau triển khai trên Production:
+
+1. **Rollback Frontend trên Vercel (30 giây):**
+   - Mở **Vercel Dashboard** → Project `brew-lite-project` → tab **Deployments**.
+   - Tìm deployment ổn định gần nhất (ví dụ gắn mốc tag `v1.0.0`) → bấm **⋯ → Instant Rollback** để trỏ domain production về bản trước đó ngay lập tức.
+2. **Rollback Backend trên Render (~1–3 phút):**
+   - Mở **Render Dashboard** → Web Service `brewlite-api` → tab **Deploys**.
+   - Chọn bản deploy xanh gần nhất trước commit lỗi → bấm **Rollback** để Render khôi phục service về bản build/image trước đó.
+3. **Rollback qua Git (khi Auto-Deploy đang bật):**
+   - Chạy `git revert <bad_commit_sha>` trên `main` và `git push`, hoặc tạo nhánh/hotfix từ annotated tag ổn định (`git checkout -b hotfix/revert v1.0.0`) để Vercel và Render tự đồng bộ lại trạng thái sạch.
+4. **Rollback bằng `cd.yml` (nếu triển khai qua GHCR image):**
+   - Vào GitHub Actions → **CD** → **Run workflow** → chọn `operation = rollback`, nhập `release_tag = v1.0.0` (bản ổn định trước).
+5. **Lưu ý Database Migration:** Mọi migration trong `apps/api/prisma/migrations/` phải giữ tính tương thích ngược (*additive-first*: thêm bảng/cột nullable trước khi xóa cột cũ) để bản code cũ sau rollback vẫn đọc/ghi dữ liệu an toàn.
+
+---
+
+## 5. Kiểm tra Hậu Triển khai & Minh chứng Đã Hoàn tất
+
+Chạy kiểm tra tự động sau mỗi lần phát hành:
+
+```powershell
+./scripts/smoke-test.ps1 `
+  -ApiBaseUrl "https://brewlite-api-9viv.onrender.com" `
+  -WebBaseUrl "https://brew-lite-project.vercel.app" `
+  -Email "khach@brewlite.vn" `
+  -Password "<DEMO_PASSWORD>" `
+  -Attempts 12 -DelaySeconds 10
+```
+
+Hồ sơ minh chứng thực tế đã được ghi nhận đầy đủ:
+- **CI Pull Request Gate (`ci.yml`):** [`docs/evidence/ci.md`](evidence/ci.md)
+- **Production Smoke Test & Negative Checks:** [`docs/evidence/production-smoke.md`](evidence/production-smoke.md)
+- **Secret Scan & Environment Hygiene:** [`docs/evidence/secret-scan.md`](evidence/secret-scan.md)
+
+---
 
 ## Bootstrap first deployment (API has no public URL yet)
 

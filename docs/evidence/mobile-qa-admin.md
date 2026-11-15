@@ -34,12 +34,15 @@ Các kết quả trên do người thực hiện xác nhận sau khi kiểm th�
 
 ## 5. Evidence
 
-Ảnh chụp màn hình Staff/Admin tại các kích thước kiểm thử được lưu trong `docs/evidence/` khi bổ sung vào repository.
+Ảnh chụp màn hình thực tế tại 3 kích thước `360×800`, `390×844` và `768×1024` (đều đạt `scrollWidth === innerWidth`, không tràn ngang; màn hình `/staff` chụp từ `https://brew-lite-project.vercel.app`, màn hình `/admin` được chụp lại từ bản build Docker local sau khi hoàn thiện CSS Modules cho các khối nhãn, biểu đồ và nút điều hướng):
 
-Chỉ đưa vào báo cáo những ảnh evidence thực tế đã được lưu. Không sử dụng ảnh trang Google Search hoặc giao diện khách hàng làm bằng chứng cho Staff/Admin.
+| Vai trò | 360 × 800 | 390 × 844 | 768 × 1024 |
+| :--- | :---: | :---: | :---: |
+| **Staff (`/staff`)** | ![Staff 360px](mobile-qa-staff-360.png) | ![Staff 390px](mobile-qa-staff-390.png) | ![Staff 768px](mobile-qa-staff-768.png) |
+| **Admin (`/admin`)** | ![Admin 360px](mobile-qa-admin-360.png) | ![Admin 390px](mobile-qa-admin-390.png) | ![Admin 768px](mobile-qa-admin-768.png) |
+
+*(Ghi nhận kiểm tra lại trên ảnh mới: cả `/staff` và `/admin` đều hiển thị cân đối, đúng spacing giữa nhãn `T2..CN (Nay)`, badge `ADMIN` / `Mở ca`, thẻ phím tắt `Mở >` và các chỉ số trên cả 3 kích thước.)*
 
 ## 6. Kết luận
 
-Theo kết quả do người kiểm thử xác nhận, giao diện Mobile Staff và Admin của BrewLite đạt yêu cầu responsive tại các kích thước 360px, 390px, 768px và khi sử dụng trên điện thoại thật.
-
-Chưa ghi nhận lỗi responsive cần chuyển cho người phụ trách sửa giao diện. Báo cáo cần được bổ sung ảnh evidence và review trước khi nghiệm thu chính thức.
+Theo kết quả kiểm thử và ảnh chụp màn hình thực tế tại các kích thước `360px`, `390px`, `768px` (cùng xác nhận kiểm thử trên điện thoại thật của người thực hiện), giao diện Mobile Staff và Admin của BrewLite hiển thị rõ nét, đúng khoảng cách CSS và không bị tràn ngang (`scrollWidth === innerWidth`).
