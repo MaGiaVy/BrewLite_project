@@ -22,7 +22,7 @@ import { assertTransition } from './state-machine.helper';
 import { refundOrderResources } from '../orders/order-refund.helper';
 import { normalizeIdempotencyKey } from '../common/helpers/idempotency-key.helper';
 
-const ORDER_PAYMENT_TTL_MS = 15 * 60 * 1000; // SRS v4.3 AC-05.4: 15 minutes
+const ORDER_PAYMENT_TTL_MS = 5 * 60 * 1000; // 5 minutes (300s)
 
 export interface PaymentResponse {
   success: boolean;
@@ -415,7 +415,7 @@ export class PaymentsService {
 
     if (order.status === OrderStatus.CANCELLED) {
       throw new BadRequestException(
-        'Đơn hàng đã bị hủy hoặc hết hạn thanh toán (quá 15 phút). Vui lòng tạo đơn mới.',
+        'Đơn hàng đã bị hủy hoặc hết hạn thanh toán (quá 5 phút). Vui lòng tạo đơn mới.',
       );
     }
 
@@ -426,10 +426,10 @@ export class PaymentsService {
       await this.cancelExpiredOrder(
         order,
         userId ? `User #${userId}` : 'Hệ thống (Auto-Expire)',
-        'Hoàn kho do đơn hàng quá hạn 15 phút khi thanh toán',
+        'Hoàn kho do đơn hàng quá hạn 5 phút khi thanh toán',
       );
       throw new BadRequestException(
-        'Đơn hàng đã hết hạn thanh toán (quá 15 phút) và đã được tự động hủy.',
+        'Đơn hàng đã hết hạn thanh toán (quá 5 phút) và đã được tự động hủy.',
       );
     }
 
@@ -715,10 +715,10 @@ export class PaymentsService {
       await this.cancelExpiredOrder(
         order,
         userId ? `User #${userId}` : 'Hệ thống (Auto-Expire)',
-        'Hoàn kho do đơn hàng quá hạn 15 phút khi tạo giao dịch ZaloPay',
+        'Hoàn kho do đơn hàng quá hạn 5 phút khi tạo giao dịch ZaloPay',
       );
       throw new BadRequestException(
-        'Đơn hàng đã hết hạn thanh toán (quá 15 phút) và đã được tự động hủy.',
+        'Đơn hàng đã hết hạn thanh toán (quá 5 phút) và đã được tự động hủy.',
       );
     }
 
@@ -860,16 +860,16 @@ export class PaymentsService {
         this.isOrderExpired(order)
       ) {
         this.logger.warn(
-          `[ZaloPay Callback] Đơn hàng #${orderId} đã quá hạn thanh toán 15 phút, tự động hủy và hoàn kho.`,
+          `[ZaloPay Callback] Đơn hàng #${orderId} đã quá hạn thanh toán 5 phút, tự động hủy và hoàn kho.`,
         );
         await this.cancelExpiredOrder(
           order,
           'ZaloPay Callback (Auto-Expire)',
-          'Hoàn kho do webhook ZaloPay đến sau khi đơn hàng quá hạn 15 phút',
+          'Hoàn kho do webhook ZaloPay đến sau khi đơn hàng quá hạn 5 phút',
         );
         return {
           return_code: 0,
-          return_message: 'Đơn hàng đã quá hạn thanh toán (15 phút) và đã được hủy',
+          return_message: 'Đơn hàng đã quá hạn thanh toán (5 phút) và đã được hủy',
         };
       }
 
@@ -1009,13 +1009,13 @@ export class PaymentsService {
       await this.cancelExpiredOrder(
         order,
         userId ? `User #${userId}` : 'Hệ thống (Auto-Expire)',
-        'Hoàn kho do đơn hàng quá hạn 15 phút khi tra cứu trạng thái ZaloPay',
+        'Hoàn kho do đơn hàng quá hạn 5 phút khi tra cứu trạng thái ZaloPay',
       );
       return {
         orderId: order.id,
         status: OrderStatus.CANCELLED,
         isPaid: false,
-        message: 'Đơn hàng đã hết hạn thanh toán (quá 15 phút) và đã được tự động hủy.',
+        message: 'Đơn hàng đã hết hạn thanh toán (quá 5 phút) và đã được tự động hủy.',
       };
     }
 
@@ -1142,10 +1142,10 @@ export class PaymentsService {
       await this.cancelExpiredOrder(
         order,
         userId ? `User #${userId}` : 'Hệ thống (Auto-Expire)',
-        'Hoàn kho do đơn hàng quá hạn 15 phút khi xác nhận ZaloPay Sandbox',
+        'Hoàn kho do đơn hàng quá hạn 5 phút khi xác nhận ZaloPay Sandbox',
       );
       throw new BadRequestException(
-        'Đơn hàng đã hết hạn thanh toán (quá 15 phút) và đã được tự động hủy.',
+        'Đơn hàng đã hết hạn thanh toán (quá 5 phút) và đã được tự động hủy.',
       );
     }
 

@@ -347,7 +347,7 @@ export default function ProductDetailPage({
     addItem({
       productId: product.id,
       name: product.name,
-      size: isBakery ? 'M' : selectedSize,
+      size: isBakery ? 'ALL' : selectedSize,
       toppingIds: selectedToppingIds,
       toppingNames,
       unitPrice,
@@ -872,7 +872,7 @@ export default function ProductDetailPage({
               <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
                 stars
               </span>
-              <span>+{Math.max(1, Math.floor(totalPrice / 1000))} Điểm Hạt Vàng</span>
+              <span>+{Math.floor(totalPrice / 1000)} Điểm Hạt Vàng</span>
             </div>
           </div>
 

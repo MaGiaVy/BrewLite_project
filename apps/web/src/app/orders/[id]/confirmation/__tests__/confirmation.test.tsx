@@ -141,8 +141,38 @@ describe('Task T5.1e — Order Confirmation Mobile UI (/orders/[id]/confirmation
     render(<OrderConfirmationPage params={paramsPromise} />);
 
     expect(await screen.findByText('Tổng thanh toán')).toBeTruthy();
+    expect(screen.getByText('Dự kiến tích lũy khi hoàn tất:')).toBeTruthy();
     expect(screen.getByText('+80 Hạt Vàng BrewLite Club')).toBeTruthy();
+    expect(screen.getByText(/Auto-sync 4s/i)).toBeTruthy();
     expect(screen.getByText(/100% Cốc Bã Mía Sinh Học/i)).toBeTruthy();
+  });
+
+  it('marks loyalty points as accumulated only when order status is COMPLETED', async () => {
+    const mockOrder = {
+      id: 'ord-done-1',
+      status: 'COMPLETED',
+      totalAmount: 50000,
+      subtotal: 50000,
+      discountAmount: 0,
+      paymentMethod: 'Ví ZaloPay',
+      createdAt: new Date().toISOString(),
+      items: [
+        {
+          id: 1,
+          productId: 1,
+          productName: 'Cà phê Đen',
+          size: 'M',
+          quantity: 1,
+          unitPrice: 50000,
+        },
+      ],
+    };
+    window.localStorage.setItem('order_details_ord-done-1', JSON.stringify(mockOrder));
+
+    render(<OrderConfirmationPage params={Promise.resolve({ id: 'ord-done-1' })} />);
+
+    expect(await screen.findByText('Điểm thưởng đã tích lũy:')).toBeTruthy();
+    expect(screen.getByText('+50 Hạt Vàng')).toBeTruthy();
   });
 
   it('renders navigation buttons linking to /menu and /orders', async () => {

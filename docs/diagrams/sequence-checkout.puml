@@ -47,47 +47,94 @@ alt Lỗi kho / công thức (400 / 409)
   API --> Web : 400 Bad Request / 409 Conflict
   Web --> Customer : Hiển thị lỗi để chỉnh giỏ hàng
 else Giữ kho thành công
-  DB --> API : Tạo Order (PENDING, TTL 15 phút) & InventoryLog
+  DB --> API : Tạo Order (PENDING, TTL 5 phút (300s)) & InventoryLog
   deactivate DB
   API --> Web : 201 Created (orderId, totalAmount)
   deactivate API
-  Web --> Customer : Hiển thị màn hình chờ thanh toán (TTL 15 phút)
+  Web --> Customer : Hiển thị màn hình chờ thanh toán (TTL 5 phút (300s))
 end
 deactivate Web
 
 == Phase 2: Thanh toán (ZaloPay / Mock) ==
 
-Customer -> Web : Xác nhận thanh toán
+Customer -> Web : Chọn phương thức thanh toán
 activate Web
-Web -> API : POST /payments (Idempotency-Key)\nhoặc POST /payments/zalopay/create
-activate API
-API -> Gateway : Khởi tạo / xử lý giao dịch thanh toán
-activate Gateway
-Gateway --> API : Callback IPN (HMAC Key2) / Kết quả thanh toán
-deactivate Gateway
 
-alt Thành công
-  API -> DB : CAS Order -> PAID & tạo Payment (SUCCESS)
-  activate DB
-  DB --> API : Commit
-  deactivate DB
-  API --> Web : 200/201 PAID
-  Web --> Customer : Xóa giỏ hàng & chuyển sang /orders/:id
-else Thất bại
-  API -> DB : Cập nhật Order -> PAYMENT_FAILED\n(giữ kho BOM trong 15 phút TTL)
-  activate DB
-  DB --> API : Commit
-  deactivate DB
-  API --> Web : 201 PAYMENT_FAILED
+alt ZaloPay Sandbox (/gateway/zalopay)
+  Web -> API : POST /payments/zalopay/create
+  activate API
+  API -> Gateway : v2/create (HMAC Key1)
+  activate Gateway
+  Gateway --> API : orderUrl / appTransId (hiện QR PENDING)
+  deactivate Gateway
+  API --> Web : Điều hướng /gateway/zalopay (QR 5 phút)
   deactivate API
-  Web --> Customer : Hiển thị "Thử lại" hoặc "Hủy đơn"
+
+  alt Khách bấm "Hủy đơn & Hoàn kho" khi đang hiện QR (PENDING)
+    Customer -> Web : Bấm "Hủy đơn & Hoàn kho"
+    Web -> API : PATCH /orders/:id/status\n{ status: "CANCELLED" }
+    activate API
+    API -> DB : Order -> CANCELLED &\nhoàn kho BOM + Voucher
+    activate DB
+    DB --> API : Commit
+    deactivate DB
+    API --> Web : 200 CANCELLED
+    deactivate API
+    Web --> Customer : Thông báo đã hủy & hoàn kho
+  else Xác nhận thanh toán ZaloPay
+    Gateway --> API : IPN POST /payments/zalopay/callback (HMAC Key2)\nhoặc POST /payments/zalopay/confirm (Sandbox)
+    activate API
+    API -> DB : CAS Order -> PAID & tạo Payment (SUCCESS)
+    activate DB
+    DB --> API : Commit
+    deactivate DB
+    API --> Web : 200 PAID (Web poll GET /orders/:id)
+    deactivate API
+    Web --> Customer : Xóa giỏ hàng & chuyển sang /orders/:id
+  end
+else Mock Payment (POST /payments)
+  Web -> API : POST /payments (Idempotency-Key)
+  activate API
+  API -> Gateway : Xử lý thanh toán mô phỏng
+  activate Gateway
+  Gateway --> API : Kết quả SUCCESS / FAILURE
+  deactivate Gateway
+
+  alt Thành công
+    API -> DB : CAS Order -> PAID & tạo Payment (SUCCESS)
+    activate DB
+    DB --> API : Commit
+    deactivate DB
+    API --> Web : 201 PAID
+    deactivate API
+    Web --> Customer : Xóa giỏ hàng & chuyển sang /orders/:id
+  else Thất bại (chỉ phát sinh với Mock Payment)
+    API -> DB : Cập nhật Order -> PAYMENT_FAILED\n(giữ kho BOM trong 5 phút (300s) TTL)
+    activate DB
+    DB --> API : Commit
+    deactivate DB
+    API --> Web : 201 PAYMENT_FAILED
+    deactivate API
+    Web --> Customer : Hiển thị "Thử lại" hoặc "Hủy đơn" trên /checkout
+    opt Khách bấm "Hủy đơn" trên /checkout
+      Customer -> Web : Bấm "Hủy đơn"
+      Web -> API : PATCH /orders/:id/status\n{ status: "CANCELLED" }
+      activate API
+      API -> DB : Order -> CANCELLED &\nhoàn kho BOM + Voucher
+      activate DB
+      DB --> API : Commit
+      deactivate DB
+      API --> Web : 200 CANCELLED
+      deactivate API
+    end
+  end
 end
 deactivate Web
 
 == Theo dõi tiến độ đơn hàng ==
 
 activate Web
-loop Polling mỗi 5 giây cho đến khi READY / COMPLETED
+loop Polling mỗi 5 giây cho đến khi COMPLETED / CANCELLED
   Web -> API : GET /orders/:id
   activate API
   API -> DB : Truy vấn trạng thái đơn

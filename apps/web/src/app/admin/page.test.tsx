@@ -208,7 +208,7 @@ describe('T5.1g Admin Page (/admin) — Real API Integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('BREWLITE PREMIER')).toBeTruthy();
-      expect(screen.getByText('Doanh thu hôm nay')).toBeTruthy();
+      expect(screen.getByText('Doanh thu 7 ngày gần nhất')).toBeTruthy();
       expect(screen.getByTestId('revenue-sparkline')).toBeTruthy();
       expect(screen.getByText(/\(Nay\)/)).toBeTruthy();
       expect(screen.getAllByText('0đ').length).toBeGreaterThanOrEqual(2);
@@ -429,7 +429,7 @@ describe('T5.1g Admin Page (/admin) — Real API Integration', () => {
         .filter(([p, i]) => p === '/inventory/recipes' && i?.method === 'POST')
         .map(([, i]) => JSON.parse(String(i?.body)));
       expect(recipeBodies).toHaveLength(2);
-      expect(recipeBodies[0]).toMatchObject({ productId: 77, size: 'ALL', amount: 20 });
+      expect(recipeBodies[0]).toMatchObject({ productId: 77, size: 'M', amount: 20 });
       expect(recipeBodies[1]).toMatchObject({ productId: 77, size: 'L', amount: 30 });
     });
 
@@ -631,5 +631,39 @@ describe('T5.1g Admin Page (/admin) — Real API Integration', () => {
       expect(screen.getByTestId('product-card-1').textContent).toContain('~12 ly');
       expect(screen.getByTestId('product-card-9').textContent).toContain('~8 phần');
     });
+  });
+
+  it('WEB-T20 includes cold_brew filter/dropdown and switches default first recipe size to ALL for bakery', async () => {
+    setAdminSession();
+    createAdminApiMock({
+      products: [
+        {
+          id: 3,
+          name: 'Cold Brew Cam Sả',
+          description: 'Ủ lạnh 18 giờ',
+          basePrice: 49000,
+          category: 'cold_brew',
+          isActive: true,
+          availableServings: 15,
+        },
+      ],
+    });
+
+    render(<AdminPage />);
+    fireEvent.click(screen.getByTestId('tab-menu'));
+
+    const coldBrewFilter = await screen.findByRole('button', { name: 'Cold Brew' });
+    fireEvent.click(coldBrewFilter);
+    expect(screen.getByText('Cold Brew Cam Sả')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('add-product-btn'));
+    const categorySelect = screen.getByLabelText('Danh mục món') as HTMLSelectElement;
+    expect(Array.from(categorySelect.options).map((o) => o.value)).toContain('cold_brew');
+
+    const size1Select = screen.getByLabelText('Size 1') as HTMLSelectElement;
+    expect(size1Select.value).toBe('M');
+
+    fireEvent.change(categorySelect, { target: { value: 'bakery' } });
+    expect(size1Select.value).toBe('ALL');
   });
 });

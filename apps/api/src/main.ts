@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
+import { parseCorsOrigin } from './common/helpers/cors-origin.helper';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -18,13 +19,7 @@ async function bootstrap(): Promise<void> {
   );
   app.useGlobalFilters(new PrismaExceptionFilter());
 
-  const corsOrigin = process.env.CORS_ORIGIN;
-  const origin =
-    !corsOrigin || corsOrigin === '*'
-      ? true
-      : corsOrigin.includes(',')
-        ? corsOrigin.split(',').map((o) => o.trim())
-        : corsOrigin;
+  const origin = parseCorsOrigin(process.env.CORS_ORIGIN);
 
   app.enableCors({
     origin,

@@ -115,20 +115,12 @@ const FALLBACK_VOUCHERS: VoucherItem[] = [
     maxDiscountAmount: 15000,
   },
   {
-    code: 'FREEFOAM',
-    title: 'Miễn Phí Foam Muối Biển 0đ',
-    desc: 'Tặng 1 phần kem bọt muối béo mịn 10.000đ',
-    discountPercent: 100,
-    minOrderAmount: 30000,
-    maxDiscountAmount: 10000,
-  },
-  {
-    code: 'FREEBAKERY',
-    title: 'Tặng 1 Bánh Pain au Chocolat 0đ',
-    desc: 'Miễn phí bánh sừng bò socola trị giá 39.000đ',
-    discountPercent: 100,
+    code: 'WELCOME20',
+    title: 'Ưu đãi Thành Viên Mới 20%',
+    desc: 'Giảm 20% tối đa 25.000đ cho đơn từ 50.000đ',
+    discountPercent: 20,
     minOrderAmount: 50000,
-    maxDiscountAmount: 39000,
+    maxDiscountAmount: 25000,
   },
 ];
 
@@ -293,7 +285,7 @@ export default function CartPage() {
     addItem({
       productId: s.id,
       name: s.name,
-      size: 'M',
+      size: 'ALL',
       unitPrice: s.price,
       quantity: 1,
       imageUrl: s.img,

@@ -700,7 +700,7 @@ export default function AdminPortalPage() {
                 setSheetPrice('39000');
                 setSheetCategory('vietnamese');
                 setSheetDescription('');
-                setSheetRecipeRows([{ ingredientId: ingredients[0]?.id ?? 0, size: 'ALL', amount: '20' }]);
+                setSheetRecipeRows([{ ingredientId: ingredients[0]?.id ?? 0, size: 'M', amount: '20' }]);
                 setActiveSheet('product');
               }}
             />
@@ -818,11 +818,30 @@ export default function AdminPortalPage() {
                 id="product-category-select"
                 className={styles.textInput}
                 value={sheetCategory}
-                onChange={(e) => setSheetCategory(e.target.value)}
+                onChange={(e) => {
+                  const nextCat = e.target.value;
+                  setSheetCategory(nextCat);
+                  setSheetRecipeRows((prev) =>
+                    prev.map((row, idx) =>
+                      idx === 0
+                        ? {
+                            ...row,
+                            size:
+                              nextCat === 'bakery'
+                                ? 'ALL'
+                                : row.size === 'ALL'
+                                  ? 'M'
+                                  : row.size,
+                          }
+                        : row,
+                    ),
+                  );
+                }}
               >
                 <option value="vietnamese">Cà Phê Phin Việt Nam</option>
                 <option value="espresso">Signature Espresso</option>
-                <option value="tea">Trà & Matcha</option>
+                <option value="cold_brew">Cold Brew</option>
+                <option value="tea">Trà &amp; Matcha</option>
                 <option value="bakery">Bánh Ngọt</option>
               </select>
             </div>
@@ -893,7 +912,14 @@ export default function AdminPortalPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setSheetRecipeRows((prev) => [...prev, { ingredientId: ingredients[0]?.id ?? 0, size: 'ALL', amount: '' }])
+                  setSheetRecipeRows((prev) => [
+                    ...prev,
+                    {
+                      ingredientId: ingredients[0]?.id ?? 0,
+                      size: sheetCategory === 'bakery' ? 'ALL' : 'M',
+                      amount: '',
+                    },
+                  ])
                 }
               >
                 + Thêm nguyên liệu

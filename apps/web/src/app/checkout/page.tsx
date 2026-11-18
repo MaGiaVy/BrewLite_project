@@ -243,25 +243,33 @@ function CheckoutContent() {
       const maxDiscount = Number(found.maxDiscountAmount || Infinity);
       const minOrder = Number(found.minOrderAmount || 0);
       if (currentSubtotal >= minOrder) {
-        const rawDiscount = Math.floor(currentSubtotal * (discountPercent / 100));
-        const finalDiscount = Math.min(rawDiscount, maxDiscount);
+        const rawDiscount = Math.round(currentSubtotal * (discountPercent / 100));
+        const finalDiscount = Math.min(rawDiscount, maxDiscount, currentSubtotal);
         setDiscountAmount(finalDiscount);
         setVoucherApplied(true);
         return;
       }
     }
 
-    // Fallback standard rules
-    if (upper === 'BREWLITE10' || upper === 'GIAM10' || upper === 'BREW10') {
-      const discount = Math.floor(currentSubtotal * 0.1);
+    // Fallback standard rules (synced with backend seed.ts)
+    if (upper === 'BREWLITE10' || upper === 'BREW10') {
+      const discount = Math.min(15000, Math.round(currentSubtotal * 0.1), currentSubtotal);
       setDiscountAmount(discount);
       setVoucherApplied(true);
-    } else if (upper === 'BREWCOZY' || upper === 'GIAM20' || upper === 'BREW20') {
-      const discount = Math.min(25000, Math.floor(currentSubtotal * 0.15));
+    } else if (upper === 'BREWCOZY') {
+      const discount = Math.min(25000, Math.round(currentSubtotal * 0.15), currentSubtotal);
       setDiscountAmount(discount);
       setVoucherApplied(true);
-    } else if (upper === 'BREW50') {
-      const discount = Math.min(60000, Math.floor(currentSubtotal * 0.5));
+    } else if (upper === 'BREW20' && currentSubtotal >= 60000) {
+      const discount = Math.min(25000, Math.round(currentSubtotal * 0.2), currentSubtotal);
+      setDiscountAmount(discount);
+      setVoucherApplied(true);
+    } else if (upper === 'WELCOME20' && currentSubtotal >= 50000) {
+      const discount = Math.min(25000, Math.round(currentSubtotal * 0.2), currentSubtotal);
+      setDiscountAmount(discount);
+      setVoucherApplied(true);
+    } else if (upper === 'BREW50' && currentSubtotal >= 120000) {
+      const discount = Math.min(60000, Math.round(currentSubtotal * 0.5), currentSubtotal);
       setDiscountAmount(discount);
       setVoucherApplied(true);
     } else {
@@ -484,7 +492,6 @@ function CheckoutContent() {
         method: 'POST',
         body: JSON.stringify({
           orderId: Number(orderId),
-          amount: totalAmount,
         }),
       });
 
@@ -611,7 +618,17 @@ function CheckoutContent() {
     await processPaymentBackend();
   };
 
-  const handleCancelPendingOrder = () => {
+  const handleCancelPendingOrder = async () => {
+    if (pendingOrderId) {
+      try {
+        await apiClient(`/orders/${pendingOrderId}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'CANCELLED' }),
+        });
+      } catch {
+        // Bỏ qua lỗi nếu đơn đã hết hạn hoặc bị hủy trước đó
+      }
+    }
     setPendingOrderId(null);
     idempotencyKeyRef.current = null;
     getOrCreateIdempotencyKey();
@@ -1008,7 +1025,8 @@ function CheckoutContent() {
                     </button>
                     <button
                       type="button"
-                      onClick={handleCancelPendingOrder}
+                      onClick={() => void handleCancelPendingOrder()}
+                      disabled={isSubmitting}
                       className={styles.errorCancelBtn}
                     >
                       Hủy đơn / Tạo mới

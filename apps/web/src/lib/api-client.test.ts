@@ -13,7 +13,7 @@ describe('Task T5.1b — Frontend API Client 401 Handling (WEB-T09)', () => {
     window.localStorage.clear();
   });
 
-  it('[WEB-T09] clears auth token, redirects to /login?redirect=..., and strictly preserves cart items on 401 Unauthorized', async () => {
+  it('[WEB-T09] clears auth token, redirects to /auth/login?redirect=..., and strictly preserves cart items on 401 Unauthorized', async () => {
     setAuthSession({
       token: 'expired_jwt_token_xyz',
       user: {
@@ -57,13 +57,36 @@ describe('Task T5.1b — Frontend API Client 401 Handling (WEB-T09)', () => {
 
     expect(res.status).toBe(401);
     expect(getAuthToken()).toBeNull();
-    expect(redirectedUrl).toBe('/login?redirect=%2Fcheckout');
+    expect(redirectedUrl).toBe('/auth/login?redirect=%2Fcheckout');
 
     // Giỏ hàng được giữ nguyên 100%
     const remainingCart = getCartItems();
     expect(remainingCart).toHaveLength(1);
     expect(remainingCart[0].name).toBe('Cà Phê Sữa Đá Cầu Đất');
     expect(remainingCart[0].quantity).toBe(2);
+  });
+
+  it('[WEB-T09] avoids recursive redirect query when currentPath is /login or /auth/login', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ statusCode: 401 }), { status: 401 }),
+        ),
+      ),
+    );
+
+    const targets: string[] = [];
+    await apiClient('/auth/me', {
+      currentPath: '/login',
+      onUnauthorizedRedirect: (url) => targets.push(url),
+    });
+    await apiClient('/auth/me', {
+      currentPath: '/auth/login?redirect=%2Fcheckout',
+      onUnauthorizedRedirect: (url) => targets.push(url),
+    });
+
+    expect(targets).toEqual(['/auth/login', '/auth/login']);
   });
 
   it('[WEB-T09] attaches Authorization Bearer token and preserves session on 200 OK', async () => {

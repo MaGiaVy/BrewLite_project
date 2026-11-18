@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styles from './admin.module.css';
 import { SearchIcon, PlusIcon } from './AdminIcons';
 import { formatVnd } from '../../lib/format';
+import { matchesCategory } from '../../lib/product-normalize';
 
 export interface ProductItem {
   id: number;
@@ -43,8 +44,7 @@ export function AdminMenuSection({
 
   const filtered = products.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchCat =
-      selectedCategory === 'all' || p.category === selectedCategory;
+    const matchCat = matchesCategory(p.category, selectedCategory);
     return matchSearch && matchCat;
   });
 
@@ -91,6 +91,7 @@ export function AdminMenuSection({
           { id: 'all', label: 'Tất cả' },
           { id: 'vietnamese', label: 'Phin Việt Nam' },
           { id: 'espresso', label: 'Espresso' },
+          { id: 'cold_brew', label: 'Cold Brew' },
           { id: 'tea', label: 'Trà & Matcha' },
           { id: 'bakery', label: 'Bánh ngọt' },
         ].map((cat) => (

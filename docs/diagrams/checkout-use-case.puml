@@ -39,7 +39,7 @@ rectangle "Phân hệ Đặt hàng & Thanh toán (UC-07 .. UC-12)" {
   usecase "Cộng điểm Hạt Vàng\n(khi COMPLETED, 1.000đ = 1đ)" as UC_Loyalty
   usecase "Thử lại thanh toán\n(PAYMENT_FAILED -> PENDING)" as UC_Retry
   usecase "Hủy / Xóa đơn hàng &\nHoàn kho BOM / Voucher" as UC_Cancel
-  usecase "Tự động hết hạn đơn\nsau 15 phút TTL" as UC_Expire
+  usecase "Tự động hết hạn đơn\nsau 5 phút TTL" as UC_Expire
   usecase "Theo dõi tiến độ đơn\n(Polling 5s /orders/:id)" as UC_Track
 }
 
@@ -60,9 +60,10 @@ UC_Retry ..> UC_Payment : <<extend>>
 UC_Expire ..> UC_Cancel : <<include>>
 
 note right of UC_Cancel
-  - Chủ đơn / Admin: hủy hoặc xóa đơn PENDING / PAYMENT_FAILED
+  - Chủ đơn / Admin: hủy đơn PENDING / PAYMENT_FAILED qua PATCH /orders/:id/status
+    hoặc xóa đơn PENDING / PAYMENT_FAILED / CANCELLED qua DELETE /orders/:id
     (DELETE /orders/:id chặn STAFF với 403).
-  - Staff / Admin: hủy đơn PAID trước khi PREPARING qua PATCH /status
+  - Staff / Admin: hủy đơn PAID trước khi PREPARING qua PATCH /orders/:id/status
     (hoàn kho BOM & Voucher; không cần thu hồi điểm).
 end note
 

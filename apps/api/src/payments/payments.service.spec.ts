@@ -32,11 +32,15 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
       expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.CANCELLED)).not.toThrow();
     });
 
-    it('cho phép chuyển trực tiếp từ PAYMENT_FAILED sang PAID (retry trực tiếp) nhưng chặn self-loop PAYMENT_FAILED -> PAYMENT_FAILED', () => {
-      expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PAID)).not.toThrow();
+    it('chặn chuyển tắt trực tiếp từ PAYMENT_FAILED sang PAID và self-loop PAYMENT_FAILED -> PAYMENT_FAILED (yêu cầu qua PENDING -> PAID)', () => {
+      expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PAID)).toThrow(
+        BadRequestException,
+      );
       expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PAYMENT_FAILED)).toThrow(
         BadRequestException,
       );
+      expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PENDING)).not.toThrow();
+      expect(() => assertTransition(OrderStatus.PENDING, OrderStatus.PAID)).not.toThrow();
     });
 
     it('cho phép chuyển từ PAID sang PREPARING (Barista bắt đầu pha chế)', () => {
@@ -2095,7 +2099,7 @@ describe('Task 10 — Payments, State Machine, Idempotency, Optimistic Locking &
           });
 
           expect(res.return_code).toBe(0);
-          expect(res.return_message).toBe('Đơn hàng đã quá hạn thanh toán (15 phút) và đã được hủy');
+          expect(res.return_message).toBe('Đơn hàng đã quá hạn thanh toán (5 phút) và đã được hủy');
           expect(mockPrisma.order.updateMany).toHaveBeenCalledWith(
             expect.objectContaining({
               where: {

@@ -1,8 +1,8 @@
 import { OrderStatus } from '@prisma/client';
 import { OrdersService } from './orders.service';
 
-describe('API-T08 — 15-minute order expiration & BOM refund', () => {
-  it('cancels an expired pending/failed order after 15 minutes and restores BOM ingredient stock once', async () => {
+describe('API-T08 — 5-minute order expiration & BOM refund', () => {
+  it('cancels an expired pending/failed order after 5 minutes and restores BOM ingredient stock once', async () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
     const ingredientUpdate = jest.fn().mockResolvedValue({ id: 10, name: 'Cà phê hạt', unit: 'g', stock: 140 });
     const inventoryLogCreate = jest.fn().mockResolvedValue({});
@@ -10,7 +10,7 @@ describe('API-T08 — 15-minute order expiration & BOM refund', () => {
       id: 20,
       version: 2,
       status: OrderStatus.PAYMENT_FAILED,
-      createdAt: new Date(Date.now() - 16 * 60 * 1000),
+      createdAt: new Date(Date.now() - 6 * 60 * 1000),
       items: [{ productId: 1, size: 'M', toppings: [], quantity: 2 }],
     };
     const prisma: any = {

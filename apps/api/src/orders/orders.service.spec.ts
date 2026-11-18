@@ -532,12 +532,12 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       expect(mockTx.ingredient.update).not.toHaveBeenCalled();
     });
 
-    it('[INV-02] cancelExpiredPendingOrders quét và tự động hủy cả đơn PENDING lẫn PAYMENT_FAILED quá 15 phút để giải phóng kho', async () => {
+    it('[INV-02] cancelExpiredPendingOrders quét và tự động hủy cả đơn PENDING lẫn PAYMENT_FAILED quá 5 phút để giải phóng kho', async () => {
       prisma.order.findMany.mockResolvedValue([
         {
           id: 201,
           status: OrderStatus.PENDING,
-          createdAt: new Date(Date.now() - 16 * 60 * 1000),
+          createdAt: new Date(Date.now() - 6 * 60 * 1000),
           items: [
             {
               productId: 4,
@@ -2152,7 +2152,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
   });
 
   describe('Task 3 — Retry PAYMENT_FAILED -> PENDING, CAS Guards, COMPLETED staffData & deleteOrder Integrity', () => {
-    it('cho phép Customer thử lại thanh toán (PAYMENT_FAILED -> PENDING) trong hạn 15 phút với CAS updateMany', async () => {
+    it('cho phép Customer thử lại thanh toán (PAYMENT_FAILED -> PENDING) trong hạn 5 phút với CAS updateMany', async () => {
       const now = new Date();
       prisma.order.findUnique.mockResolvedValue({
         id: 801,
@@ -2209,14 +2209,14 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('khi Customer retry PAYMENT_FAILED -> PENDING nhưng đơn đã quá hạn 15 phút: CAS-cancel + refundOrderResources rồi ném BadRequestException', async () => {
+    it('khi Customer retry PAYMENT_FAILED -> PENDING nhưng đơn đã quá hạn 5 phút: CAS-cancel + refundOrderResources rồi ném BadRequestException', async () => {
       prisma.order.findUnique.mockResolvedValue({
         id: 803,
         userId: 5,
         status: OrderStatus.PAYMENT_FAILED,
         discountCode: 'BREW10',
         voucherDeducted: false,
-        createdAt: new Date(Date.now() - 16 * 60 * 1000),
+        createdAt: new Date(Date.now() - 6 * 60 * 1000),
         items: [{ productId: 4, size: 'M', toppings: [], quantity: 1 }],
       });
 
@@ -2242,7 +2242,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       await expect(
         service.updateOrderStatus(803, OrderStatus.PENDING, 5, Role.CUSTOMER),
       ).rejects.toThrow(
-        new BadRequestException('Đơn hàng đã quá hạn thanh toán (15 phút) và đã được tự động hủy.'),
+        new BadRequestException('Đơn hàng đã quá hạn thanh toán (5 phút) và đã được tự động hủy.'),
       );
 
       expect(mockTx.order.updateMany).toHaveBeenCalledWith({
@@ -2260,7 +2260,7 @@ describe('OrdersService — Task 10 & Sprint 4 (State Machine, BOM Inventory Opt
       expect(mockTx.inventoryLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           type: 'CANCEL_REFUND',
-          note: 'Hoàn kho do đơn hàng quá hạn 15 phút khi thử lại #803',
+          note: 'Hoàn kho do đơn hàng quá hạn 5 phút khi thử lại #803',
         }),
       });
       expect(mockTx.discountCode.updateMany).toHaveBeenCalled();

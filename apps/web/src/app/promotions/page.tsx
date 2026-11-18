@@ -132,11 +132,11 @@ const REDEEM_REWARDS: RedeemReward[] = [
     id: 'r_welcome20',
     code: 'WELCOME20',
     title: 'Ưu đãi Thành Viên Mới 20%',
-    description: 'Đổi 20 Hạt Vàng để nhận voucher chào mừng 20% tối đa 20.000đ',
+    description: 'Đổi 20 Hạt Vàng để nhận voucher chào mừng 20% tối đa 25.000đ đơn từ 50k',
     pointCost: 20,
     discountPercent: 20,
-    maxDiscountAmount: 20000,
-    minOrderAmount: 0,
+    maxDiscountAmount: 25000,
+    minOrderAmount: 50000,
     badge: '20% OFF',
   },
   {
@@ -608,7 +608,7 @@ export default function PromotionsPage() {
                     onClick={() => handleRedeem(reward)}
                     className={canAfford ? styles.redeemBtn : styles.redeemBtnDisabled}
                   >
-                    {canAfford ? `Đổi (-${reward.pointCost}đ)` : `Thiếu ${reward.pointCost - points}đ`}
+                    {canAfford ? `Đổi (-${reward.pointCost} Hạt)` : `Thiếu ${reward.pointCost - points} Hạt`}
                   </button>
                 </div>
               </article>

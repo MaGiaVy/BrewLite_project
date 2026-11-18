@@ -14,7 +14,7 @@ Cần một chiến lược thực thi migration an toàn, tự động và tư�
 
 ## 2. Quyết định (Decision)
 Nhóm quyết định thực thi migration cơ sở dữ liệu **ngay tại thời điểm container API khởi động (Migration on Container Startup)**:
-1. Trong kịch bản khởi động (`Dockerfile` / `entrypoint.sh` của `apps/api`), câu lệnh `npx prisma migrate deploy` sẽ được chạy trước khi lệnh khởi động máy chủ `node dist/main.js` được thực thi.
+1. Trong kịch bản khởi động (`apps/api/Dockerfile` / `apps/api/docker-entrypoint.sh`), các câu lệnh `npx prisma migrate deploy` và `npx prisma db seed` (idempotent) sẽ được chạy trước khi lệnh khởi động máy chủ `node dist/main.js` (`exec "$@"`) được thực thi.
 2. **Quy tắc tương thích ngược (Backward-Compatible Migrations):** Mọi bản migration schema khi đưa lên nhánh `main` bắt buộc phải là thay đổi tương thích ngược (không xóa cột cũ ngay lập tức, các cột mới thêm phải có giá trị mặc định `@default` hoặc cho phép `nullable`).
 3. **Cơ chế an toàn (Fail-Safe):** Nếu quá trình migration gặp lỗi (ví dụ xung đột schema hoặc mất kết nối DB), tiến trình container API sẽ kết thúc với mã lỗi khác 0 (`exit code != 0`). Khi đó, nền tảng Render sẽ hủy bỏ quá trình triển khai phiên bản mới và tự động duy trì phiên bản container cũ đang hoạt động ổn định.
 

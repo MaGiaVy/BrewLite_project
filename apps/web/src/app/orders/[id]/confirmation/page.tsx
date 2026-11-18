@@ -285,7 +285,7 @@ export default function OrderConfirmationPage({
   const isCompleted = status === 'COMPLETED';
   const isCancelled = status === 'CANCELLED' || status === 'PAYMENT_FAILED';
 
-  // Loyalty points: 1 Hạt Vàng per 1.000 VNĐ
+  // Loyalty points: 1 Hạt Vàng per 1.000 VNĐ (chỉ đánh dấu đã tích lũy khi COMPLETED)
   const loyaltyPoints = order && !isCancelled ? Math.floor(order.totalAmount / 1000) : 0;
 
   const paymentMethodLabel = order?.paymentMethod || 'Ví điện tử';
@@ -386,7 +386,11 @@ export default function OrderConfirmationPage({
           {!isCancelled && (
             <div className={styles.loyaltyFloatingBadge}>
               <Sparkles size={12} strokeWidth={2.4} />
-              <span>+{loyaltyPoints} Hạt Vàng</span>
+              <span>
+                {isCompleted
+                  ? `+${loyaltyPoints} Hạt Vàng`
+                  : `+${loyaltyPoints} Hạt Vàng (Dự kiến)`}
+              </span>
             </div>
           )}
         </div>
@@ -408,10 +412,10 @@ export default function OrderConfirmationPage({
               : isReady
               ? 'Quầy Barista đang gọi bạn nhận món!'
               : isPreparing
-              ? 'Barista đang pha chế trực tiếp (Auto-sync 3s)'
+              ? 'Barista đang pha chế trực tiếp (Auto-sync 4s)'
               : isCompleted
               ? 'Đã bàn giao đồ uống hoàn tất'
-              : 'Giao dịch không tiền mặt thành công (Auto-sync 3s)'}
+              : 'Giao dịch không tiền mặt thành công (Auto-sync 4s)'}
           </span>
         </div>
 
@@ -749,7 +753,11 @@ export default function OrderConfirmationPage({
             {/* Loyalty points card */}
             {!isCancelled && (
               <div className={styles.loyaltyRewardCard}>
-                <span>Điểm thưởng nhận khi đơn hoàn tất:</span>
+                <span>
+                  {isCompleted
+                    ? 'Điểm thưởng đã tích lũy:'
+                    : 'Dự kiến tích lũy khi hoàn tất:'}
+                </span>
                 <span className={styles.loyaltyRewardPoints}>
                   +{loyaltyPoints} Hạt Vàng BrewLite Club
                 </span>

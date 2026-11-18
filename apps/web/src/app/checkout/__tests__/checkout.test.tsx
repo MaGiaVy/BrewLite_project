@@ -357,5 +357,67 @@ describe('Task T5.1d — Checkout & Idempotency Key Handling (WEB-T10..T13)', ()
     expect(calledUrls.some((u) => u.includes('/payments/zalopay/create'))).toBe(false);
     expect(useCartStore.getState().items).toHaveLength(0);
   });
+
+  it('[WEB-T13-E] sends only { orderId } to /payments/zalopay/create and cancels pending order via PATCH /orders/:id/status', async () => {
+    useAuthStore.getState().login('valid_jwt_token', { id: 1, email: 'customer@brewlite.vn' });
+    useCartStore.getState().addItem({
+      productId: 2,
+      name: 'Trà Đào Cam Sả',
+      size: 'M',
+      unitPrice: 55000,
+      quantity: 1,
+    });
+    useCartStore.setState({ appliedPromo: 'WELCOME20' });
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/inventory/pricing-config')) {
+        return Promise.resolve(new Response(JSON.stringify({ vouchers: [] }), { status: 200 }));
+      }
+      if (url.includes('/orders/505/status')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 505, status: 'CANCELLED' }), { status: 200 }),
+        );
+      }
+      if (url.includes('/orders')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 505, status: 'PENDING' }), { status: 201 }),
+        );
+      }
+      if (url.includes('/payments/zalopay/create')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ message: 'Sandbox error' }), { status: 400 }),
+        );
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CheckoutPage />);
+
+    // WELCOME20 on 55.000đ -> 20% = 11.000đ -> total = 44.000đ
+    await waitFor(() => {
+      expect(screen.getByTestId('confirm-payment-button').textContent).toContain('44.000 ₫');
+    });
+
+    fireEvent.click(screen.getByTestId('zalopay-gateway-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-error')).toBeTruthy();
+    });
+
+    const createCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/payments/zalopay/create'));
+    expect(createCall).toBeTruthy();
+    expect(JSON.parse(String(createCall![1]?.body))).toEqual({ orderId: 505 });
+
+    const cancelResetBtn = screen.getByRole('button', { name: /Hủy đơn \/ Tạo mới/i });
+    fireEvent.click(cancelResetBtn);
+
+    await waitFor(() => {
+      const cancelCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/orders/505/status'));
+      expect(cancelCall).toBeTruthy();
+      expect(cancelCall![1]?.method).toBe('PATCH');
+      expect(JSON.parse(String(cancelCall![1]?.body))).toEqual({ status: 'CANCELLED' });
+    });
+  });
 });
 

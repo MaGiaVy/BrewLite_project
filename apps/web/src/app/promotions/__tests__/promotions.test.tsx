@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import PromotionsPage from '../page';
 import { useCartStore } from '../../../stores/cart-store';
 import { useAuthStore } from '../../../stores/auth-store';
@@ -64,6 +64,11 @@ describe('Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)',
       );
     });
     vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
   });
 
   it('renders mobile layout with header, member VIP card, and points pill', async () => {
@@ -163,12 +168,14 @@ describe('Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)',
     expect(screen.getByText(/Voucher Giảm 10% Toàn Đơn/i)).toBeTruthy();
 
     // Redeem BREW10 (costs 10 points)
-    const redeemBrew10Btn = screen.getByRole('button', { name: /Đổi \(-10đ\)/i });
+    const redeemBrew10Btn = screen.getByRole('button', { name: /Đổi \(-10 Hạt\)/i });
     fireEvent.click(redeemBrew10Btn);
 
     expect(await screen.findByText(/Đã đổi mã "BREW10" \(-10 Hạt Vàng\)!/i)).toBeTruthy();
     // Points deducted: 120 - 10 = 110
     expect(useAuthStore.getState().user?.loyaltyPoints).toBe(110);
+    // WELCOME20 reflects 25.000đ max / 50k min
+    expect(screen.getByText(/tối đa 25\.000đ đơn từ 50k/i)).toBeTruthy();
   });
 
   it('shows error toast when attempting to redeem an item without enough points', async () => {
@@ -188,6 +195,6 @@ describe('Task T5.1f — Mobile Promotions & Loyalty Points Page (/promotions)',
     fireEvent.click(redeemTabBtn);
 
     // Button should be disabled with missing points text
-    expect((await screen.findAllByText(/Thiếu 20đ/i)).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText(/Thiếu 20 Hạt/i)).length).toBeGreaterThanOrEqual(1);
   });
 });

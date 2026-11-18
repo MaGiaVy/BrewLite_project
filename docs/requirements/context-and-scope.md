@@ -12,7 +12,7 @@
 > 4. **Vũ Châu Minh Khôi**
 > 5. **Quách Kỳ Minh**
 > 6. **Nguyễn Thị Ý**  
-> **Phiên bản:** v1.2 (Đồng bộ 100% cùng mã nguồn & SRS v4.5) — Ngày cập nhật: 15/11/2026
+> **Phiên bản:** v1.3 (Đồng bộ SRS v4.7) — Ngày cập nhật: 17/11/2026
 
 ---
 
@@ -83,7 +83,7 @@ Nhằm đảm bảo dự án hoàn thành đúng tiến độ cam kết theo mô
 3. **Quản lý Giỏ hàng (Client Cart):** Thêm món, điều chỉnh số lượng linh hoạt theo nhu cầu (tối thiểu 1 ly, trần kỹ thuật tại Client Cart Store là 20 ly/dòng món; Backend DTO `CreateOrderDto` giới hạn 1–50 ly/dòng và tối đa 50 dòng/đơn), xóa món, tính tạm tính tự động, lưu trữ bền vững qua `localStorage` (không mất khi reload trang).
 4. **Xác thực & Phân quyền (Authentication & RBAC):** Đăng ký, đăng nhập tài khoản bằng email/mật khẩu, mã hóa mật khẩu bằng `bcrypt`, cấp phát JWT token thời hạn **7 ngày** (`expiresIn: '7d'`, payload `{ sub, email, role, tokenVersion }`), kiểm soát phân quyền theo vai trò (`CUSTOMER`, `STAFF`, `ADMIN`) với Route Guard (`JwtAuthGuard`, `RolesGuard`), Edge Middleware và giới hạn tốc độ (`ThrottlerGuard`: 120 req/60s toàn cục, 5 req/60s cho `/auth/login` & `/auth/register` -> `429`).
 5. **Xử lý Đơn hàng & Kiểm soát đồng thời kép (Dual-layer Optimistic Locking):**
-   - Tạo đơn trạng thái ban đầu `PENDING` (hoặc chuyển thẳng `PAID` nếu tổng tiền sau voucher bằng `0đ`), kiểm tra bắt buộc sản phẩm/size đã có công thức `Recipe` (`requireRecipeForEachItem: true` -> `400 Bad Request` nếu thiếu), quản lý luân chuyển theo máy trạng thái `ALLOWED_TRANSITIONS` (7 giá trị `OrderStatus`: `PENDING`, `PAID`, `PREPARING`, `READY`, `COMPLETED`, `PAYMENT_FAILED`, `CANCELLED`). Khóa hàng `User` (`SELECT ... FOR UPDATE`) chống vượt ngưỡng tối đa **5 đơn chờ** (`PENDING`/`PAYMENT_FAILED`), và tự động hủy đơn quá hạn **15 phút** bởi `ExpireOrdersJob` (`@Cron('*/1 * * * *')`).
+   - Tạo đơn trạng thái ban đầu `PENDING` (hoặc chuyển thẳng `PAID` nếu tổng tiền sau voucher bằng `0đ`), kiểm tra bắt buộc sản phẩm/size đã có công thức `Recipe` (`requireRecipeForEachItem: true` -> `400 Bad Request` nếu thiếu), quản lý luân chuyển theo máy trạng thái `ALLOWED_TRANSITIONS` (7 giá trị `OrderStatus`: `PENDING`, `PAID`, `PREPARING`, `READY`, `COMPLETED`, `PAYMENT_FAILED`, `CANCELLED`). Khóa hàng `User` (`SELECT ... FOR UPDATE`) chống vượt ngưỡng tối đa **5 đơn chờ** (`PENDING`/`PAYMENT_FAILED`, tức chỉ tạo thêm khi có `< 5` đơn chờ), và tự động hủy đơn quá hạn **5 phút (300 giây)** bởi `ExpireOrdersJob` (`@Cron('*/1 * * * *')`).
    - **Khóa tầng kho nguyên liệu (Ingredient Level):** Cột `version` trong bảng `Ingredient` được kiểm tra và tăng tự động trong Database Transaction khi trừ công thức BOM (`Recipe`, `ToppingRecipe` và `PACKAGING` theo `isRequiredForSale`), retry tối đa 3 lần khi xung đột và trả `400 Bad Request` nếu hết nguyên liệu bắt buộc hoặc `409 Conflict` nếu cạn retry khóa đồng thời, đảm bảo **Zero Overselling**.
    - **Khóa tầng đơn hàng (Order Level):** Cột `version` trong bảng `Order` chống tranh chấp cập nhật trạng thái đơn (State Machine transitions) khi hệ thống nhận webhook thanh toán hoặc Barista thao tác đồng thời. Đồng thời `DELETE /orders/:id` chỉ cho phép chủ sở hữu đơn hàng hoặc `ADMIN` (`STAFF` bị từ chối `403`, nhưng vẫn hủy đơn `PAID` trước `PREPARING` qua `PATCH /orders/:id/status`).
 6. **Thanh toán không dùng tiền mặt (100% Cashless Multi-Gateway):**

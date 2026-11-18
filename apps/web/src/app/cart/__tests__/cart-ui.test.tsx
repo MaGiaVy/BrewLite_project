@@ -215,4 +215,30 @@ describe('Mobile Cart Page UI (/cart)', () => {
     // Verify store is updated
     expect(useCartStore.getState().items[0].size).toBe('L');
   });
+
+  it('uses size ALL for suggested bakery items and replaces FREEFOAM/FREEBAKERY with WELCOME20 in fallback vouchers', async () => {
+    useCartStore.getState().addItem({
+      productId: 1,
+      name: 'Cà phê Đen',
+      size: 'M',
+      unitPrice: 34000,
+      quantity: 1,
+    });
+
+    render(<CartPage />);
+    expect(await screen.findByText('Cà phê Đen')).toBeTruthy();
+
+    // Suggested bakery item adds with size 'ALL'
+    const painBtn = screen.getByRole('button', { name: 'Thêm Bánh Pain au Chocolat' });
+    fireEvent.click(painBtn);
+
+    const addedBakery = useCartStore.getState().items.find((i) => i.name === 'Bánh Pain au Chocolat');
+    expect(addedBakery?.size).toBe('ALL');
+
+    // Open voucher modal and verify WELCOME20 exists while FREEFOAM/FREEBAKERY do not
+    fireEvent.click(screen.getByRole('button', { name: /Chọn hoặc đổi mã giảm giá/i }));
+    expect(await screen.findByText('WELCOME20')).toBeTruthy();
+    expect(screen.queryByText('FREEFOAM')).toBeNull();
+    expect(screen.queryByText('FREEBAKERY')).toBeNull();
+  });
 });

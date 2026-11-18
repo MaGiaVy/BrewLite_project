@@ -33,7 +33,7 @@ function vnd(amount: number): string {
 
 const DEFAULT_BALANCE = 1000000; // 1.000.000đ mặc định
 const BALANCE_STORAGE_KEY = 'zalopay_sandbox_wallet_balance';
-const GATEWAY_TTL_SECONDS = 300; // 5 phút đồng bộ theo TTL backend
+const GATEWAY_TTL_SECONDS = 300; // 5 phút đồng bộ 1:1 với ORDER_PAYMENT_TTL_MS = 5 * 60 * 1000 tại Backend
 const ACTIVE_PENDING_ORDER_KEY = 'brewlite_active_pending_order';
 const EXPIRY_SYNC_BACKOFF_MS = [1200, 2500, 4000] as const;
 const PAID_ORDER_STATUSES: ReadonlySet<string> = new Set([
@@ -414,15 +414,15 @@ function ZaloPayGatewayContent() {
     }
   };
 
-  // Cancel order via POST /payments/zalopay/cancel
+  // Cancel order via PATCH /orders/:id/status
   const handleCancelAndRefund = async () => {
     if (!orderId || status === 'PROCESSING' || isCancelling) return;
     setIsCancelling(true);
     setErrorMessage('');
     try {
-      const res = await apiClient('/payments/zalopay/cancel', {
-        method: 'POST',
-        body: JSON.stringify({ orderId }),
+      const res = await apiClient(`/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'CANCELLED' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

@@ -2,7 +2,7 @@ import { OrderStatus } from '@prisma/client';
 import { ExpireOrdersJob } from './expire-orders.job';
 
 describe('ExpireOrdersJob', () => {
-  it('expires orders older than 15 minutes using atomic BOM refund', async () => {
+  it('expires orders older than 5 minutes using atomic BOM refund', async () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
     const ingredientUpdate = jest.fn().mockResolvedValue({ id: 1, name: 'Robusta', unit: 'g', stock: 125 });
     const inventoryLogCreate = jest.fn().mockResolvedValue({});
@@ -11,7 +11,7 @@ describe('ExpireOrdersJob', () => {
         id: 100,
         version: 1,
         status: OrderStatus.PENDING,
-        createdAt: new Date(Date.now() - 16 * 60 * 1000),
+        createdAt: new Date(Date.now() - 6 * 60 * 1000),
         items: [{ productId: 1, size: 'M', toppings: [], quantity: 1 }],
       },
     ]);

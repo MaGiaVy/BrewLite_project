@@ -386,7 +386,13 @@ package "3. Orders, Payments & System (orders, payments, jobs, health)" {
         + charge(amount: Float, method: PaymentMethod, simulateFailure?)
     }
 
+    class MockPaymentService <<Service>> {
+        + processPayment(params: ProcessPaymentParams): Promise<PaymentResult>
+    }
+
     class ZaloPayService <<Service>> {
+        + generateAppTransId(orderId: Int): String
+        + computeCreateOrderMac(params): String
         + createOrder(params: ZaloPayCreateOrderParams)
         + verifyCallback(dataStr: String, requestMac: String): Boolean
         + queryStatus(appTransId: String)
@@ -407,13 +413,71 @@ package "3. Orders, Payments & System (orders, payments, jobs, health)" {
     Payment --> PaymentStatus : status >
 
     OrdersController --> OrdersService
-    ExpireOrdersJob ..> OrdersService : "expires >15m"
+    ExpireOrdersJob ..> OrdersService : "expires >TTL"
     PaymentsController --> PaymentsService
     PaymentsService --> MockGatewayService
+    PaymentsService --> MockPaymentService
     PaymentsService --> ZaloPayService
     OrdersService ..> Order
     PaymentsService ..> Payment
     PaymentsService ..> Order
+}
+
+' ==============================================================================
+' 4. CROSS-CUTTING GUARDS, PIPES, FILTERS & CORE HELPERS
+' ==============================================================================
+package "4. Guards, Pipes, Filters & Helpers (common, auth, orders, payments)" {
+
+    class JwtAuthGuard <<Guard>> {
+        + canActivate(context)
+    }
+
+    class OptionalJwtAuthGuard <<Guard>> {
+        + handleRequest(err, user)
+    }
+
+    class RolesGuard <<Guard>> {
+        - reflector: Reflector
+        + canActivate(context): Boolean
+    }
+
+    class JwtStrategy <<Strategy>> {
+        + validate(payload: JwtPayload): JwtUserPayload
+    }
+
+    class ParseInt32Pipe <<Pipe>> {
+        - optional: Boolean
+        - min: Int
+        + transform(value, metadata): Int?
+    }
+
+    class PrismaExceptionFilter <<Filter>> {
+        + catch(exception: PrismaClientKnownRequestError, host)
+    }
+
+    class "bom.helper" as BomHelper <<Helper>> {
+        + computeRequiredIngredients(tx, items, options): Promise<RequiredIngredientItem[]>
+    }
+
+    class "order-refund.helper" as OrderRefundHelper <<Helper>> {
+        + refundOrderResources(tx, order, options)
+        + expirePendingOrders(prisma, logger?, scope?): Promise<number>
+    }
+
+    class "state-machine.helper" as StateMachineHelper <<Helper>> {
+        + ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]>
+        + assertTransition(current: OrderStatus, next: OrderStatus): void
+        .. State Machine Rule ..
+        PAYMENT_FAILED -> PENDING | CANCELLED (không đi thẳng PAID)
+    }
+
+    JwtAuthGuard ..> JwtStrategy : delegates >
+    OrdersService ..> BomHelper
+    OrdersService ..> OrderRefundHelper
+    OrdersService ..> StateMachineHelper
+    PaymentsService ..> OrderRefundHelper
+    PaymentsService ..> StateMachineHelper
+    ExpireOrdersJob ..> OrderRefundHelper
 }
 
 note bottom of HealthController

@@ -237,4 +237,25 @@ describe('Task T5.1c — Product Detail Page (/products/[id])', () => {
     vi.advanceTimersByTime(700);
     expect(mockPush).not.toHaveBeenCalledWith('/menu');
   });
+
+  it('adds bakery product with size ALL and calculates loyalty points without Math.max(1, ...)', async () => {
+    stubProductApi({
+      id: 8,
+      name: 'Bánh Pain au Chocolat',
+      category: 'bakery',
+      basePrice: 39000,
+      price: 39000,
+      stock: 5,
+      availableServings: 5,
+      isOutOfStock: false,
+    });
+
+    render(<ProductDetailPage params={Promise.resolve({ id: '8' })} />);
+    expect(await screen.findByText('Bánh Pain au Chocolat')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('add-to-cart-button'));
+    const items = useCartStore.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0].size).toBe('ALL');
+  });
 });

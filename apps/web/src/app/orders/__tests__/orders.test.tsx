@@ -334,4 +334,38 @@ describe('Task T5.1e — Mobile Order History Page (/orders)', () => {
     const cancelButtons = screen.getAllByRole('button', { name: 'Hủy đơn' });
     expect(cancelButtons).toHaveLength(2);
   });
+
+  it('counts totalPoints (Hạt Vàng đã nhận) only from COMPLETED orders', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 601,
+                status: 'PAID',
+                totalAmount: 50000,
+                createdAt: new Date().toISOString(),
+                items: [{ productId: 1, name: 'Cà Phê Sữa', size: 'M', quantity: 1, unitPrice: 50000 }],
+              },
+              {
+                id: 602,
+                status: 'COMPLETED',
+                totalAmount: 45000,
+                createdAt: new Date().toISOString(),
+                items: [{ productId: 2, name: 'Trà Đào', size: 'M', quantity: 1, unitPrice: 45000 }],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<OrderListPage />);
+
+    expect(await screen.findByText('+45')).toBeTruthy();
+    expect(screen.getByText(/Hạt Vàng \(\+50 dự kiến\)/i)).toBeTruthy();
+  });
 });

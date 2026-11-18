@@ -93,7 +93,9 @@ export function ProductEditModal({ item, onClose, onSave }: ProductEditModalProp
   }, [matchedProduct, item]);
 
   // States
-  const [selectedSize, setSelectedSize] = useState<'S' | 'M' | 'L'>(item.size || 'M');
+  const [selectedSize, setSelectedSize] = useState<'S' | 'M' | 'L'>(
+    item.size === 'S' || item.size === 'L' ? item.size : 'M',
+  );
   const [temperature, setTemperature] = useState<'iced' | 'hot'>(
     item.temperature === 'hot' || item.temperature === 'HOT' || item.servingStyle === 'Hâm nóng'
       ? 'hot'
@@ -150,7 +152,7 @@ export function ProductEditModal({ item, onClose, onSave }: ProductEditModalProp
     const selectedToppings = activeToppingList.filter((t) => selectedToppingIds.includes(t.id));
 
     onSave({
-      size: isBakery ? 'M' : selectedSize,
+      size: isBakery ? 'ALL' : selectedSize,
       temperature,
       servingStyle: isBakery
         ? temperature === 'hot'
@@ -534,7 +536,7 @@ export function ProductEditModal({ item, onClose, onSave }: ProductEditModalProp
               </div>
 
               <div className={styles.pointsEarn}>
-                <span>+{Math.max(1, Math.floor(totalPrice / 1000))} Hạt Vàng</span>
+                <span>+{Math.floor(totalPrice / 1000)} Hạt Vàng</span>
               </div>
             </div>
 

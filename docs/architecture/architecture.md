@@ -92,7 +92,7 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
    * Băm mật khẩu bằng `bcrypt`, cấp phát token JWT có thời hạn `JWT_EXPIRES_IN` (mặc định $7\text{ ngày}$) kèm `tokenVersion` để thu hồi phiên khi đổi mật khẩu hoặc khóa tài khoản. Khi đổi mật khẩu qua `PATCH /auth/profile`, hệ thống tăng `tokenVersion + 1` và trả về ngay `accessToken` mới trong response.
    * Các endpoint `GET /auth/me`, `GET /auth/vouchers`, `POST /auth/redeem-points` lọc bỏ voucher cá nhân liên kết tới `DiscountCode` đã tắt (`isActive: false`) hoặc `quantity <= 0`.
    * Cung cấp `JwtAuthGuard` và `RolesGuard` để bảo vệ các route đặt đơn, thanh toán và cập nhật trạng thái đơn.
-   * **Mô hình Single Root Admin (`admin@brewlite.vn`):** Khóa cứng định danh Root Admin duy nhất, cấm tạo mới hoặc thăng cấp bất kỳ tài khoản nào khác lên role `ADMIN`.
+   * **Bảo vệ Single Root Admin (`admin@brewlite.vn`):** `users.service.ts` khóa cứng `ROOT_ADMIN_EMAIL = 'admin@brewlite.vn'`, cấm tạo mới tài khoản `ADMIN` qua API (`POST /staff`), cấm thăng/giáng cấp hoặc khóa/xóa tài khoản `ADMIN` (`403 Forbidden` / `400 Bad Request`). *(Lưu ý: `apps/api/prisma/seed.ts` khởi tạo sẵn 2 tài khoản `ADMIN` phục vụ vận hành/chấm bài là `admin@brewlite.vn` và `3124410414@sv.sgu.edu.vn`)*.
    * **Đồng bộ Session Role Cookie:** Đồng bộ cookie phiên `brewlite_session_role` song song với JWT để Next.js Edge Middleware (`apps/web/src/middleware.ts`) bảo vệ các route `/admin/*`, `/staff/*` và các trang cần đăng nhập ngay từ tầng Edge.
 2. **Products Module (`apps/api/src/products`):**
    * Cung cấp danh sách thực đơn (`GET /products`) và chi tiết sản phẩm kèm danh sách topping (`GET /products/:id`), trả về `404 Not Found` nếu sản phẩm không tồn tại; `create`/`update` kiểm tra tên món sau trim không rỗng (`400 Bad Request`).
@@ -111,14 +111,14 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
      * Luồng chính: `PENDING` $\rightarrow$ `PAID` $\rightarrow$ `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`.
      * Luồng thanh toán lỗi & thử lại: `PENDING` $\rightleftarrows$ `PAYMENT_FAILED`.
      * Luồng hủy đơn: `PENDING` / `PAID` / `PAYMENT_FAILED` $\rightarrow$ `CANCELLED`.
-   * **Tác vụ tự động hủy đơn quá hạn (`apps/api/src/jobs/expire-orders.job.ts`):** Sử dụng `@nestjs/schedule` quét mỗi phút để tự động chuyển các đơn `PENDING` hoặc `PAYMENT_FAILED` quá $15\text{ phút}$ sang `CANCELLED`, đồng thời hoàn trả tồn kho và lượt sử dụng voucher.
+   * **Tác vụ tự động hủy đơn quá hạn (`apps/api/src/jobs/expire-orders.job.ts`):** Sử dụng `@nestjs/schedule` quét mỗi phút để tự động chuyển các đơn `PENDING` hoặc `PAYMENT_FAILED` quá $5\text{ phút (300s)}$ sang `CANCELLED`, đồng thời hoàn trả tồn kho và lượt sử dụng voucher.
 4. **Payments Module (`apps/api/src/payments`):**
    * Xử lý thanh toán mô phỏng (`POST /payments`) cho phương thức `EWALLET` hoặc `BANK_CARD` (bị chặn `403` trên Production khi `ALLOW_MOCK_PAYMENT=false`) và luồng ZaloPay Sandbox (`/payments/zalopay/{create,callback,status/:orderId,confirm,cancel}`).
    * **Cứng hóa ZaloPay (`zalopay.service.ts` & `payments.service.ts`):** `assertConfigured()` kiểm tra key đã trim; `verifyCallback()` và `handleZaloPayCallback()` kiểm tra `data`/`mac` là chuỗi không rỗng, phát hiện trùng `appTransId` xuyên đơn hàng khi gặp `P2002` (`409 Conflict`), và `getZaloPayStatus()`/`cancelZaloPayPayment()` từ chối `appTransId` không phải chuỗi (`400 Bad Request`).
    * **Kiểm tra quyền sở hữu đơn hàng (Order Ownership Guard):** Chỉ chủ đơn (`order.userId === currentUser.id`) mới có quyền tạo giao dịch thanh toán hoặc thao tác hủy trên cổng thanh toán (`403 Forbidden`).
-   * **Default-Deny cho Sandbox Confirm:** Các endpoint `/payments/zalopay/confirm` và `/cancel` bị từ chối `403 Forbidden` mặc định trên production trừ khi bật cờ `ALLOW_SANDBOX_CONFIRM=true`.
+   * **Default-Deny cho Sandbox Confirm:** Các endpoint `/payments/zalopay/confirm` và `/cancel` bị từ chối `403 Forbidden` mặc định trên mọi môi trường trừ khi bật cờ `ALLOW_SANDBOX_CONFIRM=true`.
    * Đảm bảo tính **Idempotency** thông qua header `Idempotency-Key` được chuẩn hóa bởi `normalizeIdempotencyKey` (nếu giao dịch đã `SUCCESS` với cùng khóa, trả về ngay kết quả cũ mà không trừ tiền lần hai — xem [ADR-006](./adr/006-optimistic-locking-idempotency.md)).
-   * Khi thanh toán thất bại (`PAYMENT_FAILED`), đơn hàng vẫn giữ tồn kho BOM đã đặt trong giới hạn 15 phút để khách hàng có thể bấm thử lại ngay.
+   * Khi thanh toán thất bại (`PAYMENT_FAILED`), đơn hàng vẫn giữ tồn kho BOM đã đặt trong giới hạn $5\text{ phút (300s)}$ để khách hàng có thể bấm thử lại ngay.
 5. **Inventory, Vouchers & Loyalty (`apps/api/src/inventory` & `apps/api/src/auth`, tích hợp trong `orders` & `payments`):**
    * Quản lý nguyên liệu (`Ingredient`), công thức BOM (`Recipe`, `ToppingRecipe`), cấu hình size (`GET /inventory/pricing-config`, `PATCH /inventory/size-pricing`), nhật ký kho (`InventoryLog`), mã giảm giá (`DiscountCode`) và đổi điểm lấy voucher (`POST /auth/redeem-points`, `GET /auth/vouchers`).
    * **Server-Enforced Loyalty Redemption (`VOUCHER_CATALOG` trong `auth.service.ts`):** Điểm đổi voucher và thông số giảm giá được server khóa cứng theo danh mục (`BREW10`: 10 điểm → giảm 10% tối đa 15.000đ; `BREWCOZY`: 15 điểm → giảm 15% tối đa 25.000đ; `BREW20`: 20 điểm → giảm 20% tối đa 25.000đ, đơn tối thiểu 60.000đ; `WELCOME20`: 20 điểm → giảm 20% tối đa 25.000đ, đơn tối thiểu 50.000đ; `BREW50`: 50 điểm → giảm 50% tối đa 60.000đ, đơn tối thiểu 120.000đ) hoặc mã đang `isActive` trong `DiscountCode` (`requiredPoints = max(1, round(discountPercent))`). Server tự tính và trừ chính xác số điểm quy định trong transaction atomic, không phụ thuộc tham số giảm giá từ client.
@@ -149,8 +149,8 @@ Backend được xây dựng bằng **NestJS** (TypeScript), áp dụng kiến t
 * **Health Check (`GET /health`) & OpenAPI (`docs/api/openapi.yaml`):**
   * Thực hiện kiểm tra kết nối cơ sở dữ liệu (`SELECT 1` qua Prisma).
   * Trả về `200 OK` kèm `{ "status": "ok", "db": "up" }` khi hệ thống khỏe mạnh, hoặc `503 Service Unavailable` khi mất kết nối DB. Đặc tả API đầy đủ tại [`docs/api/openapi.yaml`](../api/openapi.yaml).
-* **Quản lý cấu hình (`apps/api/src/config/env.validation.ts`):**
-  * Kiểm tra tính hợp lệ của toàn bộ biến môi trường bắt buộc (`DATABASE_URL`, `JWT_SECRET` tối thiểu 16 ký tự, `MOCK_PAYMENT_MODE` $\in \{\text{success}, \text{failure}\}$) cùng các biến tùy chọn (`JWT_EXPIRES_IN`, `PORT`, `NODE_ENV`, `CORS_ORIGIN`, `ALLOW_MOCK_PAYMENT`, `ALLOW_SANDBOX_CONFIRM`, `ZALOPAY_APP_ID`, `ZALOPAY_KEY1`, `ZALOPAY_KEY2`, `ZALOPAY_ENDPOINT`, `ZALOPAY_CALLBACK_URL`) ngay tại thời điểm ứng dụng khởi động (fail-fast). Nếu thiếu biến quan trọng như `DATABASE_URL` hoặc `JWT_SECRET`, ứng dụng sẽ từ chối khởi động và báo lỗi rõ ràng.
+* **Quản lý cấu hình (`apps/api/src/config/env.validation.ts` & `zalopay.service.ts`):**
+  * Kiểm tra tính hợp lệ của toàn bộ biến môi trường bắt buộc (`DATABASE_URL`, `JWT_SECRET` tối thiểu 16 ký tự, `MOCK_PAYMENT_MODE` $\in \{\text{success}, \text{failure}\}$) cùng các biến tùy chọn (`JWT_EXPIRES_IN`, `PORT`, `NODE_ENV`, `CORS_ORIGIN`, `ALLOW_MOCK_PAYMENT`, `ALLOW_SANDBOX_CONFIRM`, `ZALOPAY_APP_ID`, `ZALOPAY_KEY1`, `ZALOPAY_KEY2`, `ZALOPAY_ENDPOINT`, `ZALOPAY_CREATE_ENDPOINT`, `ZALOPAY_QUERY_ENDPOINT`, `ZALOPAY_CALLBACK_URL`, `ZALOPAY_REDIRECT_URL`) ngay tại thời điểm ứng dụng khởi động (fail-fast). Nếu thiếu biến quan trọng như `DATABASE_URL` hoặc `JWT_SECRET`, ứng dụng sẽ từ chối khởi động và báo lỗi rõ ràng.
 
 ### 3.6 Kiến trúc Phân tầng Kiểm thử (Testing Architecture)
 Hệ thống thiết lập 4 cấp độ kiểm thử rõ ràng theo kim tự tháp kiểm thử (Testing Pyramid):
@@ -190,7 +190,7 @@ Mọi quyết định kiến trúc trọng yếu của dự án đều được 
 5. **[ADR-005: Xây dựng Dịch vụ Thanh toán Mô phỏng (`MockGatewayService`)](./adr/005-mock-payment-service.md)** — Chủ động điều khiển kịch bản thanh toán (`success`, `failure`) song hành với ZaloPay Sandbox qua biến môi trường để kiểm thử toàn diện các nhánh nghiệp vụ.
 6. **[ADR-006: Kiểm soát đặt hàng đồng thời bằng Optimistic Locking và chống trùng lặp bằng Idempotency-Key](./adr/006-optimistic-locking-idempotency.md)** — Giải quyết bài toán bán vượt tồn kho (overselling) và thanh toán lặp hai lần.
 7. **[ADR-007: Thực thi Database Migration khi khởi động Container API](./adr/007-migration-on-startup.md)** — Bảo vệ cơ sở dữ liệu production và đảm bảo an toàn khi triển khai phiên bản mới.
-8. **[ADR-008: Tương thích Schema BOM 12 Bảng và Chuẩn Hóa Hợp Đồng API Monorepo](./adr/008-bom-schema-compatibility.md)** — Hợp nhất 12 model BOM, hợp đồng JSON `{ data }`, `0%` VAT, cơ chế hoàn kho 15 phút TTL và phân quyền hủy đơn.
+8. **[ADR-008: Tương thích Schema BOM 12 Bảng và Chuẩn Hóa Hợp Đồng API Monorepo](./adr/008-bom-schema-compatibility.md)** — Hợp nhất 12 model BOM, hợp đồng JSON `{ data }`, `0%` VAT, cơ chế hoàn kho 5 phút (300s) TTL và phân quyền hủy đơn.
 
 ---
 

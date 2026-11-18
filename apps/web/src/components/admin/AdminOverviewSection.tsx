@@ -48,7 +48,7 @@ export function AdminOverviewSection({
       <div className={`${styles.card} ${styles.cardHighlight}`}>
         <div className={styles.metricHeader}>
           <div>
-            <p className={styles.metricLabel}>Doanh thu hôm nay</p>
+            <p className={styles.metricLabel}>Doanh thu 7 ngày gần nhất</p>
             <h2 className={styles.metricValue}>{formatVnd(revenueToday)}</h2>
           </div>
           <span className={styles.growthPill}>{activeCount} đang xử lý</span>

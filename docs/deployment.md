@@ -52,8 +52,9 @@ Không commit bất kỳ file `.env` thật nào lên Git; toàn bộ biến loc
    - **Render** tự động build Docker image từ `apps/api/Dockerfile`, chạy `prisma migrate deploy` lên Supabase, kiểm tra `/health` và chuyển traffic sang bản mới (`Live`).
 
 ### 3.2 Quy trình CD Đóng gói GHCR (Tùy chọn qua `.github/workflows/cd.yml`)
-Repository cung cấp thêm workflow thủ công [`cd.yml`](../.github/workflows/cd.yml) (`workflow_dispatch`) với 3 chế độ `operation`:
-- `publish`: Chạy `ci.yml` + quét lịch sử git với `gitleaks/gitleaks-action@v3` + build và push Docker images (`brewlite-api`, `brewlite-web`) gắn tag `vX.Y.Z` lên GitHub Container Registry (`ghcr.io`).
+Repository cung cấp thêm workflow thủ công [`cd.yml`](../.github/workflows/cd.yml) (`workflow_dispatch`) với 4 chế độ `operation`:
+- `publish-api`: Chạy `ci.yml` + quét lịch sử git với `gitleaks/gitleaks-action@v3` + chỉ build và push Docker image `brewlite-api` lên GHCR (`ghcr.io`) để bootstrap lần đầu khi chưa có `vars.RENDER_API_URL`.
+- `publish`: Chạy `ci.yml` + quét lịch sử git với `gitleaks/gitleaks-action@v3` + build và push cả 2 Docker images (`brewlite-api`, `brewlite-web`) gắn tag `vX.Y.Z` lên GitHub Container Registry (`ghcr.io`).
 - `deploy`: Thực hiện `publish` và gọi `scripts/render-deploy.sh` kèm `scripts/smoke-test.sh` để xác minh bản image đã `live`.
 - `rollback`: Redeploy lại một image tag `vX.Y.Z` trước đó từ GHCR qua `scripts/render-deploy.sh` và xác minh bằng `scripts/smoke-test.sh`.
 

@@ -13,7 +13,7 @@
 > 4. **Vũ Châu Minh Khôi**
 > 5. **Quách Kỳ Minh**
 > 6. **Nguyễn Thị Ý**  
-> **Phiên bản:** v4.5 (Đồng bộ 100% mã nguồn Monorepo `apps/api`, `apps/web`, 46 Test Suites / 531 Unit+Int Tests + 2 E2E Tests, OpenAPI)  
+> **Phiên bản:** v4.7 (Đồng bộ 100% mã nguồn Monorepo `apps/api`, `apps/web`, 48 Test Suites / 554 Unit+Int Tests [28 API Jest suites / 414 tests + 20 Web Vitest files / 140 tests] + 2 E2E Tests, OpenAPI)  
 > **Trạng thái:** Chính thức (Approved & Audited)
 
 ---
@@ -30,6 +30,7 @@
 | **v4.4** | 12/11/2026 | Mã Gia Vỹ & Nhóm | Đồng bộ hóa Wave 1+2 Monorepo (`apps/api`, `apps/web`): cập nhật đường dẫn `/staff`, endpoint voucher/pricing, `state-machine.helper.ts` và liên kết `docs/api/openapi.yaml`. |
 | **v4.5** | 15/11/2026 | Nhóm BrewLite | Kiểm toán (Audit) đồng bộ 100% với mã nguồn thực tế: hiệu chỉnh route `/products/[id]`, ngưỡng Cart (`20`/`50`), đường/đá/topping, JWT `{ sub, email, role, tokenVersion }`, chính sách hủy `PAID` (`STAFF`/`ADMIN`), máy trạng thái `ALLOWED_TRANSITIONS`, bảng voucher/điểm thực tế (`DiscountCode`/`VOUCHER_CATALOG`), `GET /health` và số liệu test log (`27` Jest + `19` Vitest + `2` Playwright E2E). |
 | **v4.6** | 15/11/2026 | Nhóm BrewLite | Đồng bộ PR #49 (`e80b843`) & Admin UI hiện hành: tích điểm Hạt Vàng chuyển sang trạng thái `COMPLETED` (không cộng/thu hồi tại `PAID`), `DELETE /orders/:id` chỉ cho chủ đơn/`ADMIN` (`STAFF` nhận `403`, vẫn hủy `PAID` qua `PATCH /orders/:id/status`), `POST /orders` bắt buộc sản phẩm/size có `Recipe` (`requireRecipeForEachItem`) & Admin UI hỗ trợ nhiều dòng nguyên liệu theo size (`ALL`/`S`/`M`/`L`), chuẩn hóa `DiscountCode` 1 đơn/user & lọc mã `isActive: false`, `PATCH /auth/profile` cấp `accessToken` mới khi đổi mật khẩu, `normalizeIdempotencyKey`, `@NoUnsafeHtml()`/`@Matches(/\S/)` và cứng hóa ZaloPay. |
+| **v4.7** | 17/11/2026 | Nhóm BrewLite | Đồng bộ TTL hết hạn đơn thống nhất **5 phút (300 giây)** (giữ nguyên 0% VAT); chuẩn hóa Order State Machine (`PAYMENT_FAILED -> PENDING \| CANCELLED`, bỏ nhánh tắt `PAID`, ghi chú đơn `0đ` đi thẳng `PAID` và nút Hủy trên `/gateway/zalopay` + `/checkout` gọi `PATCH /orders/:id/status`); mở rộng bảng Use Case (`UC-09a`/`UC-09b`, `UC-18..UC-23`); làm rõ UI thanh tiến trình 3 bước chính trên vòng đời 5 bước / 7 trạng thái; cập nhật số liệu kiểm thử thực tế đạt **100% PASS (0 skip, 0 fail)**: **48/48 Unit+Int Suites / 554/554 Tests** (`28/28` API Jest suites / `414/414` tests gồm PostgreSQL thật + `20/20` Web Vitest files / `140/140` tests) + **2/2 Playwright E2E tests**. |
 
 ---
 
@@ -55,7 +56,7 @@ Hệ thống quản lý định danh người dùng qua cơ chế **Stateless JW
 | :--- | :--- | :--- |
 | **MUST HAVE**<br>*(Bắt buộc cốt lõi)* | Các chức năng sống còn bắt buộc phải hoàn thành 100% để tạo thành sản phẩm khả dụng tối thiểu (MVP). | `FR-01` (Duyệt Menu), `FR-02` (Cá nhân hóa món), `FR-03` (Giỏ hàng), `FR-04` (Xác thực JWT/RBAC), `FR-05` (Đặt đơn & Optimistic Lock), `FR-06` (Thanh toán ZaloPay/Mock & Idempotency), `FR-07` (Voucher & Loyalty Point), `FR-08` (Theo dõi đơn thời gian thực) |
 | **SHOULD HAVE**<br>*(Nên có / Quan trọng)* | Các chức năng mở rộng gia tăng trải nghiệm người dùng và tối ưu vận hành đã được hiện thực hoàn chỉnh 100% trong dự án. | `FR-09` (Staff KDS Pha chế quầy Bar), `FR-10` (Admin Menu, Kho & Định mức BOM Recipe), `FR-13` (Hủy Đơn Hàng & Hoàn Tồn Kho — tương ứng `UC-11`) |
-| **COULD HAVE**<br>*(Có thể làm thêm)* | Các tính năng nâng cao hữu ích hỗ trợ tự động hóa hệ thống và nâng cao trải nghiệm tra cứu món. | `FR-11` (Scheduled Job tự động hủy đơn PENDING quá hạn sau 15 phút), `FR-12` (Tìm kiếm & Bộ lọc thực đơn nâng cao theo danh mục) |
+| **COULD HAVE**<br>*(Có thể làm thêm)* | Các tính năng nâng cao hữu ích hỗ trợ tự động hóa hệ thống và nâng cao trải nghiệm tra cứu món. | `FR-11` (Scheduled Job tự động hủy đơn PENDING quá hạn sau 5 phút (300 giây)), `FR-12` (Tìm kiếm & Bộ lọc thực đơn nâng cao theo danh mục) |
 | **WON'T HAVE**<br>*(Chưa làm đợt này)* | Các phạm vi ngoại biên không thuộc khuôn khổ bài tập lớn Assignment 2. | Đấu nối cổng thanh toán ngân hàng thật có hợp đồng merchant pháp nhân, tích hợp thông báo đẩy native FCM di động, giao hàng tận nơi (Delivery). |
 
 ---
@@ -72,7 +73,7 @@ Hệ thống quản lý định danh người dùng qua cơ chế **Stateless JW
 
 ### 3.2 Bảng phân rã Use-Case & Ánh xạ Tác nhân (Traceability Matrix)
 
-Sơ đồ Use Case tổng quát tuân thủ quy chuẩn quốc tế UML 2.5 với **4 Tác nhân (Actors)** và **17 Use Cases** được phân chia rạch ròi theo phân hệ:
+Sơ đồ Use Case tổng quát (`docs/diagrams/use-case.svg`) mô tả 17 nhóm Use Case cốt lõi; bảng phân rã dưới đây mở rộng và đồng bộ đầy đủ **4 Tác nhân (Actors)** cùng **24 Use Cases** (`UC-01`..`UC-23`, tách `UC-09a`/`UC-09b`) khớp 100% các phân hệ đã triển khai trong `apps/api` và `apps/web`:
 
 | Mã Use-Case | Tên Use-Case | Tác nhân chính (Actor) | Quan hệ phụ thuộc (Relationships) | Mã FR tương ứng |
 | :---: | :--- | :--- | :--- | :---: |
@@ -82,17 +83,24 @@ Sơ đồ Use Case tổng quát tuân thủ quy chuẩn quốc tế UML 2.5 vớ
 | **UC-04** | Đăng ký tài khoản | Khách hàng | Liên kết trực tiếp | `FR-04` |
 | **UC-05** | Đăng nhập hệ thống | Khách hàng, Nhân viên, Admin | `<<include>>` Xác thực phân quyền (RBAC) | `FR-04` |
 | **UC-06** | Xác thực phân quyền (RBAC) | Hệ thống | Được `<<include>>` bởi UC-05 | `FR-04` |
-| **UC-07** | Đặt hàng & Thanh toán | Khách hàng | `<<include>>` Xử lý thanh toán, Tích lũy điểm | `FR-05`, `FR-06` |
+| **UC-07** | Đặt hàng & Thanh toán | Khách hàng | `<<include>>` Xử lý thanh toán, Tích lũy điểm (`UC-09a`) | `FR-05`, `FR-06` |
 | **UC-08** | Áp dụng mã giảm giá (Voucher) | Khách hàng | `<<extend>>` Đặt hàng & Thanh toán | `FR-07` |
-| **UC-09** | Tích lũy & dùng điểm thưởng | Khách hàng | Được `<<include>>` bởi Đặt hàng & Thanh toán | `FR-07` |
+| **UC-09a** | Tích lũy điểm thưởng Hạt Vàng | Hệ thống, Khách hàng | Kích hoạt khi đơn đạt `COMPLETED` (`PATCH /orders/:id/status`) | `FR-07`, `FR-09` |
+| **UC-09b** | Đổi điểm thưởng Hạt Vàng lấy Voucher | Khách hàng | Liên kết trực tiếp (`POST /auth/redeem-points`, server-enforced `VOUCHER_CATALOG`) | `FR-07` |
 | **UC-10** | Xử lý thanh toán trực tuyến | Cổng thanh toán (ZaloPay/Mock) | Được `<<include>>` bởi Đặt hàng & Thanh toán | `FR-06` |
 | **UC-11** | Hủy đơn hàng | Khách hàng, Nhân viên (Staff/Admin) | Liên kết trực tiếp (Khách hủy `PENDING`/`PAYMENT_FAILED`; Staff/Admin hủy `PAID` trước `PREPARING`) | `FR-13` |
 | **UC-12** | Theo dõi tiến độ đơn thời gian thực | Khách hàng | Liên kết trực tiếp | `FR-08` |
 | **UC-13** | Xem lịch sử đơn hàng | Khách hàng | Liên kết trực tiếp | `FR-08` |
 | **UC-14** | Tiếp nhận đơn hàng quầy pha chế (KDS) | Nhân viên (Barista) | Liên kết trực tiếp | `FR-09` |
-| **UC-15** | Cập nhật trạng thái pha chế | Nhân viên (Barista) | Liên kết trực tiếp (PREPARING $\rightarrow$ READY) | `FR-09` |
+| **UC-15** | Cập nhật trạng thái pha chế | Nhân viên (Barista) | Liên kết trực tiếp (`PAID` $\rightarrow$ `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`) | `FR-09` |
 | **UC-16** | Quản trị thực đơn & Kho BOM Recipe | Quản trị viên (Admin) | Liên kết trực tiếp | `FR-10` |
 | **UC-17** | Xem báo cáo thống kê & doanh thu | Quản trị viên (Admin) | Liên kết trực tiếp | `FR-10` |
+| **UC-18** | Quản lý hồ sơ cá nhân & Đổi mật khẩu | Khách hàng, Nhân viên, Admin | Liên kết trực tiếp (`/account`, `/profile`, `GET /auth/me`, `PATCH /auth/profile` tăng `tokenVersion`) | `FR-04` |
+| **UC-19** | Quản lý tài khoản nhân viên (`Staff`) | Quản trị viên (Admin) | Liên kết trực tiếp (`/admin`, `GET/POST/PATCH/DELETE /staff/*`, bảo vệ Root Admin) | `FR-10`, `FR-04` |
+| **UC-20** | Quản lý tài khoản khách hàng (`Customer`) | Quản trị viên (Admin) | Liên kết trực tiếp (`/admin`, `GET/POST/PATCH/DELETE /admin/customers/*`) | `FR-10`, `FR-04` |
+| **UC-21** | Quản lý Voucher & Cấu hình giá Size | Quản trị viên (Admin) | Liên kết trực tiếp (`/admin`, `/inventory/vouchers/*`, `PATCH /inventory/size-pricing`) | `FR-07`, `FR-10` |
+| **UC-22** | Báo hết món tạm thời (`86 Out-of-Stock`) | Nhân viên (Barista), Quản trị viên (Admin) | Liên kết trực tiếp (`PATCH /products/:id/sold-out`, ẩn `recipes`/COGS với `STAFF`) | `FR-09`, `FR-10` |
+| **UC-23** | Xem tất cả đơn hàng toàn hệ thống | Quản trị viên (Admin) | Liên kết trực tiếp (`/admin`, `GET /orders`) | `FR-10` |
 
 ---
 
@@ -186,7 +194,7 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
   - [x] **AC-05.1:** Đơn hàng tạo thành công có trạng thái `PENDING` (hoặc `PAID` nếu tổng tiền `0đ`) và tổng tiền khớp 100% với giá trị tính tại server (0% VAT).
   - [x] **AC-05.2:** Nếu sản phẩm/size chưa có công thức pha chế (`Recipe`) hoặc nguyên liệu bắt buộc (`isRequiredForSale = true`) không đủ pha chế, API trả `400 Bad Request` (`BadRequestException`), không tạo đơn rác.
   - [x] **AC-05.3:** Nếu có 2 tiến trình đồng thời tranh chấp tồn kho cuối cùng hoặc thay đổi trạng thái cùng một đơn hàng, hệ thống đảm bảo Zero Overselling (trả `409 Conflict` khi đụng độ `version` vượt ngưỡng retry hoặc `400 Bad Request` nếu giao dịch sau thấy tồn kho đã về `0`).
-  - [x] **AC-05.4:** Đơn hàng ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` quá **15 phút** mà chưa thanh toán sẽ bị từ chối xử lý khi gửi lệnh thanh toán và tự động hủy bởi `ExpireOrdersJob` (`@Cron('*/1 * * * *')`).
+  - [x] **AC-05.4:** Đơn hàng ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` quá **5 phút (300 giây)** mà chưa thanh toán sẽ bị từ chối xử lý khi gửi lệnh thanh toán và tự động hủy bởi `ExpireOrdersJob` (`@Cron('*/1 * * * *')`).
   - [x] **AC-05.5:** Giới hạn chống spam đơn: Khách hàng có $\ge 5$ đơn chờ xử lý (`PENDING` hoặc `PAYMENT_FAILED`) bị từ chối tạo thêm đơn mới (`400 Bad Request`) cho đến khi hoàn tất thanh toán hoặc hủy đơn cũ. Trùng `Idempotency-Key` khác payload trả `409 Conflict`.
 
 ---
@@ -204,7 +212,7 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
   - [x] **AC-06.1:** Màn hình `/checkout` hỗ trợ khởi tạo giao dịch ZaloPay Sandbox (`/gateway/zalopay`), VietQR MB Bank, Thẻ/Apple Pay (`POST /payments`) và xử lý đơn `0đ` trực tiếp.
   - [x] **AC-06.2:** Gửi lại cùng `Idempotency-Key` trả về ngay kết quả giao dịch cũ với cờ `isIdempotent: true`, không tạo bản ghi `Payment` mới hoặc cộng điểm trùng lặp.
   - [x] **AC-06.3:** Khi thanh toán thành công (`PAID`), giỏ hàng được dọn sạch và người dùng được điều hướng sang `/orders/:id` (hoặc `/orders/:id/confirmation`), đồng bộ trạng thái qua polling 4–5s.
-  - [x] **AC-06.4:** Khi kích hoạt kịch bản lỗi (`MOCK_PAYMENT_MODE=failure` hoặc `simulateFailure = true`), đơn hàng chuyển sang `PAYMENT_FAILED` (hoặc giao diện `/checkout` báo lỗi `payment-error` và bảo toàn giỏ hàng), cho phép khách thử lại trong 15 phút.
+  - [x] **AC-06.4:** Khi kích hoạt kịch bản lỗi (`MOCK_PAYMENT_MODE=failure` hoặc `simulateFailure = true`), đơn hàng chuyển sang `PAYMENT_FAILED` (hoặc giao diện `/checkout` báo lỗi `payment-error` và bảo toàn giỏ hàng), cho phép khách thử lại trong **5 phút (300 giây)**.
   - [x] **AC-06.5:** Phòng chống tấn công IDOR & Kiểm tra quyền sở hữu đơn hàng (Order Ownership): Chỉ chủ sở hữu đơn hàng (`CUSTOMER`) mới được thanh toán; tài khoản khác (kể cả `STAFF`/`ADMIN` cố thanh toán hộ đơn khách) bị từ chối với `403 Forbidden`.
   - [x] **AC-06.6:** Bảo mật môi trường Sandbox & Mock (Fail-Closed): Endpoint `/payments/zalopay/confirm` và `/payments/zalopay/cancel` mặc định trả `403 Forbidden` nếu `ALLOW_SANDBOX_CONFIRM !== 'true'`; `POST /payments` trả `403 Forbidden` khi `NODE_ENV=production && ALLOW_MOCK_PAYMENT==='false'`.
 
@@ -231,7 +239,7 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
 * **Tác nhân:** Khách hàng
 * **Mô tả chi tiết:**
   * Cung cấp trang xem lịch sử đơn hàng cá nhân tại `/orders` (`GET /orders/me`), chi tiết theo dõi đơn `/orders/[id]` (`GET /orders/:id`) và trang xác nhận `/orders/[id]/confirmation` (cùng alias `/order-confirmation`).
-  * Hiển thị thanh tiến trình trực quan 5 nấc: `PENDING` $\rightarrow$ `PAID` $\rightarrow$ `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`.
+  * Trên vòng đời **5 bước chính** (`PENDING` $\rightarrow$ `PAID` $\rightarrow$ `PREPARING` $\rightarrow$ `READY` $\rightarrow$ `COMPLETED`) / **7 trạng thái** `OrderStatus` (bổ sung `PAYMENT_FAILED`, `CANCELLED`), giao diện theo dõi đơn hiển thị **thanh tiến trình 3 bước chính** trực quan cho khách đã thanh toán (`1. Đã thanh toán` $\rightarrow$ `2. Đang pha chế` $\rightarrow$ `3. Sẵn sàng lấy`, đồng thời hiển thị trạng thái hoàn tất `COMPLETED` khi bàn giao và badge riêng cho `PENDING`/`CANCELLED`/`PAYMENT_FAILED`).
   * Cơ chế **Client-side Polling 4–5s**: Tự động gửi request kiểm tra trạng thái đơn hàng định kỳ (`5000ms` ở `/orders` và `/orders/[id]` qua `useOrderPolling`; `4000ms` ở `/orders/[id]/confirmation`), cập nhật giao diện ngay khi Barista đổi trạng thái mà không cần tải lại trang.
 * **Tiêu chí chấp nhận (Acceptance Criteria):**
   - [x] **AC-08.1:** Trang `/orders` hiển thị danh sách đơn sắp xếp giảm dần theo thời gian tạo (mới nhất lên đầu).
@@ -278,10 +286,10 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
 * **Độ ưu tiên:** `COULD HAVE`
 * **Tác nhân:** Hệ thống (Background Worker / Cron Task)
 * **Mô tả chi tiết:**
-  * Tiến trình `ExpireOrdersJob` (`@Cron('*/1 * * * *')`) chạy định kỳ mỗi phút tự động quét các đơn hàng ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` đã tồn tại quá **15 phút** mà chưa hoàn tất thanh toán.
+  * Tiến trình `ExpireOrdersJob` (`@Cron('*/1 * * * *')`) chạy định kỳ mỗi phút tự động quét các đơn hàng ở trạng thái `PENDING` hoặc `PAYMENT_FAILED` đã tồn tại quá **5 phút (300 giây)** mà chưa hoàn tất thanh toán.
   * Tự động chuyển trạng thái đơn hàng sang `CANCELLED`, hoàn trả nguyên liệu BOM đã giữ chỗ vào bảng `Ingredient` (ghi `InventoryLog`) và hoàn trả `UserVoucher` (nếu đã khấu trừ).
 * **Tiêu chí chấp nhận (Acceptance Criteria):**
-  - [x] **AC-11.1:** Các đơn hàng `PENDING` và `PAYMENT_FAILED` quá 15 phút tự động chuyển sang trạng thái `CANCELLED`.
+  - [x] **AC-11.1:** Các đơn hàng `PENDING` và `PAYMENT_FAILED` quá **5 phút (300 giây)** tự động chuyển sang trạng thái `CANCELLED`.
   - [x] **AC-11.2:** Các nguyên liệu định mức tương ứng trong kho `Ingredient` và `UserVoucher` (nếu có) được hoàn trả chính xác trong cùng một transaction.
 
 ---
@@ -327,21 +335,21 @@ Mỗi yêu cầu chức năng được chuẩn hóa mã định danh `FR-xx`, đ
 
 ## 6. TIÊU CHÍ CHẤP NHẬN & MA TRẬN KIỂM CHỨNG TỰ ĐỘNG
 
-Dự án áp dụng phương pháp kiểm thử tự động đa tầng trên hai package `apps/api` (Jest), `apps/web` (Vitest) và `tests/e2e` (Playwright), ghi nhận qua log kiểm thử thực tế đạt **100%** với **46 Test Suites / Files** (**531 test cases** = 400 API Jest tests + 131 Web Vitest tests) cùng **2 Playwright E2E tests**:
+Dự án áp dụng phương pháp kiểm thử tự động đa tầng trên hai package `apps/api` (Jest kèm PostgreSQL thật), `apps/web` (Vitest) và `tests/e2e` (Playwright trên Docker Compose), ghi nhận qua log kiểm thử thực tế đạt **100% PASS (0 failed, 0 skipped)** với **48 Test Suites / Files** (**554/554 Unit+Int test cases** = 414/414 API Jest tests + 140/140 Web Vitest tests) cùng **2/2 Playwright E2E tests**:
 
 | Nhóm | Mã Yêu Cầu | Phạm Vi Kiểm Tra | File Kiểm Thử Tự Động | Kết Quả Ghi Nhận Thực Tế |
 | :---: | :--- | :--- | :--- | :--- |
 | **API 1** | `FR-04`, `NFR-02` | Xác thực JWT, RBAC, hồ sơ & đổi Hạt Vàng | `auth-api.spec.ts`, `auth-profile.spec.ts`, `auth.service.spec.ts`, `jwt-secret.spec.ts` | Đã pass trong `apps/api` Jest run |
 | **API 2** | `FR-01`, `FR-02` | Menu thực đơn, tùy chọn BOM & `outOfStockSizes` | `products.controller.spec.ts` | Đã pass trong `apps/api` Jest run |
-| **API 3** | `FR-05`, `FR-11`, `FR-13`, `NFR-03` | Tạo đơn, giữ/hoàn kho BOM, hủy đơn, auto-expire 15p | `API-T04..T09.spec.ts`, `orders.controller.spec.ts`, `orders.service.spec.ts`, `expire-orders.job.spec.ts` | Đã pass trong `apps/api` Jest run |
+| **API 3** | `FR-05`, `FR-11`, `FR-13`, `NFR-03` | Tạo đơn, giữ/hoàn kho BOM, hủy đơn, auto-expire 5p (300s) | `API-T04..T09.spec.ts`, `orders.controller.spec.ts`, `orders.service.spec.ts`, `expire-orders.job.spec.ts` | Đã pass trong `apps/api` Jest run |
 | **API 4** | `FR-06`, `FR-07`, `NFR-06` | MockGateway, Idempotency-Key & ZaloPay HMAC-SHA256 | `payments.controller.spec.ts`, `payments.service.spec.ts`, `zalopay.service.spec.ts` | Đã pass trong `apps/api` Jest run |
-| **API 5** | `FR-09`, `FR-10`, `NFR-05` | Kho BOM, bao bì, nhân sự, khách hàng, env, health & audit | `inventory.service.spec.ts`, `inventory-packaging.spec.ts`, `users.service.spec.ts`, `customers.{controller,service}.spec.ts`, `health.controller.spec.ts`, `env.validation.spec.ts`, `audit-fixes.spec.ts` | Đã pass trong `apps/api` Jest run |
-| **API INT** | `FR-04..FR-10`, `NFR-02..NFR-06` | Integration test PostgreSQL thật: đồng thời, voucher, RBAC, KDS | `orders-payments.int.spec.ts`, `security-concurrency.int.spec.ts` | Đã pass trong `apps/api` Jest run |
+| **API 5** | `FR-09`, `FR-10`, `NFR-05` | Kho BOM, bao bì, nhân sự, khách hàng, env, CORS, health & audit | `inventory.service.spec.ts`, `inventory-packaging.spec.ts`, `users.service.spec.ts`, `customers.{controller,service}.spec.ts`, `health.controller.spec.ts`, `env.validation.spec.ts`, `cors-origin.helper.spec.ts`, `audit-fixes.spec.ts` | Đã pass trong `apps/api` Jest run |
+| **API INT** | `FR-04..FR-10`, `NFR-02..NFR-06` | Integration test PostgreSQL thật: đồng thời, voucher, RBAC, KDS | `orders-payments.int.spec.ts`, `security-concurrency.int.spec.ts` | Đã pass 15/15 (`TEST_DATABASE_URL` PostgreSQL) |
 | **WEB 1** | `FR-01..FR-04`, `FR-12`, `NFR-02` | Menu, chi tiết món, giỏ hàng Zustand, Auth UI & Edge Middleware | `menu.test.tsx`, `product-detail.test.tsx`, `cart-ui.test.tsx`, `cart-store.test.ts`, `auth-ui.test.tsx`, `format.test.ts`, `middleware.test.ts` | Đã pass (`apps/web` Vitest run) |
-| **WEB 2** | `FR-05..FR-08`, `NFR-04` | Checkout, theo dõi đơn, xác nhận, ưu đãi & tài khoản | `checkout.test.tsx`, `orders.test.tsx`, `confirmation.test.tsx`, `promotions.test.tsx`, `account.test.tsx`, `use-order-polling.test.ts`, `api-client.test.ts` | Đã pass (`apps/web` Vitest run) |
+| **WEB 2** | `FR-05..FR-08`, `NFR-04` | Checkout, ZaloPay Gateway, theo dõi đơn, xác nhận, ưu đãi & tài khoản | `checkout.test.tsx`, `zalopay.test.tsx`, `orders.test.tsx`, `confirmation.test.tsx`, `promotions.test.tsx`, `account.test.tsx`, `use-order-polling.test.ts`, `api-client.test.ts` | Đã pass (`apps/web` Vitest run) |
 | **WEB 3** | `FR-09`, `FR-10` | Màn hình pha chế Staff KDS & cổng quản trị Admin | `staff/page.test.tsx`, `components/staff/staff.test.tsx`, `use-barista-queue.test.ts`, `staff-orders.test.ts`, `admin/page.test.tsx` | Đã pass (`apps/web` Vitest run) |
 | **E2E** | `FR-05`, `FR-06` | Luồng đặt đơn -> thanh toán Ví thành công & lỗi `MOCK_PAYMENT_MODE=failure` | `tests/e2e/checkout.spec.ts` (`E2E-T01`, `E2E-T02`) | Đã pass (2/2 Playwright Chromium run) |
-| **Σ** | **TỔNG CỘNG** | **API (27 Jest suites) + Web (19 Vitest files) + Playwright (1 spec)** | **46 Unit/Int Suites + E2E** | **531 Unit/Int Tests (400 API + 131 Web) + 2 E2E Passed** |
+| **Σ** | **TỔNG CỘNG** | **API (28 Jest suites) + Web (20 Vitest files) + Playwright (1 spec)** | **48 Unit/Int Suites + E2E** | **554/554 Unit/Int Tests (414 API + 140 Web) + 2/2 E2E Passed** |
 
 ---
 
@@ -350,53 +358,55 @@ Dự án áp dụng phương pháp kiểm thử tự động đa tầng trên ha
 Vòng đời đơn hàng trong hệ thống tuân thủ nghiêm ngặt theo đồ thị chuyển trạng thái hữu hạn (khớp 100% với `apps/api/src/payments/state-machine.helper.ts`):
 
 ```
-                   ┌──────────────┐
-                   │   PENDING    │ (Đơn mới tạo, giữ chỗ tồn kho)
-                   └──────┬───────┘
-                          │
-         ┌────────────────┼────────────────┐
-         │ (Thanh toán    │ (Lỗi thẻ /     │ (Timeout 15p /
-         │  thành công)   │  Thất bại)     │  Khách hủy)
-         ▼                ▼                ▼
-  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-  │     PAID     │ │PAYMENT_FAILED│ │  CANCELLED   │◄────────┐
-  └──────┬───────┘ └──────┬───────┘ └──────────────┘         │
-         │                │                                  │
-         │                ├── Thử lại (ZaloPay -> PENDING)   │
-         │                │   hoặc Mock -> PAID              │
-         │                └─────── Khách bấm Hủy đơn ────────┤
-         │                                                   │
-         ├─────── Staff/Admin hủy (trước PREPARING) ─────────┘
-         │
-  Barista bấm tiếp nhận (KDS)
-         │
-         ▼
-  ┌──────────────┐
-  │  PREPARING   │ (Đang pha chế tại quầy bar)
-  └──────┬───────┘
-         │
-  Hoàn tất ly nước
-         │
-         ▼
-  ┌──────────────┐
-  │    READY     │ (Sẵn sàng tại quầy Bar Express)
-  └──────┬───────┘
-         │
-  Khách nhận đồ uống
-         │
-         ▼
-  ┌──────────────┐
-  │  COMPLETED   │ (Giao dịch hoàn tất)
-  └──────────────┘
+                   ┌──────────────┐  (Thử lại thanh toán: PAYMENT_FAILED -> PENDING)
+            ┌─────►│   PENDING    │◄───────────────────────────┐
+            │      └──────┬───────┘                            │
+            │             │                                    │
+            │    ┌────────┼────────┬────────────────┐          │
+            │    │(Đơn 0đ │(Thanh  │(Lỗi / Thất bại)│(Timeout  │
+            │    │ đi     │ toán   │                │ 5p /     │
+            │    │ thẳng) │ OK)    ▼                │ Khách    │
+            │    │        │ ┌──────────────┐        │ hủy)     │
+            │    │        │ │PAYMENT_FAILED├────────┘          │
+            │    │        │ └──────┬───────┘                   │
+            │    │        │        │ (Khách hủy /              │
+            │    ▼        ▼        │  Timeout 5p)              │
+            │  ┌──────────────┐    ▼                           │
+            │  │     PAID     │  ┌──────────────┐              │
+            │  └──────┬───────┘  │  CANCELLED   │◄─────────────┘
+            │         │          └──────────────┘
+            │         ├─────── Staff/Admin hủy (trước PREPARING) ───────┘
+            │         │
+            │  Barista bấm tiếp nhận (KDS)
+            │         │
+            │         ▼
+            │  ┌──────────────┐
+            │  │  PREPARING   │ (Đang pha chế tại quầy bar)
+            │  └──────┬───────┘
+            │         │
+            │  Hoàn tất ly nước
+            │         │
+            │         ▼
+            │  ┌──────────────┐
+            │  │    READY     │ (Sẵn sàng tại quầy Bar Express)
+            │  └──────┬───────┘
+            │         │
+            │  Khách nhận đồ uống
+            │         │
+            │         ▼
+            │  ┌──────────────┐
+            │  │  COMPLETED   │ (Giao dịch hoàn tất, +Hạt Vàng)
+            │  └──────────────┘
 ```
 
-* **Quy tắc chuyển trạng thái hợp lệ (`ALLOWED_TRANSITIONS`):**
-  1. `PENDING` $\rightarrow$ `PAID` | `PAYMENT_FAILED` | `CANCELLED`
-  2. `PAYMENT_FAILED` $\rightarrow$ `PAID` *(retry Mock thành công)* | `PENDING` *(khởi tạo lại cổng ZaloPay)* | `CANCELLED` *(khách hủy hoặc `ExpireOrdersJob` quá 15 phút)*
+* **Quy tắc chuyển trạng thái hợp lệ (`ALLOWED_TRANSITIONS` — khớp 100% sơ đồ giảng viên):**
+  1. `PENDING` $\rightarrow$ `PAID` | `PAYMENT_FAILED` | `CANCELLED` *(Lưu ý: đơn có `totalAmount === 0đ` sau khi áp voucher sẽ đi thẳng sang `PAID` ngay tại `POST /orders`, không qua `PENDING`)*
+  2. `PAYMENT_FAILED` $\rightarrow$ `PENDING` *(khởi tạo lại thanh toán qua ZaloPay/Mock, bỏ nhánh tắt sang `PAID`)* | `CANCELLED` *(khách hủy hoặc `ExpireOrdersJob` quá 5 phút (300 giây))*
   3. `PAID` $\rightarrow$ `PREPARING` | `CANCELLED` *(chỉ `STAFF`/`ADMIN` được phép hủy trước khi pha chế)*
   4. `PREPARING` $\rightarrow$ `READY`
   5. `READY` $\rightarrow$ `COMPLETED`
   6. `COMPLETED` & `CANCELLED`: Trạng thái kết thúc (Terminal State), không được phép chuyển tiếp sang bất kỳ trạng thái nào khác.
+  7. **Cơ chế hủy đơn từ UI Thanh toán:** Nút **Hủy đơn** trên cả hai màn hình `/gateway/zalopay` lẫn `/checkout` đều gọi `PATCH /orders/:id/status` với payload `{ status: 'CANCELLED' }` (chuyển trực tiếp `PENDING` $\rightarrow$ `CANCELLED` và hoàn 100% kho BOM + voucher).
 
 ---
 
@@ -406,7 +416,7 @@ Tài liệu đặc tả yêu cầu rút gọn này đã thỏa mãn **100% các 
 * Đầy đủ danh sách thành viên nhóm và thông tin đơn vị đào tạo trường Đại học Sài Gòn (SGU).
 * Mã định danh chuẩn hóa: `FR-01` $\rightarrow$ `FR-13`, `NFR-01` $\rightarrow$ `NFR-06`.
 * Phân loại mức độ ưu tiên theo chuẩn MoSCoW khoa học và rõ ràng.
-* Hợp nhất toàn diện các tiêu chí chấp nhận (AC) chi tiết cho từng yêu cầu, đo lường được và liên kết với **531 bài unit/integration tests** trên **46 test suites/files** (27 API Jest suites + 19 Web Vitest files) cùng **2 Playwright E2E tests**.
+* Hợp nhất toàn diện các tiêu chí chấp nhận (AC) chi tiết cho từng yêu cầu, đo lường được và liên kết với **554 bài unit/integration tests đã pass 100%** trên **48 test suites/files** (28/28 API Jest suites / 414/414 tests + 20/20 Web Vitest files / 140/140 tests) cùng **2/2 Playwright E2E tests**.
 * Đồng bộ 100% với kiến trúc mã nguồn thực tế (BOM Recipe & Packaging, Dual-layer Optimistic Locking, Role-Based Access Control, Stateless JWT 7 ngày với `tokenVersion`, Cổng ZaloPay Sandbox & Mock).
 * Nhúng sẵn ảnh vector sơ đồ Use-Case tổng quát (`use-case.svg`), PNG (`use-case.png`) và mã nguồn PlantUML (`use-case.puml`).
 

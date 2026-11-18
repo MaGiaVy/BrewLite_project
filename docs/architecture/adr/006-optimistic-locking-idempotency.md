@@ -15,9 +15,9 @@ Trong hệ thống bán cà phê trực tuyến, hai vấn đề kỹ thuật ng
 ## 2. Quyết định (Decision)
 Nhóm quyết định triển khai giải pháp kết hợp hai cơ chế kỹ thuật:
 1. **Khóa Lạc Quan (Optimistic Locking):**
-   * Bổ sung trường `version Int @default(0)` vào thực thể quản lý tồn kho và đơn hàng.
-   * Khi cập nhật tồn kho, thực hiện câu lệnh:
-     `UPDATE products SET stock = stock - :qty, version = version + 1 WHERE id = :id AND version = :version AND stock >= :qty`
+   * Bổ sung trường `version Int @default(0)` vào bảng kho nguyên vật liệu (`Ingredient`) và đơn hàng (`Order`).
+   * Khi cập nhật tồn kho BOM trong `Ingredient`, thực hiện câu lệnh:
+     `UPDATE "Ingredient" SET stock = stock - :qty, version = version + 1 WHERE id = :id AND version = :version AND stock >= :qty`
    * Nếu số dòng bị ảnh hưởng là 0 (chứng tỏ phiên bản đã bị thay đổi bởi request khác), hệ thống tự động thử lại (retry) tối đa $3\text{ lần}$. Nếu vẫn thất bại, ném ngoại lệ HTTP `409 Conflict`.
 2. **Tính Bất Biến Yêu Cầu (Idempotency-Key):**
    * Phía client (Next.js) sinh chuỗi UUID ngẫu nhiên bằng `crypto.randomUUID()` khi bấm xác nhận thanh toán và gửi qua header `Idempotency-Key`.

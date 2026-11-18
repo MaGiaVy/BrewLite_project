@@ -41,12 +41,14 @@ rectangle "Hệ thống BrewLite (Web Next.js & NestJS API)" {
     usecase "UC-04: Đăng ký tài khoản" as UC04
     usecase "UC-05: Đăng nhập hệ thống" as UC05
     usecase "UC-06: Xác thực & Phân quyền (RBAC)" as UC06
+    usecase "UC-18: Xem & cập nhật hồ sơ / Đổi mật khẩu" as UC18
   }
 
   package "Đặt hàng, Thanh toán & Theo dõi" {
     usecase "UC-07: Đặt hàng & Giữ kho BOM" as UC07
     usecase "UC-08: Áp dụng mã giảm giá (Voucher)" as UC08
-    usecase "UC-09: Tích lũy & Đổi điểm thưởng" as UC09
+    usecase "UC-09a: Tích lũy Hạt Vàng (khi COMPLETED)" as UC09a
+    usecase "UC-09b: Đổi điểm lấy Voucher" as UC09b
     usecase "UC-10: Xử lý thanh toán trực tuyến" as UC10
     usecase "UC-11: Hủy đơn hàng & Hoàn kho" as UC11
     usecase "UC-12: Theo dõi tiến độ đơn hàng" as UC12
@@ -58,6 +60,11 @@ rectangle "Hệ thống BrewLite (Web Next.js & NestJS API)" {
     usecase "UC-15: Cập nhật trạng thái pha chế" as UC15
     usecase "UC-16: Quản trị thực đơn, Kho & BOM" as UC16
     usecase "UC-17: Xem báo cáo thống kê & Doanh thu" as UC17
+    usecase "UC-19: Quản lý tài khoản nhân viên (STAFF)" as UC19
+    usecase "UC-20: Quản lý danh sách khách hàng (CUSTOMER)" as UC20
+    usecase "UC-21: Quản lý Voucher, Topping & Cấu hình giá" as UC21
+    usecase "UC-22: Báo hết món (86) & Xem tồn kho/công thức" as UC22
+    usecase "UC-23: Xem tất cả đơn hàng (GET /orders)" as UC23
   }
 }
 
@@ -67,8 +74,10 @@ Customer --> UC02
 Customer --> UC03
 Customer --> UC04
 Customer --> UC05
+Customer --> UC18
 Customer --> UC07
-Customer --> UC09
+Customer --> UC09a
+Customer --> UC09b
 Customer --> UC10
 Customer --> UC11
 Customer --> UC12
@@ -76,15 +85,25 @@ Customer --> UC13
 
 ' Nhân viên quầy (Barista)
 Staff --> UC05
+Staff --> UC18
 Staff --> UC11
 Staff --> UC14
 Staff --> UC15
+Staff --> UC22
 
 ' Quản trị viên (Admin)
 Admin --> UC05
+Admin --> UC18
 Admin --> UC11
+Admin --> UC14
+Admin --> UC15
 Admin --> UC16
 Admin --> UC17
+Admin --> UC19
+Admin --> UC20
+Admin --> UC21
+Admin --> UC22
+Admin --> UC23
 
 ' Tác nhân ngoài
 UC10 -- Gateway
@@ -92,13 +111,13 @@ UC10 -- Gateway
 ' Quan hệ Include / Extend
 UC05 ..> UC06 : <<include>>
 UC08 ..> UC07 : <<extend>>
-UC07 ..> UC10 : <<include>>
-UC15 ..> UC09 : <<include>>
+UC15 ..> UC09a : <<include>>
 
 note bottom of UC11
-  - Chủ đơn / Admin: hủy hoặc xóa đơn PENDING / PAYMENT_FAILED
+  - Chủ đơn / Admin: hủy đơn PENDING / PAYMENT_FAILED qua PATCH /orders/:id/status
+    hoặc xóa đơn PENDING / PAYMENT_FAILED / CANCELLED qua DELETE /orders/:id
     (DELETE /orders/:id chặn STAFF với 403).
-  - Staff / Admin: hủy đơn PAID trước khi pha chế qua PATCH /status
+  - Staff / Admin: hủy đơn PAID trước khi pha chế qua PATCH /orders/:id/status
     (hoàn BOM & Voucher; điểm Hạt Vàng chỉ cộng khi COMPLETED).
   - Tạo món (/admin) bắt buộc >= 1 nguyên liệu (ALL/S/M/L);
     đặt hàng thiếu Recipe -> 400; đổi MK cấp tokenVersion + 1.

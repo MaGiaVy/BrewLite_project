@@ -124,4 +124,35 @@ describe('T4.3 Menu UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cà Phê Muối & Phin' }));
     expect(screen.getAllByTestId('product-card')).toHaveLength(1);
   });
+
+  it('quick-adds bakery product with size ALL', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: 8,
+              name: 'Bánh Pain au Chocolat',
+              basePrice: 39000,
+              imageUrl: null,
+              category: 'bakery',
+              stock: 5,
+              availableServings: 5,
+              isOutOfStock: false,
+            },
+          ],
+        }),
+      }),
+    );
+
+    render(<Menu />);
+    const addBtn = await screen.findByRole('button', { name: /Thêm Bánh Pain au Chocolat vào giỏ hàng/i });
+    fireEvent.click(addBtn);
+
+    const items = useCartStore.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0].size).toBe('ALL');
+  });
 });

@@ -40,10 +40,13 @@ export function ProductCard({
     e.stopPropagation();
     if (isSoldOut) return;
 
-    const preferredSize =
-      (['M', 'S', 'L'] as const).find(
-        (s) => !product.outOfStockSizes?.includes(s),
-      ) ?? 'M';
+    const isBakery =
+      String(product.category ?? '').trim().toLowerCase() === 'bakery';
+    const preferredSize = isBakery
+      ? 'ALL'
+      : (['M', 'S', 'L'] as const).find(
+          (s) => !product.outOfStockSizes?.includes(s),
+        ) ?? 'M';
 
     addItem({
       productId: product.id,
@@ -52,6 +55,7 @@ export function ProductCard({
       unitPrice: Number(product.price ?? product.basePrice ?? 0),
       quantity: 1,
       imageUrl: product.imageUrl ?? undefined,
+      ...(isBakery ? { isBakery: true } : {}),
     });
 
     setIsJustAdded(true);

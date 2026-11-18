@@ -28,7 +28,7 @@ node "Hạ Tầng CI/CD (GitHub Cloud)\n<<cloud>>" as ci_env {
 
     node "GitHub Actions Runner\n<<executionEnvironment: ubuntu-latest>>" as gh_runner {
         component "CI (.github/workflows/ci.yml)\n[PR -> main: lint, test, build]" as ci_pipeline
-        component "CD (.github/workflows/cd.yml)\n[publish-api | publish | deploy | rollback\nGitleaks v3 -> GHCR -> Deploy/Smoke]" as cd_pipeline
+        component "CD (.github/workflows/cd.yml)\n[workflow_dispatch (nhánh main): publish-api | publish | deploy | rollback\nGitleaks v3 -> GHCR -> vars.RENDER_* + Smoke]" as cd_pipeline
     }
 
     node "GitHub Container Registry (Optional)\n<<registry: ghcr.io>>" as ghcr_registry {
@@ -36,9 +36,10 @@ node "Hạ Tầng CI/CD (GitHub Cloud)\n<<cloud>>" as ci_env {
     }
 
     note bottom of ghcr_registry
-        Secrets & Bảo vệ mã nguồn:
+        Secrets & Vars (cd.yml chỉ chạy qua workflow_dispatch trên main):
         • Gitleaks v3 scan lịch sử git trong cd.yml
-        • GITHUB_TOKEN, RENDER_API_KEY, DEPLOY_HOOKS
+        • Secrets: GITHUB_TOKEN, RENDER_API_KEY, RENDER_API_DEPLOY_HOOK, RENDER_WEB_DEPLOY_HOOK
+        • Vars: vars.RENDER_API_URL, vars.RENDER_WEB_URL, vars.RENDER_API_SERVICE_ID, vars.RENDER_WEB_SERVICE_ID
     end note
 }
 
@@ -56,7 +57,6 @@ node "Môi Trường Production (HTTPS / TLS 1.3)" as prod_env {
         note bottom of vercel_env
             Vercel Env Vars:
             • NEXT_PUBLIC_API_URL=https://brewlite-api-9viv.onrender.com
-            • NEXT_PUBLIC_ENABLE_DEMO_TOOLS=false
         end note
     }
 
@@ -70,12 +70,12 @@ node "Môi Trường Production (HTTPS / TLS 1.3)" as prod_env {
             }
         }
         note bottom of prod_api_node
-            Health Check & Render Env Secrets:
+            Health Check & Render Env Vars:
             • GET /health -> {"status":"ok","db":"up"} | 503
-            • DATABASE_URL (Supabase SSL), JWT_SECRET, JWT_EXPIRES_IN
-            • CORS_ORIGIN (*.vercel.app), MOCK_PAYMENT_MODE
-            • ALLOW_MOCK_PAYMENT, ALLOW_SANDBOX_CONFIRM
-            • ZALOPAY_APP_ID / KEY1 / KEY2 / ENDPOINT / CALLBACK_URL
+            • Bắt buộc (env.validation.ts - 3 biến): DATABASE_URL, JWT_SECRET, MOCK_PAYMENT_MODE
+            • Tùy chọn / Mặc định: PORT (3001), NODE_ENV, JWT_EXPIRES_IN, CORS_ORIGIN, WEB_URL,
+              ALLOW_MOCK_PAYMENT, ALLOW_SANDBOX_CONFIRM, ZALOPAY_APP_ID / KEY1 / KEY2,
+              ZALOPAY_CREATE_ENDPOINT, ZALOPAY_QUERY_ENDPOINT, ZALOPAY_CALLBACK_URL, ZALOPAY_REDIRECT_URL
         end note
     }
 
@@ -102,17 +102,17 @@ node "Dịch Vụ Thanh Toán Bên Thứ Ba\n<<cloud>>" as ext_services {
 }
 
 node "Môi Trường Local (Developer Workstation)\n<<device: Windows / macOS / Linux>>" as local_env {
-    node "Docker Desktop (docker-compose.yml)\n<<executionEnvironment>>" as docker_local {
-        artifact "web (Node 20 Alpine)\nNext.js 15.1.6 Standalone\nPort: ${WEB_PORT:-3000}:3000" as local_web
-        artifact "api (Node 20 Alpine)\nNestJS 10.4 + Prisma 5.22\nPort: ${API_PORT:-3001}:3001" as local_api
+    node "Docker Desktop (docker-compose.yml - default bridge network)\n<<executionEnvironment>>" as docker_local {
+        artifact "web (Node 20 Alpine)\nNext.js 15.1.6 Standalone\nPort: ${WEB_PORT:-3000}:3000\n[API_INTERNAL_URL=http://api:3001]" as local_web
+        artifact "api (Node 20 Alpine)\nNestJS 10.4 + Prisma 5.22\nPort: ${API_PORT:-3001}:3001\n[PORT=3001, NODE_ENV=production, WEB_URL]" as local_api
         database "db: postgres:16-alpine\nPort: ${DB_PORT:-5432}:5432" as local_db {
             storage "brewlite_pgdata\n<<volume>>" as local_vol
         }
     }
     note bottom of local_env
         Cấu hình Local:
-        • File .env (từ .env.example, không commit)
-        • docker-entrypoint.sh: migrate deploy + seed
+        • Docker Compose dùng default bridge network (web -> http://api:3001, api -> db:5432)
+        • File .env (từ .env.example, không commit) + docker-entrypoint.sh: migrate deploy + seed
     end note
 }
 
@@ -131,7 +131,7 @@ render_edge --> prod_api_app : "Reverse Proxy (:3001)"
 prod_api_app --> prod_db_node : "3. PostgreSQL over TLS/SSL (:5432 / :6543)\nPrisma Pool (DATABASE_URL)"
 prod_api_app ..> zalopay_api : "4. HTTPS :443\n(HMAC-SHA256 Create/Status/Callback)"
 
-git_source --> gh_runner : "PR / workflow_dispatch"
+git_source --> gh_runner : "PR (ci.yml) / workflow_dispatch main (cd.yml)"
 git_source --> vercel_edge : "Push main -> Vercel Auto-Deploy"
 git_source --> render_edge : "Push main -> Render Auto-Deploy"
 gh_runner --> ghcr_registry : "Push Docker Images (cd.yml)"

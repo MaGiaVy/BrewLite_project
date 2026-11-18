@@ -141,9 +141,11 @@ export async function apiClient(
         : '/checkout');
 
     const loginUrl =
-      targetPath && !targetPath.startsWith('/login')
-        ? `/login?redirect=${encodeURIComponent(targetPath)}`
-        : '/login';
+      targetPath &&
+      !targetPath.startsWith('/login') &&
+      !targetPath.startsWith('/auth/login')
+        ? `/auth/login?redirect=${encodeURIComponent(targetPath)}`
+        : '/auth/login';
 
     if (onUnauthorizedRedirect) {
       onUnauthorizedRedirect(loginUrl);

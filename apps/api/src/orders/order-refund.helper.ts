@@ -255,7 +255,7 @@ export async function refundOrderResources(
 }
 
 /**
- * Hủy các đơn hàng PENDING / PAYMENT_FAILED quá hạn (mặc định 15 phút theo SRS v4.3 AC-05.4)
+ * Hủy các đơn hàng PENDING / PAYMENT_FAILED quá hạn (mặc định 5 phút)
  * bằng CAS và hoàn tài nguyên nguyên tử.
  */
 export async function expirePendingOrders(
@@ -267,7 +267,7 @@ export async function expirePendingOrders(
     return 0;
   }
 
-  const timeoutMinutes = scope?.timeoutMinutes ?? 15;
+  const timeoutMinutes = scope?.timeoutMinutes ?? 5;
   const EXPIRE_TIMEOUT_MS = timeoutMinutes * 60 * 1000;
   const expiryThreshold = new Date(Date.now() - EXPIRE_TIMEOUT_MS);
 

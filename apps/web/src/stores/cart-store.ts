@@ -6,7 +6,7 @@ export interface CartItem {
   id?: string;
   productId: string | number;
   name: string;
-  size: 'S' | 'M' | 'L';
+  size: 'S' | 'M' | 'L' | 'ALL';
   toppingIds: string[];
   toppingNames?: string[];
   quantity: number;
@@ -23,7 +23,7 @@ export interface CartItem {
 export interface AddItemInput {
   productId: string | number;
   name: string;
-  size: 'S' | 'M' | 'L';
+  size: 'S' | 'M' | 'L' | 'ALL';
   toppingIds?: string[];
   toppingNames?: string[];
   quantity?: number;

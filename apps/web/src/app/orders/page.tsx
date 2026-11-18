@@ -525,7 +525,15 @@ export default function OrderListPage() {
 
   const totalPoints = useMemo(() => {
     return visibleOrders.reduce((sum, o) => {
-      return ['PAID', 'COMPLETED', 'PREPARING', 'READY'].includes(o.status)
+      return o.status === 'COMPLETED'
+        ? sum + Math.floor((o.finalAmount ?? o.totalAmount) / 1000)
+        : sum;
+    }, 0);
+  }, [visibleOrders]);
+
+  const pendingPoints = useMemo(() => {
+    return visibleOrders.reduce((sum, o) => {
+      return ['PAID', 'PREPARING', 'READY'].includes(o.status)
         ? sum + Math.floor((o.finalAmount ?? o.totalAmount) / 1000)
         : sum;
     }, 0);
@@ -656,7 +664,9 @@ export default function OrderListPage() {
             <span className={`${styles.statValue} ${styles.statValueAccent}`}>
               +{totalPoints}
             </span>
-            <span className={styles.statLabel}>Hạt Vàng</span>
+            <span className={styles.statLabel}>
+              {pendingPoints > 0 ? `Hạt Vàng (+${pendingPoints} dự kiến)` : 'Hạt Vàng'}
+            </span>
           </div>
         </div>
       </section>

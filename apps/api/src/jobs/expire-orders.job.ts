@@ -13,11 +13,11 @@ export class ExpireOrdersJob {
   async handleExpiredOrders(): Promise<void> {
     try {
       const count = await expirePendingOrders(this.prisma, this.logger, {
-        timeoutMinutes: 15,
+        timeoutMinutes: 5,
       });
       if (count > 0) {
         this.logger.log(
-          `Expired ${count} pending order(s) older than 15 minutes and restored BOM stock.`,
+          `Expired ${count} pending order(s) older than 5 minutes and restored BOM stock.`,
         );
       }
     } catch (err) {

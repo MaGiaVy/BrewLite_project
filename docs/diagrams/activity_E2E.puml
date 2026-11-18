@@ -26,7 +26,7 @@ start
 
 |Khách hàng|
 if (\n    Chọn món?    \n) then (Chi tiết)
-  :Mở trang /products/[id]\nchọn Size / kiểu Bánh,\nNhiệt độ, Đường, Đá, Topping;
+  :Mở trang /products/[id]\nchọn Size (S/M/L; bánh bakery dùng ALL),\nNhiệt độ, Đường, Đá, Topping;
 else (Nhanh)
   :Nhấn (+) chọn Size mặc định;
 endif
@@ -42,7 +42,7 @@ if (\n    Đã có JWT?    \n) then (Chưa)
   :Chuyển /auth/login?redirect=%2Fcheckout;
   stop
 else (Có)
-  :Mở /checkout (UI đếm 5p,\nTTL backend 15 phút);
+  :Mở /checkout\n(TTL thống nhất UI & Backend: 5 phút / 300s);
 endif
 
 |Khách hàng|
@@ -55,7 +55,7 @@ endif
 :Check JWT, Idempotency-Key,\nUser FOR UPDATE (< 5 đơn chờ),\ncheck Recipe bắt buộc (400 nếu thiếu),\ntính giá 0% VAT & check/trừ Voucher\n(mã công khai 1 lần/userId);
 
 |PostgreSQL|
-:Tính BOM (Recipe+Topping+Bao bì)\nTrừ kho Optimistic Lock\n(version+1, tối đa 3 lần thử)\n& ghi InventoryLog (SALE);
+:Tính BOM (Recipe+Topping+Bao bì)\nTrừ kho Optimistic Lock\n(version+1, tối đa 3 lần thử: 1 chính + 2 retry)\n& ghi InventoryLog (SALE);
 
 if (\n    Đủ kho?    \n) then (Lỗi 400/409)
   :Rollback Transaction;
@@ -66,14 +66,22 @@ if (\n    Đủ kho?    \n) then (Lỗi 400/409)
   stop
 else (Đủ)
   |PostgreSQL|
-  :Tạo Order PENDING\n(hoặc PAID nếu 0đ)\nTTL 15 phút;
+  :Tạo Order PENDING\n(hoặc PAID nếu 0đ)\nTTL 5 phút (300s);
 endif
 
 |Web Next.js|
 if (\n    Phương thức?    \n) then (ZaloPay)
-  :Phase 2: POST /payments/zalopay/create\n-> chuyển /gateway/zalopay;
-  |ZaloPay / Mock|
-  :Xử lý Sandbox & gửi IPN\nPOST /payments/zalopay/callback\n(HMAC Key2) hoặc query status;
+  :Phase 2: POST /payments/zalopay/create\n-> chuyển /gateway/zalopay (QR 5p);
+  if (\n    Hành động QR?    \n) then (Hủy đơn)
+    |NestJS API|
+    :Hủy đơn & Hoàn kho\nPATCH /orders/:id/status\n(PENDING -> CANCELLED);
+    |PostgreSQL|
+    :Order -> CANCELLED,\nhoàn kho BOM & Voucher;
+    stop
+  else (Thanh toán)
+    |ZaloPay / Mock|
+    :Xác nhận Sandbox (POST /payments/zalopay/confirm)\nhoặc gửi IPN POST /payments/zalopay/callback (HMAC Key2);
+  endif
 else (Mock)
   |Web Next.js|
   :Phase 2: Gửi POST /payments\nkèm Idempotency-Key;
@@ -87,16 +95,16 @@ if (\n      Thanh toán      \n      thành công?      \n) then (Có)
   :CAS Order -> PAID\n& tạo Payment (SUCCESS);
   |Web Next.js|
   :Xóa giỏ & mở /orders/:id\nPolling GET /orders/:id mỗi 5s\n(thanh tiến trình 3 bước);
-else (Thất bại)
+else (Thất bại - Mock)
   |PostgreSQL|
-  :Order -> PAYMENT_FAILED\n(giữ kho BOM 15p để thử lại);
+  :Order -> PAYMENT_FAILED\n(giữ kho BOM 5p để thử lại);
   |Web Next.js|
   if (\n    Hành động?    \n  ) then (Thử lại)
     :Thanh toán lại\n(PAYMENT_FAILED -> PENDING);
     stop
-  else (Hủy / Quá 15p)
+  else (Hủy / Quá 5p)
     |NestJS API|
-    :Hủy đơn (PATCH /status hoặc\nDELETE chủ đơn/ADMIN)\nhoặc ExpireOrdersJob (sau 15p TTL);
+    :Hủy đơn (PATCH /orders/:id/status hoặc\nDELETE chủ đơn/ADMIN)\nhoặc ExpireOrdersJob (sau 5p TTL);
     |PostgreSQL|
     :Order -> CANCELLED,\nhoàn kho BOM & Voucher;
     stop

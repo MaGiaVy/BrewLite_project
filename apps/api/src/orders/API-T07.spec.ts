@@ -44,7 +44,7 @@ describe('API-T07 — order state machine & RBAC', () => {
     expect(updateMany).toHaveBeenCalled();
   });
 
-  it('allows owner PAYMENT_FAILED -> PENDING for a payment retry within 15m', async () => {
+  it('allows owner PAYMENT_FAILED -> PENDING for a payment retry within 5m', async () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
     const prisma: any = {
       order: {
@@ -67,7 +67,9 @@ describe('API-T07 — order state machine & RBAC', () => {
     expect(result.status).toBe(OrderStatus.PENDING);
   });
 
-  it('allows direct PAYMENT_FAILED -> PAID transition in state machine helper', () => {
-    expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PAID)).not.toThrow();
+  it('blocks direct PAYMENT_FAILED -> PAID transition and requires PAYMENT_FAILED -> PENDING -> PAID', () => {
+    expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PAID)).toThrow(BadRequestException);
+    expect(() => assertTransition(OrderStatus.PAYMENT_FAILED, OrderStatus.PENDING)).not.toThrow();
+    expect(() => assertTransition(OrderStatus.PENDING, OrderStatus.PAID)).not.toThrow();
   });
 });

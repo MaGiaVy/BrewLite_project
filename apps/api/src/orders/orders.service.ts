@@ -18,7 +18,7 @@ import { normalizeIdempotencyKey } from '../common/helpers/idempotency-key.helpe
 export type { RequiredIngredientItem };
 
 const POINTS_PER_VND = 1000;
-const ORDER_PAYMENT_TTL_MS = 15 * 60 * 1000; // SRS v4.3 AC-05.4: 15 minutes
+const ORDER_PAYMENT_TTL_MS = 5 * 60 * 1000; // 5 minutes (300s)
 const MAX_INGREDIENT_LOCK_RETRIES = 3;
 
 @Injectable()
@@ -28,7 +28,7 @@ export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async cancelExpiredPendingOrders(): Promise<number> {
-    return expirePendingOrders(this.prisma, this.logger, { timeoutMinutes: 15 });
+    return expirePendingOrders(this.prisma, this.logger, { timeoutMinutes: 5 });
   }
 
   private computeRequiredIngredients = computeRequiredIngredients;
@@ -616,7 +616,7 @@ export class OrdersService {
    * GET /orders — Danh sách toàn bộ đơn hàng cho trang Admin (/admin)
    */
   async getAllOrdersForAdmin() {
-    await expirePendingOrders(this.prisma, this.logger, { timeoutMinutes: 15 }).catch(() => 0);
+    await expirePendingOrders(this.prisma, this.logger, { timeoutMinutes: 5 }).catch(() => 0);
 
     return this.prisma.order.findMany({
       include: {
@@ -639,7 +639,7 @@ export class OrdersService {
   async getMyOrders(userId: number) {
     await expirePendingOrders(this.prisma, this.logger, {
       userId,
-      timeoutMinutes: 15,
+      timeoutMinutes: 5,
     }).catch(() => 0);
 
     const orders = await this.prisma.order.findMany({
@@ -860,7 +860,7 @@ export class OrdersService {
 
     assertTransition(previousStatus, nextStatus);
 
-    // Retry thanh toán (PAYMENT_FAILED -> PENDING): kiểm tra TTL 15 phút
+    // Retry thanh toán (PAYMENT_FAILED -> PENDING): kiểm tra TTL 5 phút
     if (
       previousStatus === OrderStatus.PAYMENT_FAILED &&
       nextStatus === OrderStatus.PENDING
@@ -884,12 +884,12 @@ export class OrdersService {
           if (casResult.count > 0) {
             await refundOrderResources(tx, order, {
               performedBy: userId ? `User #${userId}` : 'Hệ thống (Auto-Expire)',
-              notePrefix: 'Hoàn kho do đơn hàng quá hạn 15 phút khi thử lại',
+              notePrefix: 'Hoàn kho do đơn hàng quá hạn 5 phút khi thử lại',
             });
           }
         });
         throw new BadRequestException(
-          'Đơn hàng đã quá hạn thanh toán (15 phút) và đã được tự động hủy.',
+          'Đơn hàng đã quá hạn thanh toán (5 phút) và đã được tự động hủy.',
         );
       }
 
@@ -1097,7 +1097,7 @@ export class OrdersService {
   async getOrderById(orderId: number, userId: number, userRole?: Role) {
     await expirePendingOrders(this.prisma, this.logger, {
       orderId,
-      timeoutMinutes: 15,
+      timeoutMinutes: 5,
     }).catch(() => 0);
 
     const order = await this.prisma.order.findUnique({

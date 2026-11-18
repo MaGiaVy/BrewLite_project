@@ -18,9 +18,9 @@ Nhóm quyết định thiết kế mô hình **Cổng thanh toán kép (Dual Pay
 2. Điều khiển kết quả của `MockGatewayService` qua biến môi trường `MOCK_PAYMENT_MODE` (cùng tùy chọn `simulateFailure` trong body):
    * `success`: Luôn trả về giao dịch thành công (mặc định cho Happy Path và kiểm thử tự động).
    * `failure`: Luôn trả về trạng thái `PAYMENT_FAILED` với HTTP `201 { success: false }` (dùng để kiểm thử xử lý lỗi, giữ nguyên tồn kho tạm giữ và thử lại thanh toán).
-3. Kiểm soát an toàn trên môi trường Production:
+3. Kiểm soát an toàn (Default-Deny) qua cờ môi trường:
    * Endpoint `POST /payments` bị chặn với mã `403 Forbidden` khi `NODE_ENV=production` và `ALLOW_MOCK_PAYMENT=false`.
-   * Các endpoint mô phỏng xác nhận/hủy ZaloPay (`/payments/zalopay/confirm`, `/cancel`) yêu cầu `ALLOW_SANDBOX_CONFIRM=true` trong môi trường Production.
+   * Các endpoint mô phỏng xác nhận/hủy ZaloPay (`/payments/zalopay/confirm`, `/cancel`) bị chặn `403 Forbidden` mặc định trên **mọi môi trường** (dev, test, staging, production) khi `ALLOW_SANDBOX_CONFIRM !== 'true'`.
 
 ## 3. Hệ quả (Consequences)
 
